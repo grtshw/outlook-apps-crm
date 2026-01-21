@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+crm
+
+# PocketBase data
+pb_data/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test output
+coverage/
