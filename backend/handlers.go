@@ -55,6 +55,305 @@ func handlePublicOrganisations(re *core.RequestEvent, app *pocketbase.PocketBase
 	return utils.DataResponse(re, map[string]any{"items": items})
 }
 
+// --- External API Handlers (for Presentations self-registration) ---
+
+// handleExternalContactCreate creates a contact from an external service (Presentations)
+// Auth: Service token via X-Service-Token header
+func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	// Validate service token
+	serviceToken := os.Getenv("PRESENTATIONS_SERVICE_TOKEN")
+	if serviceToken == "" {
+		return utils.InternalErrorResponse(re, "External contact creation not configured")
+	}
+
+	providedToken := re.Request.Header.Get("X-Service-Token")
+	if providedToken == "" || providedToken != serviceToken {
+		return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid service token"})
+	}
+
+	var input map[string]any
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	// Validate required fields
+	email, _ := input["email"].(string)
+	name, _ := input["name"].(string)
+	if email == "" {
+		return utils.BadRequestResponse(re, "Email is required")
+	}
+	if name == "" {
+		return utils.BadRequestResponse(re, "Name is required")
+	}
+
+	// Normalize email
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	// Check for existing contact by email
+	existing, _ := app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": email})
+	if len(existing) > 0 {
+		// Return existing contact instead of error
+		return utils.DataResponse(re, map[string]any{
+			"id":       existing[0].Id,
+			"email":    existing[0].GetString("email"),
+			"name":     existing[0].GetString("name"),
+			"existing": true,
+		})
+	}
+
+	collection, err := app.FindCollectionByNameOrId(utils.CollectionContacts)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to find contacts collection")
+	}
+
+	record := core.NewRecord(collection)
+
+	// Set fields
+	record.Set("email", email)
+	record.Set("name", name)
+	record.Set("source", "presentations") // Always mark source
+	record.Set("status", "active")
+
+	// Optional fields
+	if v, ok := input["phone"].(string); ok {
+		record.Set("phone", v)
+	}
+	if v, ok := input["pronouns"].(string); ok {
+		record.Set("pronouns", v)
+	}
+	if v, ok := input["bio"].(string); ok {
+		record.Set("bio", v)
+	}
+	if v, ok := input["job_title"].(string); ok {
+		record.Set("job_title", v)
+	}
+	if v, ok := input["linkedin"].(string); ok {
+		record.Set("linkedin", v)
+	}
+	if v, ok := input["instagram"].(string); ok {
+		record.Set("instagram", v)
+	}
+	if v, ok := input["website"].(string); ok {
+		record.Set("website", v)
+	}
+	if v, ok := input["location"].(string); ok {
+		record.Set("location", v)
+	}
+	if v, ok := input["organisation"].(string); ok {
+		record.Set("organisation", v)
+	}
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[ExternalContactCreate] Failed to save: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to create contact")
+	}
+
+	log.Printf("[ExternalContactCreate] Created contact: id=%s email=%s", record.Id, email)
+
+	// Webhook fires automatically via PocketBase hooks
+	return re.JSON(http.StatusCreated, map[string]any{
+		"id":       record.Id,
+		"email":    record.GetString("email"),
+		"name":     record.GetString("name"),
+		"existing": false,
+	})
+}
+
+// handleExternalContactUpdate updates a contact from an external service (Presentations)
+// Auth: Service token via X-Service-Token header
+func handleExternalContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	// Validate service token
+	serviceToken := os.Getenv("PRESENTATIONS_SERVICE_TOKEN")
+	if serviceToken == "" {
+		return utils.InternalErrorResponse(re, "External contact update not configured")
+	}
+
+	providedToken := re.Request.Header.Get("X-Service-Token")
+	if providedToken == "" || providedToken != serviceToken {
+		return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid service token"})
+	}
+
+	id := re.Request.PathValue("id")
+	if id == "" {
+		return utils.BadRequestResponse(re, "Contact ID required")
+	}
+
+	record, err := app.FindRecordById(utils.CollectionContacts, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Contact not found")
+	}
+
+	var input map[string]any
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	// Allowed fields for external update
+	allowedFields := []string{
+		"name", "phone", "pronouns", "bio", "job_title",
+		"linkedin", "instagram", "website", "location",
+	}
+
+	for _, field := range allowedFields {
+		if val, ok := input[field]; ok {
+			record.Set(field, val)
+		}
+	}
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[ExternalContactUpdate] Failed to save: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to update contact")
+	}
+
+	log.Printf("[ExternalContactUpdate] Updated contact: id=%s", record.Id)
+
+	// Webhook fires automatically via PocketBase hooks
+	return utils.DataResponse(re, map[string]any{
+		"id":      record.Id,
+		"email":   record.GetString("email"),
+		"name":    record.GetString("name"),
+		"updated": true,
+	})
+}
+
+// handleExternalOrganisationCreate creates an organisation from an external service (Presentations)
+// Auth: Service token via X-Service-Token header
+func handleExternalOrganisationCreate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	// Validate service token
+	serviceToken := os.Getenv("PRESENTATIONS_SERVICE_TOKEN")
+	if serviceToken == "" {
+		return utils.InternalErrorResponse(re, "External organisation creation not configured")
+	}
+
+	providedToken := re.Request.Header.Get("X-Service-Token")
+	if providedToken == "" || providedToken != serviceToken {
+		return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid service token"})
+	}
+
+	var input map[string]any
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	// Validate required fields
+	name, _ := input["name"].(string)
+	if name == "" {
+		return utils.BadRequestResponse(re, "Name is required")
+	}
+
+	// Check for existing organisation by name
+	existing, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "name = {:name}", "", 1, 0, map[string]any{"name": name})
+	if len(existing) > 0 {
+		// Return existing organisation instead of error
+		return utils.DataResponse(re, map[string]any{
+			"id":       existing[0].Id,
+			"name":     existing[0].GetString("name"),
+			"existing": true,
+		})
+	}
+
+	collection, err := app.FindCollectionByNameOrId(utils.CollectionOrganisations)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to find organisations collection")
+	}
+
+	record := core.NewRecord(collection)
+
+	// Set fields
+	record.Set("name", name)
+	record.Set("status", "active")
+
+	// Optional fields
+	if v, ok := input["website"].(string); ok {
+		record.Set("website", v)
+	}
+	if v, ok := input["linkedin"].(string); ok {
+		record.Set("linkedin", v)
+	}
+	if v, ok := input["description_short"].(string); ok {
+		record.Set("description_short", v)
+	}
+	if v, ok := input["description_medium"].(string); ok {
+		record.Set("description_medium", v)
+	}
+	if v, ok := input["description_long"].(string); ok {
+		record.Set("description_long", v)
+	}
+	if v, ok := input["contacts"]; ok {
+		record.Set("contacts", v)
+	}
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[ExternalOrgCreate] Failed to save: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to create organisation")
+	}
+
+	log.Printf("[ExternalOrgCreate] Created organisation: id=%s, name=%s", record.Id, name)
+
+	// Webhook fires automatically via PocketBase hooks
+	return re.JSON(http.StatusCreated, map[string]any{
+		"id":   record.Id,
+		"name": record.GetString("name"),
+	})
+}
+
+// handleExternalOrganisationUpdate updates an organisation from an external service (Presentations)
+// Auth: Service token via X-Service-Token header
+func handleExternalOrganisationUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	// Validate service token
+	serviceToken := os.Getenv("PRESENTATIONS_SERVICE_TOKEN")
+	if serviceToken == "" {
+		return utils.InternalErrorResponse(re, "External organisation update not configured")
+	}
+
+	providedToken := re.Request.Header.Get("X-Service-Token")
+	if providedToken == "" || providedToken != serviceToken {
+		return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid service token"})
+	}
+
+	id := re.Request.PathValue("id")
+	if id == "" {
+		return utils.BadRequestResponse(re, "Organisation ID required")
+	}
+
+	record, err := app.FindRecordById(utils.CollectionOrganisations, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Organisation not found")
+	}
+
+	var input map[string]any
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	// Allowed fields for external update
+	allowedFields := []string{
+		"name", "website", "linkedin",
+		"description_short", "description_medium", "description_long",
+		"contacts",
+	}
+
+	for _, field := range allowedFields {
+		if val, ok := input[field]; ok {
+			record.Set(field, val)
+		}
+	}
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[ExternalOrgUpdate] Failed to save: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to update organisation")
+	}
+
+	log.Printf("[ExternalOrgUpdate] Updated organisation: id=%s", record.Id)
+
+	// Webhook fires automatically via PocketBase hooks
+	return utils.DataResponse(re, map[string]any{
+		"id":      record.Id,
+		"name":    record.GetString("name"),
+		"updated": true,
+	})
+}
+
 // --- Dashboard Handlers ---
 
 // handleDashboardStats returns dashboard statistics

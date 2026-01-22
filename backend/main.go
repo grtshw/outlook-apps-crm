@@ -73,6 +73,22 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handlePublicOrganisations(re, app)
 	})
 
+	// External API (service-to-service with token auth)
+	// Used by Presentations for self-registration and profile updates
+	e.Router.POST("/api/external/contacts", func(re *core.RequestEvent) error {
+		return handleExternalContactCreate(re, app)
+	})
+	e.Router.PATCH("/api/external/contacts/{id}", func(re *core.RequestEvent) error {
+		return handleExternalContactUpdate(re, app)
+	})
+	// Used by Presentations for organisation management
+	e.Router.POST("/api/external/organisations", func(re *core.RequestEvent) error {
+		return handleExternalOrganisationCreate(re, app)
+	})
+	e.Router.PATCH("/api/external/organisations/{id}", func(re *core.RequestEvent) error {
+		return handleExternalOrganisationUpdate(re, app)
+	})
+
 	// Protected routes (require auth)
 	// Dashboard stats
 	e.Router.GET("/api/dashboard/stats", func(re *core.RequestEvent) error {
