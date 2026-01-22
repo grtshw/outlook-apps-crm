@@ -203,8 +203,48 @@ async function loadOrganisations(): Promise<void> {
 
     state.organisations = result.items;
     state.totalItems = result.totalItems;
+
+    // Fetch logo URLs from DAM in background (batch of 10 concurrent requests)
+    fetchLogoUrlsInBackground();
   } catch (error) {
     showToast('Failed to load organisations', 'error');
+  }
+}
+
+/**
+ * Fetch logo URLs from DAM for all organisations in batches
+ * Updates the grid progressively as URLs are fetched
+ */
+async function fetchLogoUrlsInBackground(): Promise<void> {
+  const BATCH_SIZE = 10;
+  const orgs = state.organisations;
+
+  for (let i = 0; i < orgs.length; i += BATCH_SIZE) {
+    const batch = orgs.slice(i, i + BATCH_SIZE);
+    const promises = batch.map(async (org) => {
+      // Skip if already has logo URLs
+      if (org.logo_square_url || org.logo_standard_url || org.logo_inverted_url) {
+        return;
+      }
+
+      // Use Presentations org ID for DAM lookup (DAM stores orgs by Presentations ID)
+      const presentationsId = org.source_ids?.presentations;
+      if (!presentationsId) {
+        return;
+      }
+
+      const logoUrls = await damApi.getOrganisationLogoUrls(presentationsId);
+      if (logoUrls) {
+        org.logo_square_url = logoUrls.square || undefined;
+        org.logo_standard_url = logoUrls.standard || undefined;
+        org.logo_inverted_url = logoUrls.inverted || undefined;
+      }
+    });
+
+    await Promise.all(promises);
+
+    // Update grid after each batch
+    renderGrid();
   }
 }
 
@@ -635,13 +675,6 @@ async function showEditDrawer(org: Organisation): Promise<void> {
         collapsible: false,
       })}
       ${renderDrawerSection({
-        id: 'descriptions',
-        title: 'Descriptions',
-        content: descriptionsContent,
-        collapsible: true,
-        collapsed: false,
-      })}
-      ${renderDrawerSection({
         id: 'logos',
         title: 'Logos',
         content: renderLogoVariantsContent(),
@@ -658,8 +691,15 @@ async function showEditDrawer(org: Organisation): Promise<void> {
         badge: currentContacts.length > 0 ? currentContacts.length : undefined,
       })}
       ${renderDrawerSection({
+        id: 'descriptions',
+        title: 'Descriptions',
+        content: descriptionsContent,
+        collapsible: true,
+        collapsed: true,
+      })}
+      ${renderDrawerSection({
         id: 'source',
-        title: 'Source',
+        title: 'Created/updated',
         content: sourceContent,
         collapsible: true,
         collapsed: true,
