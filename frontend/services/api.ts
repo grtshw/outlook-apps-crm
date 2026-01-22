@@ -1,7 +1,7 @@
 import PocketBase, { RecordModel } from 'pocketbase';
 
 // Initialize PocketBase client
-const pb = new PocketBase(import.meta.env.VITE_POCKETBASE_URL || 'http://127.0.0.1:8090');
+const pb = new PocketBase('/');
 
 // Types
 export interface User extends RecordModel {
@@ -59,6 +59,7 @@ export interface Organisation extends RecordModel {
   tags?: string[];
   status: 'active' | 'archived';
   source?: string;
+  source_ids?: { presentations?: string; awards?: string; events?: string };
 }
 
 export interface Activity extends RecordModel {

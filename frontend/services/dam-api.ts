@@ -5,7 +5,9 @@
  * Uses HMAC-signed requests for cross-app authentication.
  */
 
-const DAM_URL = import.meta.env.VITE_DAM_URL || 'http://localhost:8091';
+const DAM_URL = import.meta.env.VITE_DAM_URL || (
+  window.location.hostname === 'localhost' ? 'http://localhost:8091' : 'https://outlook-apps-dam.fly.dev'
+);
 
 export interface AvatarUrls {
   thumb: string | null;

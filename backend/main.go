@@ -17,7 +17,7 @@ func main() {
 
 	// Register migrations
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
-		Automigrate: true,
+		Automigrate: false, // Disabled for local testing with prod DB
 	})
 
 	// OnServe hook - runs when the server starts

@@ -10,6 +10,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ type Config struct {
 	CRMURL           string
 	CRMEmail         string
 	CRMPassword      string
+	UpdateExisting   bool
 }
 
 // Importer handles the organisation migration
@@ -64,6 +66,7 @@ type Importer struct {
 // ImportResult tracks the import statistics
 type ImportResult struct {
 	Created     int
+	Updated     int
 	Skipped     int
 	Errors      []string
 	LogosCopied int
@@ -71,13 +74,31 @@ type ImportResult struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "logos" {
+		// Pass remaining args to logo import
+		runLogoImport(os.Args[2:])
+		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "contacts" {
+		// Pass remaining args to organisation contacts import
+		runContactsImport(os.Args[2:])
+		return
+	}
+
 	presURL := flag.String("presentations-url", "http://localhost:8091", "Presentations API URL")
 	crmURL := flag.String("crm-url", "http://localhost:8090", "CRM API URL")
 	crmEmail := flag.String("crm-email", "", "CRM admin email (required)")
 	crmPassword := flag.String("crm-password", "", "CRM admin password (required)")
+	updateExisting := flag.Bool("update-existing", false, "Update existing organisations with logos and source_ids")
 	flag.Parse()
 
 	if *crmEmail == "" || *crmPassword == "" {
+		fmt.Println("Usage:")
+		fmt.Println("  organisations-import [flags]              - Import orgs from Presentations")
+		fmt.Println("  organisations-import logos [flags]        - Import logos from Drupal")
+		fmt.Println("  organisations-import contacts [flags]     - Import organisation contacts from Drupal")
+		fmt.Println("")
 		log.Fatal("CRM credentials required: -crm-email and -crm-password")
 	}
 
@@ -85,6 +106,7 @@ func main() {
 		PresentationsURL: *presURL,
 		CRMURL:           *crmURL,
 		CRMEmail:         *crmEmail,
+		UpdateExisting:   *updateExisting,
 		CRMPassword:      *crmPassword,
 	}
 
@@ -100,6 +122,7 @@ func main() {
 
 	fmt.Println("\n=== Import Complete ===")
 	fmt.Printf("Created: %d\n", result.Created)
+	fmt.Printf("Updated: %d\n", result.Updated)
 	fmt.Printf("Skipped: %d (already exist)\n", result.Skipped)
 	fmt.Printf("Logos copied: %d\n", result.LogosCopied)
 	fmt.Printf("Logos failed: %d\n", result.LogosFailed)
@@ -174,7 +197,8 @@ func (i *Importer) authenticateCRM() error {
 
 // fetchOrganisations gets all organisations from Presentations projections API
 func (i *Importer) fetchOrganisations() ([]Organisation, error) {
-	apiURL := fmt.Sprintf("%s/api/projections/organisations", i.config.PresentationsURL)
+	// include_logos=true to get logo URLs for downloading
+	apiURL := fmt.Sprintf("%s/api/projections/organisations?include_logos=true", i.config.PresentationsURL)
 
 	resp, err := i.client.Get(apiURL)
 	if err != nil {
@@ -195,20 +219,26 @@ func (i *Importer) fetchOrganisations() ([]Organisation, error) {
 	return projResp.Items, nil
 }
 
-// importOrganisation creates a single organisation in CRM
+// importOrganisation creates or updates a single organisation in CRM
 func (i *Importer) importOrganisation(org Organisation, result *ImportResult) error {
 	// Check if already exists by name
-	exists, err := i.organisationExists(org.Name)
+	existingID, err := i.findOrganisationByName(org.Name)
 	if err != nil {
 		return fmt.Errorf("existence check failed: %w", err)
 	}
-	if exists {
+
+	isUpdate := existingID != ""
+	if isUpdate && !i.config.UpdateExisting {
 		log.Printf("  Skipping %s (already exists)", org.Name)
 		result.Skipped++
 		return nil
 	}
 
-	log.Printf("  Importing %s...", org.Name)
+	if isUpdate {
+		log.Printf("  Updating %s...", org.Name)
+	} else {
+		log.Printf("  Importing %s...", org.Name)
+	}
 
 	// Create multipart form
 	var buf bytes.Buffer
@@ -218,6 +248,10 @@ func (i *Importer) importOrganisation(org Organisation, result *ImportResult) er
 	writer.WriteField("name", org.Name)
 	writer.WriteField("status", "active")
 	writer.WriteField("source", "presentations")
+
+	// Store Presentations ID in source_ids for cross-app lookups (e.g., DAM logos)
+	sourceIds, _ := json.Marshal(map[string]string{"presentations": org.ID})
+	writer.WriteField("source_ids", string(sourceIds))
 
 	// Download and add logo files from URLs
 	for _, logo := range org.LogoURLs {
@@ -260,8 +294,18 @@ func (i *Importer) importOrganisation(org Organisation, result *ImportResult) er
 
 	writer.Close()
 
-	// Create record in CRM
-	req, err := http.NewRequest("POST", i.config.CRMURL+"/api/collections/organisations/records", &buf)
+	// Create or update record in CRM
+	var apiURL string
+	var method string
+	if isUpdate {
+		apiURL = fmt.Sprintf("%s/api/collections/organisations/records/%s", i.config.CRMURL, existingID)
+		method = "PATCH"
+	} else {
+		apiURL = i.config.CRMURL + "/api/collections/organisations/records"
+		method = "POST"
+	}
+
+	req, err := http.NewRequest(method, apiURL, &buf)
 	if err != nil {
 		return err
 	}
@@ -276,15 +320,19 @@ func (i *Importer) importOrganisation(org Organisation, result *ImportResult) er
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("create failed: %d - %s", resp.StatusCode, string(body))
+		return fmt.Errorf("operation failed: %d - %s", resp.StatusCode, string(body))
 	}
 
-	result.Created++
+	if isUpdate {
+		result.Updated++
+	} else {
+		result.Created++
+	}
 	return nil
 }
 
-// organisationExists checks if an organisation with the given name exists in CRM
-func (i *Importer) organisationExists(name string) (bool, error) {
+// findOrganisationByName checks if an organisation exists and returns its ID (empty if not found)
+func (i *Importer) findOrganisationByName(name string) (string, error) {
 	// URL encode the filter
 	filter := fmt.Sprintf(`name="%s"`, strings.ReplaceAll(name, `"`, `\"`))
 	apiURL := fmt.Sprintf("%s/api/collections/organisations/records?filter=%s&perPage=1",
@@ -292,26 +340,34 @@ func (i *Importer) organisationExists(name string) (bool, error) {
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	req.Header.Set("Authorization", i.crmToken)
 
 	resp, err := i.client.Do(req)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("check failed: %d", resp.StatusCode)
+		return "", fmt.Errorf("check failed: %d", resp.StatusCode)
 	}
 
-	var listResp ListResponse
+	var listResp struct {
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
+		TotalItems int `json:"totalItems"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
-		return false, err
+		return "", err
 	}
 
-	return listResp.TotalItems > 0, nil
+	if listResp.TotalItems > 0 && len(listResp.Items) > 0 {
+		return listResp.Items[0].ID, nil
+	}
+	return "", nil
 }
 
 // downloadFromURL downloads a file from a URL and returns the data and filename

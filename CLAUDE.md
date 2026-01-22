@@ -254,6 +254,69 @@ See `../BACKUP-RECOVERY.md` for full recovery procedures. Quick option:
 1. Go to https://crm.theoutlook.io/_/
 2. Settings > Backups > Upload backup > Restore
 
+## Drupal/Presentations Import
+
+Standalone import tools in `backend/import/organisations/` for migrating data into CRM.
+
+### Import organisations from Presentations
+
+Fetches organisations from Presentations projections API and creates/updates them in CRM:
+
+```bash
+go run ./backend/import/organisations \
+  -presentations-url http://localhost:8091 \
+  -crm-url http://localhost:8090 \
+  -crm-email admin@example.com \
+  -crm-password yourpassword \
+  -update-existing  # optional: update existing orgs with logos/source_ids
+```
+
+### Import logos from Drupal
+
+Fetches logos from Drupal's export API and matches them to existing CRM organisations by name:
+
+```bash
+go run ./backend/import/organisations logos \
+  -drupal-url https://the-outlook.ddev.site \
+  -drupal-token YOUR_DRUPAL_TOKEN \
+  -crm-url http://localhost:8090 \
+  -crm-email admin@example.com \
+  -crm-password yourpassword
+```
+
+### Import organisation contacts from Drupal
+
+Fetches organisation contacts (sponsor contacts) from Drupal and saves them to the organisation's `contacts` JSON field:
+
+```bash
+go run ./backend/import/organisations contacts \
+  -drupal-url https://the-outlook.ddev.site \
+  -drupal-token YOUR_DRUPAL_TOKEN \
+  -crm-url http://localhost:8090 \
+  -crm-email admin@example.com \
+  -crm-password yourpassword
+```
+
+**Drupal field mappings (logos):**
+| Drupal field | CRM field |
+|--------------|-----------|
+| `field_organisation_logo` (image) | `logo_square` |
+| `field_organisation_logo_svg` (media ref) | `logo_standard` |
+| `field_partner_logo` (image) | `logo_inverted` |
+
+**Drupal field mappings (org contacts):**
+| Drupal field | CRM field |
+|--------------|-----------|
+| `field_contacts[].title` | `contacts[].name` |
+| `field_contacts[].uri` | `contacts[].linkedin` |
+| `field_contacts[].email` | `contacts[].email` |
+
+**Notes:**
+- Drupal export API endpoint: `/api/export/organizations?token=...`
+- Organisations are matched by exact name
+- Logos are downloaded and re-uploaded to CRM (not linked)
+- Organisation contacts are stored in the `contacts` JSON field on organisations (not the core `contacts` collection)
+
 ## Page Cleanup Lifecycle
 
 Pages that add event listeners to `document` or `window` MUST register cleanup:

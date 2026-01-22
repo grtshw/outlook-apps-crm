@@ -227,7 +227,7 @@ func createContactsCollection(app core.App) error {
 		Id:        "cont_roles",
 		Name:      "roles",
 		Required:  false,
-		MaxSelect: 10,
+		MaxSelect: 7,
 		Values:    []string{"presenter", "speaker", "sponsor", "judge", "attendee", "staff", "volunteer"},
 	})
 

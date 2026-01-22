@@ -573,52 +573,69 @@ async function showEditDrawer(org: Organisation): Promise<void> {
   `;
 
   // Section: Logo variants
+  const renderLogoBox = (type: 'square' | 'standard' | 'inverted', url: string | undefined) => {
+    const bgClass = type === 'inverted' ? 'bg-gray-800' : 'bg-gray-100';
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+
+    if (url) {
+      return `
+        <div class="flex flex-col">
+          <span class="text-xs text-gray-500 mb-1">${label}</span>
+          <div id="logo-${type}-container" class="relative aspect-square ${bgClass} rounded-lg overflow-hidden flex items-center justify-center group">
+            <img src="${escapeHtml(url)}" alt="${label} logo" class="max-w-full max-h-full object-contain p-2" />
+            ${isAdmin ? `
+              <button type="button" class="delete-logo-btn absolute bottom-1 right-1 w-6 h-6 bg-white/90 hover:bg-white rounded-full flex items-center justify-center text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" data-type="logo_${type}">
+                ${icon('x-lg', { class: 'w-3 h-3' })}
+              </button>
+            ` : ''}
+            <div class="logo-progress absolute inset-0 bg-white/80 hidden items-center justify-center">
+              <div class="w-3/4">
+                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="logo-progress-bar h-full bg-brand-green transition-all duration-150" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (isAdmin) {
+      return `
+        <div class="flex flex-col">
+          <span class="text-xs text-gray-500 mb-1">${label}</span>
+          <div id="logo-${type}-container" class="relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors logo-dropzone" data-type="logo_${type}">
+            ${icon('cloud-arrow-up', { class: 'w-6 h-6 text-gray-400 mb-1' })}
+            <span class="text-xs text-gray-500">Drop or click</span>
+            <div class="logo-progress absolute inset-0 bg-white/80 rounded-lg hidden items-center justify-center">
+              <div class="w-3/4">
+                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="logo-progress-bar h-full bg-brand-green transition-all duration-150" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="flex flex-col">
+        <span class="text-xs text-gray-500 mb-1">${label}</span>
+        <div class="aspect-square ${bgClass} rounded-lg flex items-center justify-center">
+          <span class="text-xs text-gray-400">No logo</span>
+        </div>
+      </div>
+    `;
+  };
+
   const renderLogoVariantsContent = () => `
-    <div class="space-y-4">
-      <div>
-        <label class="block text-sm text-gray-700 mb-2">Square</label>
-        <div id="logo-square-container" class="flex items-center gap-3">
-          ${org.logo_square_url ? `
-            <div class="w-16 h-16 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
-              <img src="${escapeHtml(org.logo_square_url)}" alt="" class="max-w-full max-h-full object-contain" />
-            </div>
-            ${isAdmin ? `<button type="button" class="delete-logo-btn btn btn-sm btn-secondary text-red-600" data-type="logo_square">Remove</button>` : ''}
-          ` : isAdmin ? `
-            <button type="button" class="upload-logo-btn btn btn-sm btn-secondary" data-type="logo_square">Upload Square</button>
-            <span class="text-xs text-gray-500">PNG, JPG or SVG</span>
-          ` : `<span class="text-xs text-gray-500">No square logo</span>`}
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm text-gray-700 mb-2">Standard</label>
-        <div id="logo-standard-container" class="flex items-center gap-3">
-          ${org.logo_standard_url ? `
-            <div class="w-16 h-16 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
-              <img src="${escapeHtml(org.logo_standard_url)}" alt="" class="max-w-full max-h-full object-contain" />
-            </div>
-            ${isAdmin ? `<button type="button" class="delete-logo-btn btn btn-sm btn-secondary text-red-600" data-type="logo_standard">Remove</button>` : ''}
-          ` : isAdmin ? `
-            <button type="button" class="upload-logo-btn btn btn-sm btn-secondary" data-type="logo_standard">Upload Standard</button>
-            <span class="text-xs text-gray-500">PNG, JPG or SVG</span>
-          ` : `<span class="text-xs text-gray-500">No standard logo</span>`}
-        </div>
-      </div>
-      <div>
-        <label class="block text-sm text-gray-700 mb-2">Inverted</label>
-        <div id="logo-inverted-container" class="flex items-center gap-3">
-          ${org.logo_inverted_url ? `
-            <div class="w-16 h-16 rounded bg-gray-800 overflow-hidden flex items-center justify-center">
-              <img src="${escapeHtml(org.logo_inverted_url)}" alt="" class="max-w-full max-h-full object-contain" />
-            </div>
-            ${isAdmin ? `<button type="button" class="delete-logo-btn btn btn-sm btn-secondary text-red-600" data-type="logo_inverted">Remove</button>` : ''}
-          ` : isAdmin ? `
-            <button type="button" class="upload-logo-btn btn btn-sm btn-secondary" data-type="logo_inverted">Upload Inverted</button>
-            <span class="text-xs text-gray-500">PNG, JPG or SVG</span>
-          ` : `<span class="text-xs text-gray-500">No inverted logo</span>`}
-        </div>
-      </div>
-      <input type="file" id="logo-file-input" accept="image/*,.svg" class="hidden" />
+    <div class="grid grid-cols-3 gap-3">
+      ${renderLogoBox('square', org.logo_square_url)}
+      ${renderLogoBox('standard', org.logo_standard_url)}
+      ${renderLogoBox('inverted', org.logo_inverted_url)}
     </div>
+    <input type="file" id="logo-file-input" accept="image/*,.svg" class="hidden" />
   `;
 
   // Section: Contacts
@@ -823,101 +840,178 @@ async function showEditDrawer(org: Organisation): Promise<void> {
       let currentLogoType: string | null = null;
       const fileInput = panel.querySelector('#logo-file-input') as HTMLInputElement;
 
-      panel.querySelectorAll('.upload-logo-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          currentLogoType = (btn as HTMLElement).dataset.type || null;
-          fileInput?.click();
-        });
-      });
+      // Helper to render a logo box after upload/delete
+      const renderUpdatedLogoBox = (type: 'square' | 'standard' | 'inverted', url: string | null) => {
+        const bgClass = type === 'inverted' ? 'bg-gray-800' : 'bg-gray-100';
+        const label = type.charAt(0).toUpperCase() + type.slice(1);
 
-      panel.querySelectorAll('.delete-logo-btn').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const logoType = (btn as HTMLElement).dataset.type;
-          if (!logoType) return;
+        if (url) {
+          return `
+            <img src="${escapeHtml(url)}" alt="${label} logo" class="max-w-full max-h-full object-contain p-2" />
+            <button type="button" class="delete-logo-btn absolute bottom-1 right-1 w-6 h-6 bg-white/90 hover:bg-white rounded-full flex items-center justify-center text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" data-type="logo_${type}">
+              ${icon('x-lg', { class: 'w-3 h-3' })}
+            </button>
+            <div class="logo-progress absolute inset-0 bg-white/80 hidden items-center justify-center">
+              <div class="w-3/4">
+                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="logo-progress-bar h-full bg-brand-green transition-all duration-150" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
 
-          try {
-            // Delete logo via DAM API with HMAC token
-            const typeValue = logoType.replace('logo_', ''); // square, standard, inverted
-            await damApi.deleteOrganisationLogo(org.id, typeValue, getLogoUploadToken);
+        return `
+          ${icon('cloud-arrow-up', { class: 'w-6 h-6 text-gray-400 mb-1' })}
+          <span class="text-xs text-gray-500">Drop or click</span>
+          <div class="logo-progress absolute inset-0 bg-white/80 rounded-lg hidden items-center justify-center">
+            <div class="w-3/4">
+              <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div class="logo-progress-bar h-full bg-brand-green transition-all duration-150" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      };
 
-            // Update local org state
-            (org as Record<string, unknown>)[logoType] = null;
-            (org as Record<string, unknown>)[`${logoType}_url`] = null;
-            // Re-render just this section
-            const container = panel.querySelector(`#logo-${typeValue}-container`);
-            if (container) {
-              container.innerHTML = `
-                <button type="button" class="upload-logo-btn btn btn-sm btn-secondary" data-type="${logoType}">Upload ${typeValue.charAt(0).toUpperCase() + typeValue.slice(1)}</button>
-                <span class="text-xs text-gray-500">PNG, JPG or SVG</span>
-              `;
-              // Re-attach handler
-              container.querySelector('.upload-logo-btn')?.addEventListener('click', () => {
-                currentLogoType = logoType;
-                fileInput?.click();
-              });
-            }
-            showToast('Logo removed', 'success');
-          } catch (err) {
-            showToast('Failed to remove logo', 'error');
-          }
-        });
-      });
+      // Helper to show/update progress
+      const showProgress = (container: Element, percent: number) => {
+        const progressEl = container.querySelector('.logo-progress') as HTMLElement;
+        const barEl = container.querySelector('.logo-progress-bar') as HTMLElement;
+        if (progressEl && barEl) {
+          progressEl.classList.remove('hidden');
+          progressEl.classList.add('flex');
+          barEl.style.width = `${percent}%`;
+        }
+      };
 
-      fileInput?.addEventListener('change', async () => {
-        const file = fileInput.files?.[0];
-        if (!file || !currentLogoType) return;
+      const hideProgress = (container: Element) => {
+        const progressEl = container.querySelector('.logo-progress') as HTMLElement;
+        if (progressEl) {
+          progressEl.classList.add('hidden');
+          progressEl.classList.remove('flex');
+        }
+      };
+
+      // Upload handler
+      const handleUpload = async (file: File, logoType: string) => {
+        const type = logoType.replace('logo_', '') as 'square' | 'standard' | 'inverted';
+        const container = panel.querySelector(`#logo-${type}-container`);
+        if (!container) return;
 
         try {
-          // Upload via DAM API with HMAC token
-          const logoType = currentLogoType.replace('logo_', ''); // square, standard, inverted
-          const logoUrls = await damApi.uploadOrganisationLogo(org.id, logoType, file, getLogoUploadToken);
+          showProgress(container, 10);
 
-          // Update local org state with returned URLs
-          const logoUrlKey = `logo_${logoType}_url`;
-          (org as Record<string, unknown>)[currentLogoType] = 'dam'; // Mark as stored in DAM
-          (org as Record<string, unknown>)[logoUrlKey] = logoUrls[logoType as keyof typeof logoUrls];
+          // Simulate progress during upload
+          let progress = 10;
+          const progressInterval = setInterval(() => {
+            progress = Math.min(progress + 10, 90);
+            showProgress(container, progress);
+          }, 100);
 
-          // Re-render just this section
-          const container = panel.querySelector(`#logo-${logoType}-container`);
-          const newUrl = logoUrls[logoType as keyof typeof logoUrls];
-          if (container && newUrl) {
-            const bgClass = logoType === 'inverted' ? 'bg-gray-800' : 'bg-gray-100';
-            container.innerHTML = `
-              <div class="w-16 h-16 rounded ${bgClass} overflow-hidden flex items-center justify-center">
-                <img src="${escapeHtml(newUrl)}" alt="" class="max-w-full max-h-full object-contain" />
-              </div>
-              <button type="button" class="delete-logo-btn btn btn-sm btn-secondary text-red-600" data-type="${currentLogoType}">Remove</button>
-            `;
-            // Re-attach delete handler
-            const savedLogoType = currentLogoType;
-            container.querySelector('.delete-logo-btn')?.addEventListener('click', async () => {
-              try {
-                await damApi.deleteOrganisationLogo(org.id, logoType, getLogoUploadToken);
+          const logoUrls = await damApi.uploadOrganisationLogo(org.id, type, file, getLogoUploadToken);
 
-                (org as Record<string, unknown>)[savedLogoType] = null;
-                (org as Record<string, unknown>)[`${savedLogoType}_url`] = null;
-                container.innerHTML = `
-                  <button type="button" class="upload-logo-btn btn btn-sm btn-secondary" data-type="${savedLogoType}">Upload ${logoType.charAt(0).toUpperCase() + logoType.slice(1)}</button>
-                  <span class="text-xs text-gray-500">PNG, JPG or SVG</span>
-                `;
-                container.querySelector('.upload-logo-btn')?.addEventListener('click', () => {
-                  currentLogoType = savedLogoType;
-                  fileInput?.click();
-                });
-                showToast('Logo removed', 'success');
-              } catch (err) {
-                showToast('Failed to remove logo', 'error');
-              }
-            });
-          }
+          clearInterval(progressInterval);
+          showProgress(container, 100);
 
+          // Update local org state
+          const logoUrlKey = `logo_${type}_url`;
+          (org as Record<string, unknown>)[logoType] = 'dam';
+          (org as Record<string, unknown>)[logoUrlKey] = logoUrls[type as keyof typeof logoUrls];
+
+          // Update container
+          const newUrl = logoUrls[type as keyof typeof logoUrls];
+          const bgClass = type === 'inverted' ? 'bg-gray-800' : 'bg-gray-100';
+          container.className = `relative aspect-square ${bgClass} rounded-lg overflow-hidden flex items-center justify-center group`;
+          container.innerHTML = renderUpdatedLogoBox(type, newUrl || null);
+
+          // Re-attach handlers
+          attachLogoHandlers();
+          hideProgress(container);
           showToast('Logo uploaded', 'success');
-          fileInput.value = '';
         } catch (err) {
+          hideProgress(container);
           showToast('Failed to upload logo', 'error');
           console.error(err);
         }
+      };
+
+      // Delete handler
+      const handleDelete = async (logoType: string) => {
+        const type = logoType.replace('logo_', '') as 'square' | 'standard' | 'inverted';
+        const container = panel.querySelector(`#logo-${type}-container`);
+        if (!container) return;
+
+        try {
+          await damApi.deleteOrganisationLogo(org.id, type, getLogoUploadToken);
+
+          // Update local org state
+          (org as Record<string, unknown>)[logoType] = null;
+          (org as Record<string, unknown>)[`${logoType}_url`] = null;
+
+          // Update container to dropzone
+          container.className = 'relative aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 hover:bg-gray-50 transition-colors logo-dropzone';
+          container.setAttribute('data-type', logoType);
+          container.innerHTML = renderUpdatedLogoBox(type, null);
+
+          // Re-attach handlers
+          attachLogoHandlers();
+          showToast('Logo removed', 'success');
+        } catch (err) {
+          showToast('Failed to remove logo', 'error');
+        }
+      };
+
+      // Attach all logo handlers
+      const attachLogoHandlers = () => {
+        // Click on dropzone to upload
+        panel.querySelectorAll('.logo-dropzone').forEach((dropzone) => {
+          dropzone.addEventListener('click', () => {
+            currentLogoType = (dropzone as HTMLElement).dataset.type || null;
+            fileInput?.click();
+          });
+
+          // Drag and drop
+          dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            (dropzone as HTMLElement).classList.add('border-brand-green', 'bg-green-50');
+          });
+
+          dropzone.addEventListener('dragleave', () => {
+            (dropzone as HTMLElement).classList.remove('border-brand-green', 'bg-green-50');
+          });
+
+          dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            (dropzone as HTMLElement).classList.remove('border-brand-green', 'bg-green-50');
+            const file = (e as DragEvent).dataTransfer?.files[0];
+            const logoType = (dropzone as HTMLElement).dataset.type;
+            if (file && logoType) {
+              handleUpload(file, logoType);
+            }
+          });
+        });
+
+        // Delete buttons
+        panel.querySelectorAll('.delete-logo-btn').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const logoType = (btn as HTMLElement).dataset.type;
+            if (logoType) handleDelete(logoType);
+          });
+        });
+      };
+
+      // File input change handler
+      fileInput?.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file || !currentLogoType) return;
+        await handleUpload(file, currentLogoType);
+        fileInput.value = '';
       });
+
+      // Initial attachment
+      attachLogoHandlers();
     }
 
     // Contacts handling (only for admin)
