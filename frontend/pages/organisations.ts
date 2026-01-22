@@ -842,7 +842,6 @@ async function showEditDrawer(org: Organisation): Promise<void> {
 
       // Helper to render a logo box after upload/delete
       const renderUpdatedLogoBox = (type: 'square' | 'standard' | 'inverted', url: string | null) => {
-        const bgClass = type === 'inverted' ? 'bg-gray-800' : 'bg-gray-100';
         const label = type.charAt(0).toUpperCase() + type.slice(1);
 
         if (url) {
