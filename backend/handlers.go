@@ -490,8 +490,6 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		items[i] = buildContactResponse(r, app, baseURL, orgsMap)
 	}
 
-	totalPages := (totalItems + perPage - 1) / perPage
-
 	return utils.DataResponse(re, map[string]any{
 		"items":      items,
 		"page":       page,
@@ -883,8 +881,6 @@ func handleOrganisationsList(re *core.RequestEvent, app *pocketbase.PocketBase) 
 		items[i] = buildOrganisationResponse(r, baseURL)
 	}
 
-	totalPages := (totalItems + perPage - 1) / perPage
-
 	return utils.DataResponse(re, map[string]any{
 		"items":      items,
 		"page":       page,
@@ -1181,8 +1177,6 @@ func handleActivitiesList(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	for i, r := range records {
 		items[i] = buildActivityResponse(r)
 	}
-
-	totalPages := (totalItems + perPage - 1) / perPage
 
 	return utils.DataResponse(re, map[string]any{
 		"items":      items,
