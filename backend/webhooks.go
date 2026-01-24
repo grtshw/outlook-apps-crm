@@ -58,6 +58,56 @@ func getWebhookConfig() WebhookConfig {
 
 const maxWebhookRetries = 3
 
+// buildOrganisationsMapFromContacts pre-fetches organisations for a list of contacts
+// This eliminates N+1 queries when building webhook payloads
+func buildOrganisationsMapFromContacts(records []*core.Record, app *pocketbase.PocketBase) map[string]*core.Record {
+	// Collect unique organisation IDs
+	orgIDsSet := make(map[string]bool)
+	for _, r := range records {
+		if orgID := r.GetString("organisation"); orgID != "" {
+			orgIDsSet[orgID] = true
+		}
+	}
+
+	// Convert set to slice
+	orgIDs := make([]string, 0, len(orgIDsSet))
+	for orgID := range orgIDsSet {
+		orgIDs = append(orgIDs, orgID)
+	}
+
+	// Build map
+	orgsMap := make(map[string]*core.Record)
+	if len(orgIDs) == 0 {
+		return orgsMap
+	}
+
+	// Fetch all organisations in one query using IN clause
+	filter := "id IN {:ids}"
+	params := map[string]any{"ids": orgIDs}
+
+	orgs, err := app.FindRecordsByFilter(
+		utils.CollectionOrganisations,
+		filter,
+		"",
+		0, 0,
+		params,
+	)
+
+	if err != nil {
+		log.Printf("[BuildOrgsMap] Failed to fetch organisations: %v", err)
+		return orgsMap
+	}
+
+	// Populate map
+	for _, org := range orgs {
+		orgsMap[org.Id] = org
+	}
+
+	log.Printf("[BuildOrgsMap] Pre-fetched %d organisations for %d contacts (webhooks)", len(orgsMap), len(records))
+
+	return orgsMap
+}
+
 // sendWebhookToURL sends a webhook to a specific URL with given secret and retry logic
 func sendWebhookToURL(payload WebhookPayload, url, secret, destination string) error {
 	if url == "" {
@@ -195,7 +245,7 @@ func sendGenericWebhookToURL(payload any, url, secret, destination string) error
 
 // buildDAMContactPayload builds the payload for DAM's presenter-projection endpoint
 // DAM expects contacts as "presenters" with presenter_id field
-func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) WebhookPayload {
+func buildDAMContactPayload(r *core.Record, baseURL, action string, orgsMap map[string]*core.Record) WebhookPayload {
 	data := map[string]any{
 		"id":          r.Id, // DAM maps this to presenter_id
 		"email":       r.GetString("email"),
@@ -218,10 +268,9 @@ func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL,
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
-	// Organisation relation
+	// Organisation relation - use map lookup to avoid N+1 query
 	if orgID := r.GetString("organisation"); orgID != "" {
-		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
-		if err == nil {
+		if org, exists := orgsMap[orgID]; exists {
 			data["organisation_id"] = org.Id
 			data["organisation_name"] = org.GetString("name")
 		}
@@ -267,12 +316,12 @@ func buildDAMOrganisationPayload(r *core.Record, baseURL, action string) DAMOrga
 }
 
 // sendContactToDAM sends a contact to DAM's presenter-projection endpoint
-func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, config WebhookConfig) {
+func sendContactToDAM(r *core.Record, baseURL, action string, orgsMap map[string]*core.Record, config WebhookConfig) {
 	if config.DAMContactWebhookURL == "" {
 		return
 	}
 
-	payload := buildDAMContactPayload(r, app, baseURL, action)
+	payload := buildDAMContactPayload(r, baseURL, action, orgsMap)
 	go sendGenericWebhookToURL(payload, config.DAMContactWebhookURL, config.DAMSecret, "DAM-Contact")
 }
 
@@ -301,7 +350,7 @@ func sendWebhookToAllConsumers(payload WebhookPayload, config WebhookConfig) {
 }
 
 // buildContactWebhookPayload builds the webhook payload for a contact
-func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
+func buildContactWebhookPayload(r *core.Record, baseURL string, orgsMap map[string]*core.Record) map[string]any {
 	data := map[string]any{
 		"id":          r.Id,
 		"email":       r.GetString("email"),
@@ -324,10 +373,9 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
-	// Organisation relation
+	// Organisation relation - use map lookup to avoid N+1 query
 	if orgID := r.GetString("organisation"); orgID != "" {
-		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
-		if err == nil {
+		if org, exists := orgsMap[orgID]; exists {
 			data["organisation_id"] = org.Id
 			data["organisation_name"] = org.GetString("name")
 		}
@@ -401,37 +449,56 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 			return e.Next()
 		}
 		go func() {
+			// For single record, fetch organisation if needed
+			orgsMap := make(map[string]*core.Record)
+			if orgID := e.Record.GetString("organisation"); orgID != "" {
+				org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+				if err == nil {
+					orgsMap[org.Id] = org
+				}
+			}
+
 			// Send to Presentations/Website (standard format)
 			payload := WebhookPayload{
 				Action:     "upsert",
 				Collection: "contacts",
-				Record:     buildContactWebhookPayload(e.Record, app, baseURL),
+				Record:     buildContactWebhookPayload(e.Record, baseURL, orgsMap),
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
 			sendWebhookToAllConsumers(payload, config)
 
 			// Send to DAM (presenter format)
-			sendContactToDAM(e.Record, app, baseURL, "upsert", config)
+			sendContactToDAM(e.Record, baseURL, "upsert", orgsMap, config)
 		}()
 		return e.Next()
 	})
 
 	app.OnRecordAfterUpdateSuccess(utils.CollectionContacts).BindFunc(func(e *core.RecordEvent) error {
 		go func() {
+			// For single record, fetch organisation if needed
+			orgsMap := make(map[string]*core.Record)
+			if orgID := e.Record.GetString("organisation"); orgID != "" {
+				org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+				if err == nil {
+					orgsMap[org.Id] = org
+				}
+			}
+
 			if shouldProjectContact(e.Record) {
 				// Contact is projectable - send upsert
 				payload := WebhookPayload{
 					Action:     "upsert",
 					Collection: "contacts",
-					Record:     buildContactWebhookPayload(e.Record, app, baseURL),
+					Record:     buildContactWebhookPayload(e.Record, baseURL, orgsMap),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
 				sendWebhookToAllConsumers(payload, config)
 
 				// Send to DAM (presenter format)
-				sendContactToDAM(e.Record, app, baseURL, "upsert", config)
+				sendContactToDAM(e.Record, baseURL, "upsert", orgsMap, config)
 			} else {
-				// Contact was archived - send delete
+				// Contact was archived - send delete (no org data needed)
+				emptyOrgsMap := make(map[string]*core.Record)
 				payload := WebhookPayload{
 					Action:     "delete",
 					Collection: "contacts",
@@ -441,7 +508,7 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				sendWebhookToAllConsumers(payload, config)
 
 				// Send delete to DAM
-				sendContactToDAM(e.Record, app, baseURL, "delete", config)
+				sendContactToDAM(e.Record, baseURL, "delete", emptyOrgsMap, config)
 			}
 		}()
 		return e.Next()
@@ -449,6 +516,9 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 
 	app.OnRecordAfterDeleteSuccess(utils.CollectionContacts).BindFunc(func(e *core.RecordEvent) error {
 		go func() {
+			// For delete, no org data needed
+			emptyOrgsMap := make(map[string]*core.Record)
+
 			payload := WebhookPayload{
 				Action:     "delete",
 				Collection: "contacts",
@@ -458,7 +528,7 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 			sendWebhookToAllConsumers(payload, config)
 
 			// Send delete to DAM
-			sendContactToDAM(e.Record, app, baseURL, "delete", config)
+			sendContactToDAM(e.Record, baseURL, "delete", emptyOrgsMap, config)
 		}()
 		return e.Next()
 	})
@@ -566,19 +636,22 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 	if err != nil {
 		log.Printf("[ProjectAll] Failed to fetch contacts: %v", err)
 	} else {
+		// Pre-fetch all organisations to avoid N+1 queries (CRITICAL for performance)
+		orgsMap := buildOrganisationsMapFromContacts(contacts, app)
+
 		for _, r := range contacts {
 			if shouldProjectContact(r) {
 				// Send to Presentations/Website
 				payload := WebhookPayload{
 					Action:     "upsert",
 					Collection: "contacts",
-					Record:     buildContactWebhookPayload(r, app, baseURL),
+					Record:     buildContactWebhookPayload(r, baseURL, orgsMap),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
 				sendWebhookToAllConsumers(payload, config)
 
 				// Send to DAM (presenter format)
-				sendContactToDAM(r, app, baseURL, "upsert", config)
+				sendContactToDAM(r, baseURL, "upsert", orgsMap, config)
 
 				counts["contacts"]++
 			}

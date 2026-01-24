@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -29,10 +31,13 @@ func handlePublicContacts(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		return utils.DataResponse(re, map[string]any{"items": []any{}})
 	}
 
+	// Pre-fetch all organisations to avoid N+1 queries
+	orgsMap := buildOrganisationsMap(records, app)
+
 	baseURL := getBaseURL()
 	items := make([]map[string]any, len(records))
 	for i, r := range records {
-		items[i] = buildContactProjection(r, app, baseURL)
+		items[i] = buildContactProjection(r, app, baseURL, orgsMap)
 	}
 
 	return utils.DataResponse(re, map[string]any{"items": items})
@@ -358,29 +363,50 @@ func handleExternalOrganisationUpdate(re *core.RequestEvent, app *pocketbase.Poc
 
 // handleDashboardStats returns dashboard statistics
 func handleDashboardStats(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	// Count contacts by status
-	activeContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'active'", "", 0, 0)
-	inactiveContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'inactive'", "", 0, 0)
-	archivedContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'archived'", "", 0, 0)
+	// Fetch all contacts once and count by status in-memory
+	// This is more efficient than 3 separate queries
+	allContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "", "", 0, 0)
+	activeContactsCount := 0
+	inactiveContactsCount := 0
+	archivedContactsCount := 0
+	for _, c := range allContacts {
+		switch c.GetString("status") {
+		case "active":
+			activeContactsCount++
+		case "inactive":
+			inactiveContactsCount++
+		case "archived":
+			archivedContactsCount++
+		}
+	}
 
-	// Count organisations by status
-	activeOrgs, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "status = 'active'", "", 0, 0)
-	archivedOrgs, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "status = 'archived'", "", 0, 0)
+	// Fetch all organisations once and count by status in-memory
+	allOrgs, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "", "", 0, 0)
+	activeOrgsCount := 0
+	archivedOrgsCount := 0
+	for _, o := range allOrgs {
+		switch o.GetString("status") {
+		case "active":
+			activeOrgsCount++
+		case "archived":
+			archivedOrgsCount++
+		}
+	}
 
 	// Count recent activities (last 30 days)
 	recentActivities, _ := app.FindRecordsByFilter(utils.CollectionActivities, "created >= @todayStart - 2592000", "-created", 100, 0)
 
 	return utils.DataResponse(re, map[string]any{
 		"contacts": map[string]int{
-			"active":   len(activeContacts),
-			"inactive": len(inactiveContacts),
-			"archived": len(archivedContacts),
-			"total":    len(activeContacts) + len(inactiveContacts) + len(archivedContacts),
+			"active":   activeContactsCount,
+			"inactive": inactiveContactsCount,
+			"archived": archivedContactsCount,
+			"total":    activeContactsCount + inactiveContactsCount + archivedContactsCount,
 		},
 		"organisations": map[string]int{
-			"active":   len(activeOrgs),
-			"archived": len(archivedOrgs),
-			"total":    len(activeOrgs) + len(archivedOrgs),
+			"active":   activeOrgsCount,
+			"archived": archivedOrgsCount,
+			"total":    activeOrgsCount + archivedOrgsCount,
 		},
 		"recent_activities": len(recentActivities),
 	})
@@ -425,13 +451,10 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"search": search,
 	}
 
-	// Get total count
-	allRecords, _ := app.FindRecordsByFilter(utils.CollectionContacts, filter, "", 0, 0, params)
-	totalItems := len(allRecords)
-
-	// Get paginated records
+	// Fetch one extra record to detect if there are more pages
+	// This avoids the expensive full table scan for counting
 	offset := (page - 1) * perPage
-	records, err := app.FindRecordsByFilter(utils.CollectionContacts, filter, sort, perPage, offset, params)
+	records, err := app.FindRecordsByFilter(utils.CollectionContacts, filter, sort, perPage+1, offset, params)
 	if err != nil {
 		return utils.DataResponse(re, map[string]any{
 			"items":      []any{},
@@ -442,10 +465,29 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		})
 	}
 
+	// Check if there are more pages
+	hasMore := len(records) > perPage
+	if hasMore {
+		records = records[:perPage] // Trim to requested size
+	}
+
+	// Calculate totalItems and totalPages based on what we know
+	totalItems := offset + len(records)
+	if hasMore {
+		totalItems++ // At least one more item exists
+	}
+	totalPages := page
+	if hasMore {
+		totalPages++ // At least one more page exists
+	}
+
+	// Pre-fetch all organisations to avoid N+1 queries
+	orgsMap := buildOrganisationsMap(records, app)
+
 	baseURL := getBaseURL()
 	items := make([]map[string]any, len(records))
 	for i, r := range records {
-		items[i] = buildContactResponse(r, app, baseURL)
+		items[i] = buildContactResponse(r, app, baseURL, orgsMap)
 	}
 
 	totalPages := (totalItems + perPage - 1) / perPage
@@ -471,8 +513,17 @@ func handleContactGet(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 		return utils.NotFoundResponse(re, "Contact not found")
 	}
 
+	// For single record, fetch organisation if needed
+	orgsMap := make(map[string]*core.Record)
+	if orgID := record.GetString("organisation"); orgID != "" {
+		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+		if err == nil {
+			orgsMap[org.Id] = org
+		}
+	}
+
 	baseURL := getBaseURL()
-	return utils.DataResponse(re, buildContactResponse(record, app, baseURL))
+	return utils.DataResponse(re, buildContactResponse(record, app, baseURL, orgsMap))
 }
 
 // handleContactCreate creates a new contact
@@ -554,8 +605,17 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 		return utils.InternalErrorResponse(re, "Failed to create contact")
 	}
 
+	// For single record, fetch organisation if needed
+	orgsMap := make(map[string]*core.Record)
+	if orgID := record.GetString("organisation"); orgID != "" {
+		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+		if err == nil {
+			orgsMap[org.Id] = org
+		}
+	}
+
 	baseURL := getBaseURL()
-	return re.JSON(http.StatusCreated, buildContactResponse(record, app, baseURL))
+	return re.JSON(http.StatusCreated, buildContactResponse(record, app, baseURL, orgsMap))
 }
 
 // handleContactUpdate updates an existing contact
@@ -627,8 +687,17 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 		return utils.InternalErrorResponse(re, "Failed to update contact")
 	}
 
+	// For single record, fetch organisation if needed
+	orgsMap := make(map[string]*core.Record)
+	if orgID := record.GetString("organisation"); orgID != "" {
+		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+		if err == nil {
+			orgsMap[org.Id] = org
+		}
+	}
+
 	baseURL := getBaseURL()
-	return utils.DataResponse(re, buildContactResponse(record, app, baseURL))
+	return utils.DataResponse(re, buildContactResponse(record, app, baseURL, orgsMap))
 }
 
 // handleContactDelete deletes a contact
@@ -699,8 +768,17 @@ func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase
 		return utils.InternalErrorResponse(re, "Failed to save avatar")
 	}
 
+	// For single record, fetch organisation if needed
+	orgsMap := make(map[string]*core.Record)
+	if orgID := record.GetString("organisation"); orgID != "" {
+		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
+		if err == nil {
+			orgsMap[org.Id] = org
+		}
+	}
+
 	baseURL := getBaseURL()
-	return utils.DataResponse(re, buildContactResponse(record, app, baseURL))
+	return utils.DataResponse(re, buildContactResponse(record, app, baseURL, orgsMap))
 }
 
 // handleContactActivities returns activities for a contact
@@ -769,13 +847,10 @@ func handleOrganisationsList(re *core.RequestEvent, app *pocketbase.PocketBase) 
 		"search": search,
 	}
 
-	// Get total count
-	allRecords, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, filter, "", 0, 0, params)
-	totalItems := len(allRecords)
-
-	// Get paginated records
+	// Fetch one extra record to detect if there are more pages
+	// This avoids the expensive full table scan for counting
 	offset := (page - 1) * perPage
-	records, err := app.FindRecordsByFilter(utils.CollectionOrganisations, filter, sort, perPage, offset, params)
+	records, err := app.FindRecordsByFilter(utils.CollectionOrganisations, filter, sort, perPage+1, offset, params)
 	if err != nil {
 		return utils.DataResponse(re, map[string]any{
 			"items":      []any{},
@@ -784,6 +859,22 @@ func handleOrganisationsList(re *core.RequestEvent, app *pocketbase.PocketBase) 
 			"totalItems": 0,
 			"totalPages": 0,
 		})
+	}
+
+	// Check if there are more pages
+	hasMore := len(records) > perPage
+	if hasMore {
+		records = records[:perPage] // Trim to requested size
+	}
+
+	// Calculate totalItems and totalPages based on what we know
+	totalItems := offset + len(records)
+	if hasMore {
+		totalItems++ // At least one more item exists
+	}
+	totalPages := page
+	if hasMore {
+		totalPages++ // At least one more page exists
 	}
 
 	baseURL := getBaseURL()
@@ -1056,13 +1147,10 @@ func handleActivitiesList(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		"activityType": activityType,
 	}
 
-	// Get total count
-	allRecords, _ := app.FindRecordsByFilter(utils.CollectionActivities, filter, "", 0, 0, params)
-	totalItems := len(allRecords)
-
-	// Get paginated records
+	// Fetch one extra record to detect if there are more pages
+	// This avoids the expensive full table scan for counting
 	offset := (page - 1) * perPage
-	records, err := app.FindRecordsByFilter(utils.CollectionActivities, filter, "-occurred_at", perPage, offset, params)
+	records, err := app.FindRecordsByFilter(utils.CollectionActivities, filter, "-occurred_at", perPage+1, offset, params)
 	if err != nil {
 		return utils.DataResponse(re, map[string]any{
 			"items":      []any{},
@@ -1071,6 +1159,22 @@ func handleActivitiesList(re *core.RequestEvent, app *pocketbase.PocketBase) err
 			"totalItems": 0,
 			"totalPages": 0,
 		})
+	}
+
+	// Check if there are more pages
+	hasMore := len(records) > perPage
+	if hasMore {
+		records = records[:perPage] // Trim to requested size
+	}
+
+	// Calculate totalItems and totalPages based on what we know
+	totalItems := offset + len(records)
+	if hasMore {
+		totalItems++ // At least one more item exists
+	}
+	totalPages := page
+	if hasMore {
+		totalPages++ // At least one more page exists
 	}
 
 	items := make([]map[string]any, len(records))
@@ -1091,12 +1195,42 @@ func handleActivitiesList(re *core.RequestEvent, app *pocketbase.PocketBase) err
 
 // handleActivityWebhook receives activity data from other apps
 func handleActivityWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	// Validate HMAC signature
 	secret := os.Getenv("ACTIVITY_WEBHOOK_SECRET")
+
+	// Read body for HMAC validation
+	bodyBytes, err := io.ReadAll(re.Request.Body)
+	if err != nil {
+		log.Printf("[ActivityWebhook] Failed to read body from %s: %v", re.RealIP(), err)
+		return utils.BadRequestResponse(re, "Failed to read request body")
+	}
+
+	// Restore body for JSON decoding later
+	re.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Validate HMAC signature if secret is configured
 	if secret != "" {
-		signature := re.Request.Header.Get("X-Webhook-Signature")
-		// TODO: Implement HMAC validation
-		_ = signature
+		providedSig := re.Request.Header.Get("X-Webhook-Signature")
+		if providedSig == "" {
+			log.Printf("[ActivityWebhook] Missing signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Missing X-Webhook-Signature header",
+			})
+		}
+
+		// Compute expected signature
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(bodyBytes)
+		expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+		// Constant-time comparison to prevent timing attacks
+		if !hmac.Equal([]byte(providedSig), []byte(expectedSig)) {
+			log.Printf("[ActivityWebhook] Invalid signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Invalid webhook signature",
+			})
+		}
+
+		log.Printf("[ActivityWebhook] Valid signature from %s", re.RealIP())
 	}
 
 	var payload struct {
@@ -1112,6 +1246,7 @@ func handleActivityWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	}
 
 	if err := json.NewDecoder(re.Request.Body).Decode(&payload); err != nil {
+		log.Printf("[ActivityWebhook] Invalid JSON from %s: %v", re.RealIP(), err)
 		return utils.BadRequestResponse(re, "Invalid request body")
 	}
 
@@ -1166,8 +1301,58 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 // --- Response Builders ---
 
+// buildOrganisationsMap pre-fetches organisations for a list of contacts
+// This eliminates N+1 queries when building contact responses
+func buildOrganisationsMap(records []*core.Record, app *pocketbase.PocketBase) map[string]*core.Record {
+	// Collect unique organisation IDs
+	orgIDsSet := make(map[string]bool)
+	for _, r := range records {
+		if orgID := r.GetString("organisation"); orgID != "" {
+			orgIDsSet[orgID] = true
+		}
+	}
+
+	// Convert set to slice
+	orgIDs := make([]string, 0, len(orgIDsSet))
+	for orgID := range orgIDsSet {
+		orgIDs = append(orgIDs, orgID)
+	}
+
+	// Build map
+	orgsMap := make(map[string]*core.Record)
+	if len(orgIDs) == 0 {
+		return orgsMap
+	}
+
+	// Fetch all organisations in one query using IN clause
+	filter := "id IN {:ids}"
+	params := map[string]any{"ids": orgIDs}
+
+	orgs, err := app.FindRecordsByFilter(
+		utils.CollectionOrganisations,
+		filter,
+		"",
+		0, 0,
+		params,
+	)
+
+	if err != nil {
+		log.Printf("[BuildOrgsMap] Failed to fetch organisations: %v", err)
+		return orgsMap
+	}
+
+	// Populate map
+	for _, org := range orgs {
+		orgsMap[org.Id] = org
+	}
+
+	log.Printf("[BuildOrgsMap] Pre-fetched %d organisations for %d contacts", len(orgsMap), len(records))
+
+	return orgsMap
+}
+
 // buildContactResponse builds a contact response object
-func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
+func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL string, orgsMap map[string]*core.Record) map[string]any {
 	data := map[string]any{
 		"id":         r.Id,
 		"email":      r.GetString("email"),
@@ -1193,10 +1378,9 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
-	// Organisation relation
+	// Organisation relation - use map lookup instead of query
 	if orgID := r.GetString("organisation"); orgID != "" {
-		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
-		if err == nil {
+		if org, exists := orgsMap[orgID]; exists {
 			data["organisation_id"] = org.Id
 			data["organisation_name"] = org.GetString("name")
 		}
@@ -1206,7 +1390,7 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 }
 
 // buildContactProjection builds a contact projection for COPE consumers
-func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
+func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL string, orgsMap map[string]*core.Record) map[string]any {
 	data := map[string]any{
 		"id":          r.Id,
 		"email":       r.GetString("email"),
@@ -1230,10 +1414,9 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
-	// Organisation relation
+	// Organisation relation - use map lookup instead of query
 	if orgID := r.GetString("organisation"); orgID != "" {
-		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
-		if err == nil {
+		if org, exists := orgsMap[orgID]; exists {
 			data["organisation_id"] = org.Id
 			data["organisation_name"] = org.GetString("name")
 		}

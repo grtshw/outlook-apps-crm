@@ -82,6 +82,7 @@ interface OrganisationsState {
   totalItems: number;
   searchQuery: string;
   alphabetFilter: AlphabetFilter;
+  lastRenderedOrgIds: string; // Comma-separated IDs of last rendered orgs (for render optimization)
 }
 
 let state: OrganisationsState = {
@@ -89,6 +90,7 @@ let state: OrganisationsState = {
   totalItems: 0,
   searchQuery: '',
   alphabetFilter: 'all',
+  lastRenderedOrgIds: '',
 };
 
 export async function renderOrganisationsPage(): Promise<void> {
@@ -212,40 +214,44 @@ async function loadOrganisations(): Promise<void> {
 }
 
 /**
- * Fetch logo URLs from DAM for all organisations in batches
- * Updates the grid progressively as URLs are fetched
+ * Fetch logo URLs from DAM for all organisations in parallel
+ * Renders the grid once after all logos are fetched
+ * This is much more efficient than sequential batches with repeated renders
  */
 async function fetchLogoUrlsInBackground(): Promise<void> {
-  const BATCH_SIZE = 10;
   const orgs = state.organisations;
 
-  for (let i = 0; i < orgs.length; i += BATCH_SIZE) {
-    const batch = orgs.slice(i, i + BATCH_SIZE);
-    const promises = batch.map(async (org) => {
-      // Skip if already has logo URLs
-      if (org.logo_square_url || org.logo_standard_url || org.logo_inverted_url) {
-        return;
-      }
+  // Fetch all logos in parallel (no sequential batches)
+  const promises = orgs.map(async (org) => {
+    // Skip if already has logo URLs
+    if (org.logo_square_url || org.logo_standard_url || org.logo_inverted_url) {
+      return;
+    }
 
-      // Use Presentations org ID for DAM lookup (DAM stores orgs by Presentations ID)
-      const presentationsId = org.source_ids?.presentations;
-      if (!presentationsId) {
-        return;
-      }
+    // Use Presentations org ID for DAM lookup (DAM stores orgs by Presentations ID)
+    const presentationsId = org.source_ids?.presentations;
+    if (!presentationsId) {
+      return;
+    }
 
+    try {
       const logoUrls = await damApi.getOrganisationLogoUrls(presentationsId);
       if (logoUrls) {
         org.logo_square_url = logoUrls.square || undefined;
         org.logo_standard_url = logoUrls.standard || undefined;
         org.logo_inverted_url = logoUrls.inverted || undefined;
       }
-    });
+    } catch (error) {
+      // Silently fail for individual logo fetches
+      // Logo will show as placeholder
+    }
+  });
 
-    await Promise.all(promises);
+  // Wait for all fetches to complete
+  await Promise.all(promises);
 
-    // Update grid after each batch
-    renderGrid();
-  }
+  // Render grid once with all logos loaded
+  renderGrid();
 }
 
 function getFilteredOrganisations(): Organisation[] {
@@ -295,6 +301,14 @@ function renderGrid(): void {
   if (!container) return;
 
   const filtered = getFilteredOrganisations();
+
+  // Skip render if filtered results haven't changed (optimization)
+  const currentOrgIds = filtered.map(o => o.id).join(',');
+  if (currentOrgIds === state.lastRenderedOrgIds) {
+    return; // No changes, skip expensive re-render
+  }
+  state.lastRenderedOrgIds = currentOrgIds;
+
   const isAdmin = api.isAdmin();
 
   if (filtered.length === 0) {
