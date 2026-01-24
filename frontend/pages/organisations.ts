@@ -112,6 +112,7 @@ export async function renderOrganisationsPage(): Promise<void> {
     totalItems: 0,
     searchQuery: '',
     alphabetFilter: getAlphabetFilterFromUrl(),
+    lastRenderedOrgIds: '',
   };
 
   // Build alphabet filter tabs for header
