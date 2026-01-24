@@ -740,7 +740,7 @@ func handleOrganisationsList(re *core.RequestEvent, app *pocketbase.PocketBase) 
 		page = 1
 	}
 	perPage, _ := strconv.Atoi(re.Request.URL.Query().Get("perPage"))
-	if perPage < 1 || perPage > 100 {
+	if perPage < 1 || perPage > 500 {
 		perPage = 50
 	}
 	search := re.Request.URL.Query().Get("search")

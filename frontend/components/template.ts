@@ -25,6 +25,7 @@ async function handleSearch(query: string, _signal: AbortSignal): Promise<Search
         label: contact.name,
         subtitle: contact.organisation_name || contact.email,
         icon: 'person',
+        thumbnail: contact.avatar_thumb_url || contact.avatar_url,
         href: `/contacts/${contact.id}`,
         category: 'Contacts',
       });
@@ -38,6 +39,7 @@ async function handleSearch(query: string, _signal: AbortSignal): Promise<Search
         label: org.name,
         subtitle: org.website || undefined,
         icon: 'building',
+        thumbnail: org.logo_square_url,
         href: `/organisations/${org.id}`,
         category: 'Organisations',
       });
