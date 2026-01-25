@@ -149,7 +149,7 @@ HUBSPOT_WEBHOOK_SECRET=xxx
 - [Presentations](https://presentations.theoutlook.io) - Call for presenters, session management
 - [DAM](https://dam.theoutlook.io) - Digital asset management
 - [Events](https://events.theoutlook.io) - Event management
-- [Website](https://theoutlook.com.au) - Public website
+- [Website](https://theoutlook.io) - Public website
 
 ## License
 

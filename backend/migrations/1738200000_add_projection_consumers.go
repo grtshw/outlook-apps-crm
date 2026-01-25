@@ -124,7 +124,7 @@ func init() {
 			{
 				Name:        "Website",
 				AppID:       "website",
-				EndpointURL: "https://theoutlook.com.au/api/webhooks/contact-projection",
+				EndpointURL: "https://theoutlook.io/api/webhooks/contact-projection",
 				Icon:        "globe",
 			},
 		}
