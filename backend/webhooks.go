@@ -32,33 +32,187 @@ type DAMOrganisationPayload struct {
 	Timestamp  string         `json:"timestamp"`  // ISO timestamp
 }
 
-// WebhookConfig holds webhook configuration for consumers
-type WebhookConfig struct {
-	PresentationsWebhookURL string
-	PresentationsSecret     string
-	DAMContactWebhookURL    string // DAM endpoint for contacts (as presenters)
-	DAMOrgWebhookURL        string // DAM endpoint for organisations
-	DAMSecret               string
-	WebsiteWebhookURL       string
-	WebsiteSecret           string
+// ProjectionConsumer represents a consumer of CRM projections
+type ProjectionConsumer struct {
+	ID            string
+	Name          string
+	AppID         string
+	EndpointURL   string
+	WebhookSecret string
+	Enabled       bool
 }
 
-// getWebhookConfig returns webhook configuration from environment
-func getWebhookConfig() WebhookConfig {
-	return WebhookConfig{
-		PresentationsWebhookURL: os.Getenv("PRESENTATIONS_WEBHOOK_URL"),
-		PresentationsSecret:     os.Getenv("PROJECTION_WEBHOOK_SECRET"),
-		DAMContactWebhookURL:    os.Getenv("DAM_CONTACT_WEBHOOK_URL"),  // /api/webhooks/presenter-projection
-		DAMOrgWebhookURL:        os.Getenv("DAM_ORG_WEBHOOK_URL"),      // /api/webhooks/organization-projection
-		DAMSecret:               os.Getenv("PROJECTION_WEBHOOK_SECRET"),
-		WebsiteWebhookURL:       os.Getenv("WEBSITE_WEBHOOK_URL"),
-		WebsiteSecret:           os.Getenv("PROJECTION_WEBHOOK_SECRET"),
+// getProjectionConsumers returns all enabled consumers from the database
+// Falls back to environment variables if collection doesn't exist (migration safety)
+func getProjectionConsumers(app *pocketbase.PocketBase) []ProjectionConsumer {
+	consumers := []ProjectionConsumer{}
+
+	// Try to get consumers from database
+	records, err := app.FindAllRecords("projection_consumers")
+	if err != nil {
+		log.Printf("[Webhook] projection_consumers collection not found, falling back to env vars: %v", err)
+		return getConsumersFromEnv()
 	}
+
+	for _, r := range records {
+		if !r.GetBool("enabled") {
+			continue
+		}
+		consumers = append(consumers, ProjectionConsumer{
+			ID:            r.Id,
+			Name:          r.GetString("name"),
+			AppID:         r.GetString("app_id"),
+			EndpointURL:   r.GetString("endpoint_url"),
+			WebhookSecret: r.GetString("webhook_secret"),
+			Enabled:       true,
+		})
+	}
+
+	if len(consumers) == 0 {
+		log.Printf("[Webhook] No enabled consumers in database, falling back to env vars")
+		return getConsumersFromEnv()
+	}
+
+	return consumers
+}
+
+// getConsumersFromEnv returns consumers from environment variables (fallback)
+func getConsumersFromEnv() []ProjectionConsumer {
+	consumers := []ProjectionConsumer{}
+	secret := os.Getenv("PROJECTION_WEBHOOK_SECRET")
+
+	if url := os.Getenv("PRESENTATIONS_WEBHOOK_URL"); url != "" {
+		consumers = append(consumers, ProjectionConsumer{
+			Name:          "Presentations",
+			AppID:         "presentations",
+			EndpointURL:   url,
+			WebhookSecret: secret,
+			Enabled:       true,
+		})
+	}
+
+	if url := os.Getenv("DAM_CONTACT_WEBHOOK_URL"); url != "" {
+		consumers = append(consumers, ProjectionConsumer{
+			Name:          "DAM",
+			AppID:         "dam",
+			EndpointURL:   url,
+			WebhookSecret: secret,
+			Enabled:       true,
+		})
+	}
+
+	if url := os.Getenv("WEBSITE_WEBHOOK_URL"); url != "" {
+		consumers = append(consumers, ProjectionConsumer{
+			Name:          "Website",
+			AppID:         "website",
+			EndpointURL:   url,
+			WebhookSecret: secret,
+			Enabled:       true,
+		})
+	}
+
+	return consumers
+}
+
+// updateConsumerStatus updates the last_consumption, last_status, and last_message for a consumer
+func updateConsumerStatus(app *pocketbase.PocketBase, consumerID, status, message string) {
+	if consumerID == "" {
+		return
+	}
+	record, err := app.FindRecordById("projection_consumers", consumerID)
+	if err != nil {
+		return
+	}
+	record.Set("last_consumption", time.Now().UTC().Format(time.RFC3339))
+	record.Set("last_status", status)
+	record.Set("last_message", message)
+	app.Save(record)
 }
 
 const maxWebhookRetries = 3
 
-// sendWebhookToURL sends a webhook to a specific URL with given secret and retry logic
+// sendWebhookToConsumer sends a webhook to a consumer and updates its status
+func sendWebhookToConsumer(app *pocketbase.PocketBase, payload WebhookPayload, consumer ProjectionConsumer) error {
+	if consumer.EndpointURL == "" {
+		return nil
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		updateConsumerStatus(app, consumer.ID, "error", "Failed to marshal payload: "+err.Error())
+		return err
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	var lastErr error
+
+	for attempt := 1; attempt <= maxWebhookRetries; attempt++ {
+		req, err := http.NewRequest("POST", consumer.EndpointURL, bytes.NewBuffer(jsonData))
+		if err != nil {
+			updateConsumerStatus(app, consumer.ID, "error", "Failed to create request: "+err.Error())
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		// Sign the payload with HMAC-SHA256 if secret is configured
+		if consumer.WebhookSecret != "" {
+			mac := hmac.New(sha256.New, []byte(consumer.WebhookSecret))
+			mac.Write(jsonData)
+			signature := hex.EncodeToString(mac.Sum(nil))
+			req.Header.Set("X-Webhook-Signature", signature)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			log.Printf("[Webhook] Attempt %d/%d failed for %s: %v", attempt, maxWebhookRetries, consumer.Name, err)
+			if attempt < maxWebhookRetries {
+				// Exponential backoff: 1s, 2s, 4s
+				backoff := time.Duration(1<<(attempt-1)) * time.Second
+				time.Sleep(backoff)
+			}
+			continue
+		}
+
+		resp.Body.Close()
+
+		if resp.StatusCode >= 500 {
+			// Server error - retry
+			log.Printf("[Webhook] Attempt %d/%d: %s returned %d (server error)", attempt, maxWebhookRetries, consumer.Name, resp.StatusCode)
+			if attempt < maxWebhookRetries {
+				backoff := time.Duration(1<<(attempt-1)) * time.Second
+				time.Sleep(backoff)
+			}
+			lastErr = err
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			// Client error - don't retry
+			msg := "HTTP " + http.StatusText(resp.StatusCode)
+			log.Printf("[Webhook] %s returned %d (not retrying)", consumer.Name, resp.StatusCode)
+			updateConsumerStatus(app, consumer.ID, "error", msg)
+			return nil
+		}
+
+		// Success
+		log.Printf("[Webhook] Successfully sent %s webhook for %s to %s", payload.Action, payload.Collection, consumer.Name)
+		updateConsumerStatus(app, consumer.ID, "ok", "")
+		return nil
+	}
+
+	// All retries exhausted
+	log.Printf("[Webhook] All %d attempts failed for %s", maxWebhookRetries, consumer.Name)
+	if lastErr != nil {
+		updateConsumerStatus(app, consumer.ID, "error", "All retries failed: "+lastErr.Error())
+	} else {
+		updateConsumerStatus(app, consumer.ID, "error", "All retries failed")
+	}
+	return lastErr
+}
+
+// sendWebhookToURL sends a webhook to a specific URL with given secret and retry logic (legacy)
 func sendWebhookToURL(payload WebhookPayload, url, secret, destination string) error {
 	if url == "" {
 		return nil
@@ -125,6 +279,81 @@ func sendWebhookToURL(payload WebhookPayload, url, secret, destination string) e
 
 	// All retries exhausted
 	log.Printf("[Webhook] All %d attempts failed for %s", maxWebhookRetries, destination)
+	return lastErr
+}
+
+// sendGenericWebhookToConsumer sends any JSON payload to a consumer URL with HMAC signing and status tracking
+func sendGenericWebhookToConsumer(app *pocketbase.PocketBase, payload any, consumerID, url, secret, destination string) error {
+	if url == "" {
+		return nil
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		updateConsumerStatus(app, consumerID, "error", "Failed to marshal payload: "+err.Error())
+		return err
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	var lastErr error
+
+	for attempt := 1; attempt <= maxWebhookRetries; attempt++ {
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		if err != nil {
+			updateConsumerStatus(app, consumerID, "error", "Failed to create request: "+err.Error())
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+
+		// Sign the payload with HMAC-SHA256 if secret is configured
+		if secret != "" {
+			mac := hmac.New(sha256.New, []byte(secret))
+			mac.Write(jsonData)
+			signature := hex.EncodeToString(mac.Sum(nil))
+			req.Header.Set("X-Webhook-Signature", signature)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			log.Printf("[Webhook] Attempt %d/%d failed for %s: %v", attempt, maxWebhookRetries, destination, err)
+			if attempt < maxWebhookRetries {
+				backoff := time.Duration(1<<(attempt-1)) * time.Second
+				time.Sleep(backoff)
+			}
+			continue
+		}
+
+		resp.Body.Close()
+
+		if resp.StatusCode >= 500 {
+			log.Printf("[Webhook] Attempt %d/%d: %s returned %d (server error)", attempt, maxWebhookRetries, destination, resp.StatusCode)
+			if attempt < maxWebhookRetries {
+				backoff := time.Duration(1<<(attempt-1)) * time.Second
+				time.Sleep(backoff)
+			}
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			msg := "HTTP " + http.StatusText(resp.StatusCode)
+			log.Printf("[Webhook] %s returned %d (not retrying)", destination, resp.StatusCode)
+			updateConsumerStatus(app, consumerID, "error", msg)
+			return nil
+		}
+
+		log.Printf("[Webhook] Successfully sent webhook to %s", destination)
+		updateConsumerStatus(app, consumerID, "ok", "")
+		return nil
+	}
+
+	log.Printf("[Webhook] All %d attempts failed for %s", maxWebhookRetries, destination)
+	if lastErr != nil {
+		updateConsumerStatus(app, consumerID, "error", "All retries failed: "+lastErr.Error())
+	} else {
+		updateConsumerStatus(app, consumerID, "error", "All retries failed")
+	}
 	return lastErr
 }
 
@@ -266,37 +495,56 @@ func buildDAMOrganisationPayload(r *core.Record, baseURL, action string) DAMOrga
 	}
 }
 
+// getConsumerByAppID returns a specific consumer by app_id
+func getConsumerByAppID(app *pocketbase.PocketBase, appID string) *ProjectionConsumer {
+	consumers := getProjectionConsumers(app)
+	for _, c := range consumers {
+		if c.AppID == appID {
+			return &c
+		}
+	}
+	return nil
+}
+
 // sendContactToDAM sends a contact to DAM's presenter-projection endpoint
-func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, config WebhookConfig) {
-	if config.DAMContactWebhookURL == "" {
+func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
+	consumer := getConsumerByAppID(app, "dam")
+	if consumer == nil || consumer.EndpointURL == "" {
 		return
 	}
 
+	// DAM uses a different endpoint for contacts (presenters)
+	// Replace the contact-projection endpoint with presenter-projection
+	presenterURL := strings.Replace(consumer.EndpointURL, "/contact-projection", "/presenter-projection", 1)
+
 	payload := buildDAMContactPayload(r, app, baseURL, action)
-	go sendGenericWebhookToURL(payload, config.DAMContactWebhookURL, config.DAMSecret, "DAM-Contact")
+	go sendGenericWebhookToConsumer(app, payload, consumer.ID, presenterURL, consumer.WebhookSecret, "DAM-Contact")
 }
 
 // sendOrganisationToDAM sends an organisation to DAM's organization-projection endpoint
-func sendOrganisationToDAM(r *core.Record, baseURL, action string, config WebhookConfig) {
-	if config.DAMOrgWebhookURL == "" {
+func sendOrganisationToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
+	consumer := getConsumerByAppID(app, "dam")
+	if consumer == nil || consumer.EndpointURL == "" {
 		return
 	}
 
+	// DAM uses a different endpoint for organisations
+	// Replace the contact-projection endpoint with organization-projection
+	orgURL := strings.Replace(consumer.EndpointURL, "/contact-projection", "/organization-projection", 1)
+
 	payload := buildDAMOrganisationPayload(r, baseURL, action)
-	go sendGenericWebhookToURL(payload, config.DAMOrgWebhookURL, config.DAMSecret, "DAM-Org")
+	go sendGenericWebhookToConsumer(app, payload, consumer.ID, orgURL, consumer.WebhookSecret, "DAM-Org")
 }
 
-// sendWebhookToAllConsumers sends a webhook to all configured consumers
-// This is for Presentations and Website which use the standard format
-func sendWebhookToAllConsumers(payload WebhookPayload, config WebhookConfig) {
-	// Send to Presentations (for backward compatibility during migration)
-	if config.PresentationsWebhookURL != "" {
-		go sendWebhookToURL(payload, config.PresentationsWebhookURL, config.PresentationsSecret, "Presentations")
-	}
-
-	// Send to Website
-	if config.WebsiteWebhookURL != "" {
-		go sendWebhookToURL(payload, config.WebsiteWebhookURL, config.WebsiteSecret, "Website")
+// sendWebhookToAllConsumers sends a webhook to all enabled consumers from the database
+func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayload) {
+	consumers := getProjectionConsumers(app)
+	for _, consumer := range consumers {
+		// Skip DAM for standard contact/org webhooks - it uses a different format
+		if consumer.AppID == "dam" {
+			continue
+		}
+		go sendWebhookToConsumer(app, payload, consumer)
 	}
 }
 
@@ -389,7 +637,6 @@ func shouldProjectOrganisation(r *core.Record) bool {
 
 // registerWebhookHooks registers record hooks for webhook notifications
 func registerWebhookHooks(app *pocketbase.PocketBase) {
-	config := getWebhookConfig()
 	baseURL := os.Getenv("PUBLIC_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://crm.theoutlook.io"
@@ -408,10 +655,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				Record:     buildContactWebhookPayload(e.Record, app, baseURL),
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
-			sendWebhookToAllConsumers(payload, config)
+			sendWebhookToAllConsumers(app, payload)
 
 			// Send to DAM (presenter format)
-			sendContactToDAM(e.Record, app, baseURL, "upsert", config)
+			sendContactToDAM(e.Record, app, baseURL, "upsert")
 		}()
 		return e.Next()
 	})
@@ -426,10 +673,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 					Record:     buildContactWebhookPayload(e.Record, app, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send to DAM (presenter format)
-				sendContactToDAM(e.Record, app, baseURL, "upsert", config)
+				sendContactToDAM(e.Record, app, baseURL, "upsert")
 			} else {
 				// Contact was archived - send delete
 				payload := WebhookPayload{
@@ -438,10 +685,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 					Record:     map[string]any{"id": e.Record.Id},
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send delete to DAM
-				sendContactToDAM(e.Record, app, baseURL, "delete", config)
+				sendContactToDAM(e.Record, app, baseURL, "delete")
 			}
 		}()
 		return e.Next()
@@ -455,10 +702,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				Record:     map[string]any{"id": e.Record.Id},
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
-			sendWebhookToAllConsumers(payload, config)
+			sendWebhookToAllConsumers(app, payload)
 
 			// Send delete to DAM
-			sendContactToDAM(e.Record, app, baseURL, "delete", config)
+			sendContactToDAM(e.Record, app, baseURL, "delete")
 		}()
 		return e.Next()
 	})
@@ -476,10 +723,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				Record:     buildOrganisationWebhookPayload(e.Record, baseURL),
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
-			sendWebhookToAllConsumers(payload, config)
+			sendWebhookToAllConsumers(app, payload)
 
 			// Send to DAM (projection format)
-			sendOrganisationToDAM(e.Record, baseURL, "upsert", config)
+			sendOrganisationToDAM(e.Record, app, baseURL, "upsert")
 		}()
 		return e.Next()
 	})
@@ -494,10 +741,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 					Record:     buildOrganisationWebhookPayload(e.Record, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send to DAM (projection format)
-				sendOrganisationToDAM(e.Record, baseURL, "upsert", config)
+				sendOrganisationToDAM(e.Record, app, baseURL, "upsert")
 			} else {
 				// Send delete to Presentations/Website
 				payload := WebhookPayload{
@@ -506,10 +753,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 					Record:     map[string]any{"id": e.Record.Id},
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send delete to DAM
-				sendOrganisationToDAM(e.Record, baseURL, "delete", config)
+				sendOrganisationToDAM(e.Record, app, baseURL, "delete")
 			}
 		}()
 		return e.Next()
@@ -524,33 +771,24 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				Record:     map[string]any{"id": e.Record.Id},
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
-			sendWebhookToAllConsumers(payload, config)
+			sendWebhookToAllConsumers(app, payload)
 
 			// Send to DAM
-			sendOrganisationToDAM(e.Record, baseURL, "delete", config)
+			sendOrganisationToDAM(e.Record, app, baseURL, "delete")
 		}()
 		return e.Next()
 	})
 
-	// Log configuration
+	// Log configured consumers
 	log.Printf("[Webhook] Registered hooks for collections: contacts, organisations")
-	if config.PresentationsWebhookURL != "" {
-		log.Printf("[Webhook] Presentations endpoint: %s", maskURL(config.PresentationsWebhookURL))
-	}
-	if config.DAMContactWebhookURL != "" {
-		log.Printf("[Webhook] DAM Contact endpoint: %s", maskURL(config.DAMContactWebhookURL))
-	}
-	if config.DAMOrgWebhookURL != "" {
-		log.Printf("[Webhook] DAM Org endpoint: %s", maskURL(config.DAMOrgWebhookURL))
-	}
-	if config.WebsiteWebhookURL != "" {
-		log.Printf("[Webhook] Website endpoint: %s", maskURL(config.WebsiteWebhookURL))
+	consumers := getProjectionConsumers(app)
+	for _, c := range consumers {
+		log.Printf("[Webhook] Consumer: %s (%s) -> %s", c.Name, c.AppID, maskURL(c.EndpointURL))
 	}
 }
 
 // ProjectAll sends all contacts and organisations to consumers (for initial sync or resync)
 func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
-	config := getWebhookConfig()
 	baseURL := os.Getenv("PUBLIC_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://crm.theoutlook.io"
@@ -575,10 +813,10 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 					Record:     buildContactWebhookPayload(r, app, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send to DAM (presenter format)
-				sendContactToDAM(r, app, baseURL, "upsert", config)
+				sendContactToDAM(r, app, baseURL, "upsert")
 
 				counts["contacts"]++
 			}
@@ -599,10 +837,10 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 					Record:     buildOrganisationWebhookPayload(r, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(payload, config)
+				sendWebhookToAllConsumers(app, payload)
 
 				// Send to DAM (projection format)
-				sendOrganisationToDAM(r, baseURL, "upsert", config)
+				sendOrganisationToDAM(r, app, baseURL, "upsert")
 
 				counts["organisations"]++
 			}
