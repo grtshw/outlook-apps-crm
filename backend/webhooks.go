@@ -779,12 +779,8 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 		return e.Next()
 	})
 
-	// Log configured consumers
+	// Log that hooks are registered (consumers will be queried at runtime when DB is ready)
 	log.Printf("[Webhook] Registered hooks for collections: contacts, organisations")
-	consumers := getProjectionConsumers(app)
-	for _, c := range consumers {
-		log.Printf("[Webhook] Consumer: %s (%s) -> %s", c.Name, c.AppID, maskURL(c.EndpointURL))
-	}
 }
 
 // ProjectAll sends all contacts and organisations to consumers (for initial sync or resync)
