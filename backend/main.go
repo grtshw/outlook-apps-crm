@@ -40,6 +40,12 @@ func main() {
 	// Register webhook hooks for COPE sync to consumers (Presentations, DAM, Website)
 	registerWebhookHooks(app)
 
+	// Register audit logging hooks
+	registerAuditHooks(app)
+
+	// Register encryption hooks for PII fields
+	registerEncryptionHooks(app)
+
 	// Sync Microsoft profile photo on OAuth login
 	app.OnRecordAuthWithOAuth2Request("users").BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
 		if e.OAuth2User != nil && e.OAuth2User.AccessToken != "" {
@@ -56,38 +62,56 @@ func main() {
 
 // securityHeadersMiddleware adds security headers to all responses
 func securityHeadersMiddleware(e *core.RequestEvent) error {
-	e.Response.Header().Set("X-Content-Type-Options", "nosniff")
-	e.Response.Header().Set("X-Frame-Options", "DENY")
-	e.Response.Header().Set("X-XSS-Protection", "1; mode=block")
+	h := e.Response.Header()
+
+	// Existing security headers
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("X-XSS-Protection", "1; mode=block")
+
+	// HSTS - enforce HTTPS for 1 year, include subdomains
+	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
+	// Content Security Policy - restrict sources
+	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
+
+	// Referrer Policy - don't leak URLs to external sites
+	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+	// Permissions Policy - disable unused browser features
+	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+
 	return e.Next()
 }
 
 // registerRoutes sets up all custom API endpoints
 func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	// Public API endpoints (no auth required) - for COPE projections
+	// Rate limited to prevent scraping
 	e.Router.GET("/api/public/contacts", func(re *core.RequestEvent) error {
 		return handlePublicContacts(re, app)
-	})
+	}).BindFunc(utils.RateLimitPublic)
 
 	e.Router.GET("/api/public/organisations", func(re *core.RequestEvent) error {
 		return handlePublicOrganisations(re, app)
-	})
+	}).BindFunc(utils.RateLimitPublic)
 
 	// External API (service-to-service with token auth)
+	// Rate limited to prevent abuse
 	// Used by Presentations for self-registration and profile updates
 	e.Router.POST("/api/external/contacts", func(re *core.RequestEvent) error {
 		return handleExternalContactCreate(re, app)
-	})
+	}).BindFunc(utils.RateLimitExternalAPI)
 	e.Router.PATCH("/api/external/contacts/{id}", func(re *core.RequestEvent) error {
 		return handleExternalContactUpdate(re, app)
-	})
+	}).BindFunc(utils.RateLimitExternalAPI)
 	// Used by Presentations for organisation management
 	e.Router.POST("/api/external/organisations", func(re *core.RequestEvent) error {
 		return handleExternalOrganisationCreate(re, app)
-	})
+	}).BindFunc(utils.RateLimitExternalAPI)
 	e.Router.PATCH("/api/external/organisations/{id}", func(re *core.RequestEvent) error {
 		return handleExternalOrganisationUpdate(re, app)
-	})
+	}).BindFunc(utils.RateLimitExternalAPI)
 
 	// Protected routes (require auth)
 	// Dashboard stats
@@ -159,14 +183,15 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	}).BindFunc(utils.RequireAuth)
 
 	// Activity webhook receiver (from other apps)
+	// Rate limited to prevent abuse
 	e.Router.POST("/api/webhooks/activity", func(re *core.RequestEvent) error {
 		return handleActivityWebhook(re, app)
-	})
+	}).BindFunc(utils.RateLimitExternalAPI)
 
 	// Project all endpoint - push all contacts and organisations to consumers
 	e.Router.POST("/api/project-all", func(re *core.RequestEvent) error {
 		return handleProjectAll(re, app)
-	}).BindFunc(utils.RequireAdmin)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
 	// Import presenters from Presentations app (admin only)
 	e.Router.POST("/api/import/presenters", func(re *core.RequestEvent) error {
@@ -207,6 +232,112 @@ func serveFrontend(e *core.ServeEvent) {
 
 		// SPA fallback - serve index.html for client-side routing
 		return re.FileFS(os.DirFS(staticDir), "index.html")
+	})
+}
+
+// registerEncryptionHooks sets up PII field encryption for contacts
+func registerEncryptionHooks(app *pocketbase.PocketBase) {
+	// Only contacts collection has PII fields to encrypt
+	piiFields := []string{"email", "phone", "bio", "location"}
+
+	// Encrypt PII fields after validation, before database insert
+	// OnRecordCreateExecute fires after validation passes
+	app.OnRecordCreateExecute("contacts").BindFunc(func(e *core.RecordEvent) error {
+		if !utils.IsEncryptionEnabled() {
+			return e.Next()
+		}
+
+		for _, field := range piiFields {
+			val := e.Record.GetString(field)
+			if val == "" {
+				continue
+			}
+			// Skip if already encrypted
+			if len(val) > 4 && val[:4] == "enc:" {
+				continue
+			}
+			encrypted, err := utils.Encrypt(val)
+			if err == nil {
+				e.Record.Set(field, encrypted)
+			}
+		}
+
+		// Set blind index for email lookups
+		if email := e.Record.GetString("email"); email != "" {
+			originalEmail := utils.DecryptField(email)
+			e.Record.Set("email_index", utils.BlindIndex(originalEmail))
+		}
+
+		return e.Next()
+	})
+
+	// Encrypt PII fields after validation, before database update
+	app.OnRecordUpdateExecute("contacts").BindFunc(func(e *core.RecordEvent) error {
+		if !utils.IsEncryptionEnabled() {
+			return e.Next()
+		}
+
+		for _, field := range piiFields {
+			val := e.Record.GetString(field)
+			if val == "" {
+				continue
+			}
+			// Skip if already encrypted
+			if len(val) > 4 && val[:4] == "enc:" {
+				continue
+			}
+			encrypted, err := utils.Encrypt(val)
+			if err == nil {
+				e.Record.Set(field, encrypted)
+			}
+		}
+
+		// Update blind index for email lookups
+		if email := e.Record.GetString("email"); email != "" {
+			originalEmail := utils.DecryptField(email)
+			e.Record.Set("email_index", utils.BlindIndex(originalEmail))
+		}
+
+		return e.Next()
+	})
+}
+
+// registerAuditHooks sets up audit logging for CRUD operations and auth events
+func registerAuditHooks(app *pocketbase.PocketBase) {
+	// Collections to audit
+	collections := []string{"contacts", "organisations", "activities"}
+
+	for _, coll := range collections {
+		collName := coll // capture for closure
+
+		// Log after successful create
+		app.OnRecordAfterCreateSuccess(collName).BindFunc(func(e *core.RecordEvent) error {
+			utils.LogRecordChange(app, "create", collName, e.Record.Id, map[string]any{
+				"data": e.Record.FieldsData(),
+			})
+			return e.Next()
+		})
+
+		// Log after successful update
+		app.OnRecordAfterUpdateSuccess(collName).BindFunc(func(e *core.RecordEvent) error {
+			utils.LogRecordChange(app, "update", collName, e.Record.Id, map[string]any{
+				"data": e.Record.FieldsData(),
+			})
+			return e.Next()
+		})
+
+		// Log after successful delete
+		app.OnRecordAfterDeleteSuccess(collName).BindFunc(func(e *core.RecordEvent) error {
+			utils.LogRecordChange(app, "delete", collName, e.Record.Id, nil)
+			return e.Next()
+		})
+	}
+
+	// Log successful authentication
+	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
+		utils.LogAuthEvent(app, "login", e.Record.Id, e.Record.GetString("email"),
+			"", "", "success", "")
+		return e.Next()
 	})
 }
 

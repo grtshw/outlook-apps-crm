@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -89,13 +90,19 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 	// Normalize email
 	email = strings.ToLower(strings.TrimSpace(email))
 
-	// Check for existing contact by email
-	existing, _ := app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": email})
+	// Check for existing contact by email (search by blind index if encryption is enabled)
+	var existing []*core.Record
+	if utils.IsEncryptionEnabled() {
+		blindIndex := utils.BlindIndex(email)
+		existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email_index = {:idx}", "", 1, 0, map[string]any{"idx": blindIndex})
+	} else {
+		existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": email})
+	}
 	if len(existing) > 0 {
-		// Return existing contact instead of error
+		// Return existing contact instead of error (decrypt email)
 		return utils.DataResponse(re, map[string]any{
 			"id":       existing[0].Id,
-			"email":    existing[0].GetString("email"),
+			"email":    utils.DecryptField(existing[0].GetString("email")),
 			"name":     existing[0].GetString("name"),
 			"existing": true,
 		})
@@ -151,10 +158,11 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 	log.Printf("[ExternalContactCreate] Created contact: id=%s email=%s", record.Id, email)
 
 	// Webhook fires automatically via PocketBase hooks
+	// Return original (unencrypted) values to the caller
 	return re.JSON(http.StatusCreated, map[string]any{
 		"id":       record.Id,
-		"email":    record.GetString("email"),
-		"name":     record.GetString("name"),
+		"email":    email, // Use original email, not encrypted record value
+		"name":     name,
 		"existing": false,
 	})
 }
@@ -1091,12 +1099,31 @@ func handleActivitiesList(re *core.RequestEvent, app *pocketbase.PocketBase) err
 
 // handleActivityWebhook receives activity data from other apps
 func handleActivityWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	// Validate HMAC signature
+	// Read raw body for HMAC validation
+	bodyBytes, err := io.ReadAll(re.Request.Body)
+	if err != nil {
+		return utils.BadRequestResponse(re, "Failed to read request body")
+	}
+
+	// Validate HMAC signature if secret is configured
 	secret := os.Getenv("ACTIVITY_WEBHOOK_SECRET")
 	if secret != "" {
 		signature := re.Request.Header.Get("X-Webhook-Signature")
-		// TODO: Implement HMAC validation
-		_ = signature
+		if signature == "" {
+			log.Printf("[ActivityWebhook] Missing signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Missing signature"})
+		}
+
+		// Compute expected signature using HMAC-SHA256
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(bodyBytes)
+		expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+		// Constant-time comparison to prevent timing attacks
+		if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+			log.Printf("[ActivityWebhook] Invalid signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid signature"})
+		}
 	}
 
 	var payload struct {
@@ -1111,7 +1138,7 @@ func handleActivityWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) er
 		OccurredAt string         `json:"occurred_at"`
 	}
 
-	if err := json.NewDecoder(re.Request.Body).Decode(&payload); err != nil {
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
 		return utils.BadRequestResponse(re, "Invalid request body")
 	}
 
@@ -1170,16 +1197,16 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
 		"id":         r.Id,
-		"email":      r.GetString("email"),
+		"email":      utils.DecryptField(r.GetString("email")),
 		"name":       r.GetString("name"),
-		"phone":      r.GetString("phone"),
+		"phone":      utils.DecryptField(r.GetString("phone")),
 		"pronouns":   r.GetString("pronouns"),
-		"bio":        r.GetString("bio"),
+		"bio":        utils.DecryptField(r.GetString("bio")),
 		"job_title":  r.GetString("job_title"),
 		"linkedin":   r.GetString("linkedin"),
 		"instagram":  r.GetString("instagram"),
 		"website":    r.GetString("website"),
-		"location":   r.GetString("location"),
+		"location":   utils.DecryptField(r.GetString("location")),
 		"tags":       r.Get("tags"),
 		"status":     r.GetString("status"),
 		"source":     r.GetString("source"),
@@ -1209,16 +1236,16 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
 		"id":          r.Id,
-		"email":       r.GetString("email"),
+		"email":       utils.DecryptField(r.GetString("email")),
 		"name":        r.GetString("name"),
-		"phone":       r.GetString("phone"),
+		"phone":       utils.DecryptField(r.GetString("phone")),
 		"pronouns":    r.GetString("pronouns"),
-		"bio":         r.GetString("bio"),
+		"bio":         utils.DecryptField(r.GetString("bio")),
 		"job_title":   r.GetString("job_title"),
 		"linkedin":    r.GetString("linkedin"),
 		"instagram":   r.GetString("instagram"),
 		"website":     r.GetString("website"),
-		"location":    r.GetString("location"),
+		"location":    utils.DecryptField(r.GetString("location")),
 		"do_position": r.GetString("do_position"),
 		"tags":        r.Get("tags"),
 		"created":     r.GetString("created"),
