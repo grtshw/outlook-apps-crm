@@ -417,7 +417,8 @@ func runPIIEncryptionMigration(app *pocketbase.PocketBase) error {
 		}
 
 		if needsUpdate {
-			if err := app.Save(record); err != nil {
+			// Use SaveNoValidate to bypass email validation (encrypted value isn't valid email format)
+			if err := app.SaveNoValidate(record); err != nil {
 				log.Printf("[EncryptPII] Error: failed to save contact %s: %v", record.Id, err)
 				continue
 			}
