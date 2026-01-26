@@ -1,15 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	_ "github.com/grtshw/outlook-apps-crm/migrations"
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -18,6 +21,20 @@ func main() {
 	// Register migrations
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
 		Automigrate: false, // Disabled for local testing with prod DB
+	})
+
+	// Register encrypt-pii command for migrating legacy unencrypted data
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "encrypt-pii",
+		Short: "Encrypt existing unencrypted PII fields in contacts",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			if err := runPIIEncryptionMigration(app); err != nil {
+				log.Fatalf("Migration failed: %v", err)
+			}
+		},
 	})
 
 	// OnServe hook - runs when the server starts
@@ -343,3 +360,74 @@ func registerAuditHooks(app *pocketbase.PocketBase) {
 
 // Placeholder for utils import (will be used later)
 var _ = utils.RequireAuth
+
+// runPIIEncryptionMigration encrypts all unencrypted PII fields in contacts
+func runPIIEncryptionMigration(app *pocketbase.PocketBase) error {
+	if !utils.IsEncryptionEnabled() {
+		return fmt.Errorf("ENCRYPTION_KEY not set - cannot encrypt data")
+	}
+
+	log.Println("[EncryptPII] Starting PII encryption migration...")
+
+	records, err := app.FindAllRecords("contacts")
+	if err != nil {
+		return fmt.Errorf("failed to fetch contacts: %w", err)
+	}
+
+	log.Printf("[EncryptPII] Found %d contacts to process", len(records))
+
+	piiFields := []string{"email", "phone", "bio", "location"}
+	migrated := 0
+	skipped := 0
+
+	for _, record := range records {
+		needsUpdate := false
+
+		for _, field := range piiFields {
+			val := record.GetString(field)
+			if val == "" {
+				continue
+			}
+
+			// Check if already encrypted (has "enc:" prefix)
+			if strings.HasPrefix(val, "enc:") {
+				continue
+			}
+
+			// Encrypt the field
+			encrypted, err := utils.Encrypt(val)
+			if err != nil {
+				log.Printf("[EncryptPII] Warning: failed to encrypt %s for contact %s: %v", field, record.Id, err)
+				continue
+			}
+
+			record.Set(field, encrypted)
+			needsUpdate = true
+		}
+
+		// Update email_index for blind search
+		email := record.GetString("email")
+		if email != "" {
+			originalEmail := utils.DecryptField(email)
+			blindIndex := utils.BlindIndex(originalEmail)
+			if record.GetString("email_index") != blindIndex {
+				record.Set("email_index", blindIndex)
+				needsUpdate = true
+			}
+		}
+
+		if needsUpdate {
+			if err := app.Save(record); err != nil {
+				log.Printf("[EncryptPII] Error: failed to save contact %s: %v", record.Id, err)
+				continue
+			}
+			migrated++
+			log.Printf("[EncryptPII] Encrypted contact: %s", record.Id)
+		} else {
+			skipped++
+		}
+	}
+
+	log.Printf("[EncryptPII] Migration complete: %d encrypted, %d already encrypted/empty", migrated, skipped)
+	return nil
+}
