@@ -103,6 +103,229 @@ fly deploy
 - Use Tailwind utilities only, no inline styles except for dynamic values
 - Never use font weight utilities (font-bold, font-semibold, font-medium, etc.) - rely on the font file's default weight
 
+## Security (CRITICAL - READ BEFORE ANY CHANGES)
+
+This app handles **sensitive personal information** (PII) including emails, phone numbers, biographical data, and location information. Security is non-negotiable.
+
+### Security Architecture Overview
+
+The CRM implements defense-in-depth security:
+
+| Layer | Implementation | Files |
+|-------|----------------|-------|
+| **Transport** | HTTPS enforced, HSTS header | `fly.toml`, `main.go` |
+| **Headers** | CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy | `main.go:securityHeadersMiddleware` |
+| **Rate Limiting** | Per-IP/user sliding window limits | `utils/ratelimit.go` |
+| **Authentication** | Microsoft OAuth, session tokens | PocketBase built-in |
+| **Authorization** | Role-based (admin/viewer), middleware guards | `utils/auth.go` |
+| **Webhook Security** | HMAC-SHA256 signatures | `handlers.go`, `webhooks.go` |
+| **Data at Rest** | AES-256-GCM field-level encryption | `utils/crypto.go` |
+| **Audit Trail** | All CRUD operations logged | `utils/audit.go` |
+
+### PII Field Encryption
+
+**Encrypted fields in `contacts` collection:**
+- `email` - encrypted with AES-256-GCM, has blind index for lookups
+- `phone` - encrypted
+- `bio` - encrypted
+- `location` - encrypted
+
+**How it works:**
+1. Data enters via API with plaintext values
+2. `OnRecordCreateExecute` / `OnRecordUpdateExecute` hooks encrypt before DB write
+3. Database stores `enc:` prefixed base64-encoded ciphertext
+4. Response builders (`buildContactResponse`, `buildContactProjection`, etc.) decrypt before returning
+5. Blind index (`email_index`) enables email lookups without decrypting all records
+
+**Environment variable:** `ENCRYPTION_KEY` (required in production)
+
+### MANDATORY Security Rules
+
+#### 1. NEVER Store PII in Plaintext
+```go
+// ❌ WRONG - storing plaintext PII
+record.Set("email", userEmail)
+record.Set("phone", userPhone)
+
+// ✅ CORRECT - encryption hooks handle this automatically
+// Just set the value, hooks encrypt before DB write
+record.Set("email", userEmail)  // Hook encrypts this
+```
+
+#### 2. ALWAYS Decrypt PII Before Returning to Client
+```go
+// ❌ WRONG - returning encrypted value
+data["email"] = record.GetString("email")
+
+// ✅ CORRECT - decrypt before returning
+data["email"] = utils.DecryptField(record.GetString("email"))
+```
+
+#### 3. ALWAYS Use Blind Index for Email Lookups
+```go
+// ❌ WRONG - searching by encrypted email won't work
+records, _ := app.FindRecordsByFilter("contacts", "email = {:email}", ...)
+
+// ✅ CORRECT - use blind index
+blindIndex := utils.BlindIndex(email)
+records, _ := app.FindRecordsByFilter("contacts", "email_index = {:idx}", "", 1, 0, map[string]any{"idx": blindIndex})
+```
+
+#### 4. ALWAYS Validate Webhook Signatures
+```go
+// ❌ WRONG - accepting webhooks without validation
+func handleWebhook(re *core.RequestEvent) error {
+    var payload MyPayload
+    json.NewDecoder(re.Request.Body).Decode(&payload)
+    // Process payload...
+}
+
+// ✅ CORRECT - validate HMAC signature first
+func handleWebhook(re *core.RequestEvent) error {
+    bodyBytes, _ := io.ReadAll(re.Request.Body)
+
+    secret := os.Getenv("WEBHOOK_SECRET")
+    if secret != "" {
+        signature := re.Request.Header.Get("X-Webhook-Signature")
+        if signature == "" {
+            return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Missing signature"})
+        }
+
+        mac := hmac.New(sha256.New, []byte(secret))
+        mac.Write(bodyBytes)
+        expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+        if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+            return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid signature"})
+        }
+    }
+
+    // Now safe to process
+    var payload MyPayload
+    json.Unmarshal(bodyBytes, &payload)
+}
+```
+
+#### 5. ALWAYS Apply Rate Limiting to New Endpoints
+```go
+// ❌ WRONG - unprotected endpoint
+e.Router.GET("/api/new-endpoint", handler)
+
+// ✅ CORRECT - rate limited
+e.Router.GET("/api/new-endpoint", handler).BindFunc(utils.RateLimitAuth)
+
+// For public endpoints:
+e.Router.GET("/api/public/new-endpoint", handler).BindFunc(utils.RateLimitPublic)
+
+// For external/webhook endpoints:
+e.Router.POST("/api/external/new-endpoint", handler).BindFunc(utils.RateLimitExternalAPI)
+```
+
+#### 6. ALWAYS Log Security-Relevant Actions
+```go
+// ✅ CORRECT - audit log for data changes
+utils.LogFromRequest(app, re, "create", "contacts", record.Id, "success", nil, "")
+
+// For failures:
+utils.LogFromRequest(app, re, "create", "contacts", "", "failure", nil, err.Error())
+```
+
+#### 7. NEVER Expose Encryption Keys or Secrets
+```go
+// ❌ WRONG - hardcoded secrets
+const webhookSecret = "my-secret-key"
+
+// ❌ WRONG - logging secrets
+log.Printf("Using key: %s", os.Getenv("ENCRYPTION_KEY"))
+
+// ✅ CORRECT - always from environment, never logged
+secret := os.Getenv("WEBHOOK_SECRET")
+```
+
+#### 8. NEVER Disable Security Features
+```go
+// ❌ FORBIDDEN - bypassing rate limiting
+// e.Router.GET("/api/contacts", handler)  // No rate limit
+
+// ❌ FORBIDDEN - skipping auth
+// e.Router.POST("/api/admin/action", handler)  // No RequireAdmin
+
+// ❌ FORBIDDEN - disabling encryption
+// utils.IsEncryptionEnabled = func() bool { return false }
+```
+
+### Adding New PII Fields
+
+If you need to add a new field that contains personal information:
+
+1. **Add to encryption list** in `main.go:registerEncryptionHooks`:
+```go
+piiFields := []string{"email", "phone", "bio", "location", "NEW_FIELD"}
+```
+
+2. **Add decryption** in ALL response builders:
+   - `handlers.go:buildContactResponse`
+   - `handlers.go:buildContactProjection`
+   - `webhooks.go:buildContactWebhookPayload`
+   - `webhooks.go:buildDAMContactPayload`
+
+3. **Update field max length** if needed (encrypted values are longer than plaintext)
+
+4. **Run migration** to encrypt existing data
+
+### Security Environment Variables
+
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `ENCRYPTION_KEY` | AES-256 key derivation (32+ chars) | **YES** in prod |
+| `ACTIVITY_WEBHOOK_SECRET` | HMAC signing for inbound activity webhooks | YES |
+| `PROJECTION_WEBHOOK_SECRET` | HMAC signing for outbound projections | YES |
+| `PRESENTATIONS_SERVICE_TOKEN` | Service-to-service auth | YES |
+
+### Migrating Legacy Unencrypted Data
+
+To encrypt existing unencrypted contacts in production:
+
+```bash
+# 1. Wake up the machine
+curl https://outlook-apps-crm.fly.dev/
+
+# 2. SSH and run migration
+fly ssh console -a outlook-apps-crm
+
+# Inside the container:
+./crm migrate-encryption
+```
+
+The migration script:
+- Finds all contacts without `enc:` prefix
+- Encrypts PII fields (email, phone, bio, location)
+- Sets `email_index` blind index
+- Reports progress and results
+
+### Security Incident Response
+
+If you suspect a security issue:
+
+1. **Do NOT** push changes that disable security features
+2. **Do** check audit logs: `sqlite3 pb_data/data.db "SELECT * FROM audit_logs ORDER BY created DESC LIMIT 50"`
+3. **Do** check rate limit logs: `fly logs -a outlook-apps-crm | grep RateLimit`
+4. **Do** rotate secrets if compromised: `fly secrets set ENCRYPTION_KEY="$(openssl rand -base64 32)"`
+
+### Security Review Checklist
+
+Before merging ANY backend changes, verify:
+
+- [ ] No new endpoints without rate limiting
+- [ ] No new endpoints without appropriate auth middleware
+- [ ] All PII fields encrypted before storage
+- [ ] All PII fields decrypted before API response
+- [ ] All inbound webhooks validate HMAC signatures
+- [ ] All outbound webhooks include HMAC signatures
+- [ ] No secrets hardcoded or logged
+- [ ] Audit logging added for new data operations
+- [ ] SQL injection prevented (parameterized queries only)
+
 ## Backend Patterns
 
 ### Response Helpers
@@ -149,10 +372,12 @@ e.Router.POST("/api/contacts", handler).BindFunc(utils.RequireAdmin)
 | Collection | Purpose |
 |------------|---------|
 | `users` | Admin and viewer accounts (Microsoft OAuth) |
-| `contacts` | People (unified from Presentations, Awards, Events) |
+| `contacts` | People (unified from Presentations, Awards, Events) - **PII fields encrypted** |
 | `organisations` | Companies and sponsors |
 | `activities` | Timeline of events from all apps |
 | `app_settings` | App configuration (required for initAppShell) |
+| `audit_logs` | Security audit trail (admin read-only, no API write/delete) |
+| `projection_consumers` | Webhook endpoint registry for COPE consumers |
 
 ## COPE Provider Pattern
 
