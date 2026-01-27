@@ -278,9 +278,9 @@ piiFields := []string{"email", "phone", "bio", "location", "NEW_FIELD"}
 | Variable | Purpose | Required |
 |----------|---------|----------|
 | `ENCRYPTION_KEY` | AES-256 key derivation (32+ chars) | **YES** in prod |
-| `ACTIVITY_WEBHOOK_SECRET` | HMAC signing for inbound activity webhooks | YES |
-| `PROJECTION_WEBHOOK_SECRET` | HMAC signing for outbound projections | YES |
-| `PRESENTATIONS_SERVICE_TOKEN` | Service-to-service auth | YES |
+| `PROJECTION_WEBHOOK_SECRET` | HMAC signing for outbound projections (shared with all apps) | YES |
+
+See `/SECRETS.md` in the parent directory for full secrets management and rotation documentation.
 
 ### Migrating Legacy Unencrypted Data
 
