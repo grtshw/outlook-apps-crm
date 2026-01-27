@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grtshw/outlook-apps-crm/utils"
@@ -54,16 +55,24 @@ func getProjectionConsumers(app *pocketbase.PocketBase) []ProjectionConsumer {
 		return getConsumersFromEnv()
 	}
 
+	// Default secret from env var - used when database field is empty
+	defaultSecret := os.Getenv("PROJECTION_WEBHOOK_SECRET")
+
 	for _, r := range records {
 		if !r.GetBool("enabled") {
 			continue
+		}
+		// Use database secret if set, otherwise fall back to env var
+		secret := r.GetString("webhook_secret")
+		if secret == "" {
+			secret = defaultSecret
 		}
 		consumers = append(consumers, ProjectionConsumer{
 			ID:            r.Id,
 			Name:          r.GetString("name"),
 			AppID:         r.GetString("app_id"),
 			EndpointURL:   r.GetString("endpoint_url"),
-			WebhookSecret: r.GetString("webhook_secret"),
+			WebhookSecret: secret,
 			Enabled:       true,
 		})
 	}
@@ -548,6 +557,58 @@ func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayloa
 	}
 }
 
+// sendWebhookToAllConsumersSync is like sendWebhookToAllConsumers but uses a WaitGroup for synchronization
+func sendWebhookToAllConsumersSync(app *pocketbase.PocketBase, payload WebhookPayload, wg *sync.WaitGroup) {
+	consumers := getProjectionConsumers(app)
+	for _, consumer := range consumers {
+		// Skip DAM for standard contact/org webhooks - it uses a different format
+		if consumer.AppID == "dam" {
+			continue
+		}
+		wg.Add(1)
+		go func(c ProjectionConsumer) {
+			defer wg.Done()
+			sendWebhookToConsumer(app, payload, c)
+		}(consumer)
+	}
+}
+
+// sendContactToDAMSync is like sendContactToDAM but uses a WaitGroup for synchronization
+func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
+	consumer := getConsumerByAppID(app, "dam")
+	if consumer == nil || consumer.EndpointURL == "" {
+		return
+	}
+
+	// DAM uses a different endpoint for contacts (presenters)
+	presenterURL := strings.Replace(consumer.EndpointURL, "/contact-projection", "/presenter-projection", 1)
+
+	payload := buildDAMContactPayload(r, app, baseURL, action)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sendGenericWebhookToConsumer(app, payload, consumer.ID, presenterURL, consumer.WebhookSecret, "DAM-Contact")
+	}()
+}
+
+// sendOrganisationToDAMSync is like sendOrganisationToDAM but uses a WaitGroup for synchronization
+func sendOrganisationToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
+	consumer := getConsumerByAppID(app, "dam")
+	if consumer == nil || consumer.EndpointURL == "" {
+		return
+	}
+
+	// DAM uses a different endpoint for organisations
+	orgURL := strings.Replace(consumer.EndpointURL, "/contact-projection", "/organization-projection", 1)
+
+	payload := buildDAMOrganisationPayload(r, baseURL, action)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sendGenericWebhookToConsumer(app, payload, consumer.ID, orgURL, consumer.WebhookSecret, "DAM-Org")
+	}()
+}
+
 // buildContactWebhookPayload builds the webhook payload for a contact
 func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
@@ -810,6 +871,9 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 		"organisations": 0,
 	}
 
+	// WaitGroup to track all webhook goroutines
+	var wg sync.WaitGroup
+
 	// Project all active/inactive contacts
 	contacts, err := app.FindAllRecords(utils.CollectionContacts)
 	if err != nil {
@@ -824,10 +888,10 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 					Record:     buildContactWebhookPayload(r, app, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(app, payload)
+				sendWebhookToAllConsumersSync(app, payload, &wg)
 
 				// Send to DAM (presenter format)
-				sendContactToDAM(r, app, baseURL, "upsert")
+				sendContactToDAMSync(r, app, baseURL, "upsert", &wg)
 
 				counts["contacts"]++
 			}
@@ -848,15 +912,19 @@ func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
 					Record:     buildOrganisationWebhookPayload(r, baseURL),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
-				sendWebhookToAllConsumers(app, payload)
+				sendWebhookToAllConsumersSync(app, payload, &wg)
 
 				// Send to DAM (projection format)
-				sendOrganisationToDAM(r, app, baseURL, "upsert")
+				sendOrganisationToDAMSync(r, app, baseURL, "upsert", &wg)
 
 				counts["organisations"]++
 			}
 		}
 	}
+
+	// Wait for all webhooks to complete
+	log.Printf("[ProjectAll] Waiting for %d contacts and %d organisations webhooks to complete...", counts["contacts"], counts["organisations"])
+	wg.Wait()
 
 	log.Printf("[ProjectAll] Projected %d contacts, %d organisations", counts["contacts"], counts["organisations"])
 	return counts, nil
