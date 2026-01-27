@@ -57,6 +57,23 @@ func main() {
 		},
 	})
 
+	// Register project-all command to push all contacts/orgs to COPE consumers
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "project-all",
+		Short: "Project all contacts and organisations to COPE consumers (DAM, Presentations, Website)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			fmt.Println("Projecting all contacts and organisations to consumers...")
+			counts, err := ProjectAll(app)
+			if err != nil {
+				log.Fatalf("Projection failed: %v", err)
+			}
+			fmt.Printf("Projected %d contacts, %d organisations\n", counts["contacts"], counts["organisations"])
+		},
+	})
+
 	// OnServe hook - runs when the server starts
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Security headers middleware
