@@ -37,6 +37,26 @@ func main() {
 		},
 	})
 
+	// Register import-presenters command for syncing presenters from Presentations + DAM avatars
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "import-presenters",
+		Short: "Import presenters from Presentations app and fetch DAM avatar URLs",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			sourceURL := os.Getenv("PRESENTATIONS_API_URL")
+			if sourceURL == "" {
+				log.Fatal("PRESENTATIONS_API_URL environment variable not set")
+			}
+			fmt.Println("Importing presenters from", sourceURL)
+			if err := runPresenterImport(app, sourceURL); err != nil {
+				log.Fatalf("Import failed: %v", err)
+			}
+			fmt.Println("Import complete")
+		},
+	})
+
 	// OnServe hook - runs when the server starts
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Security headers middleware

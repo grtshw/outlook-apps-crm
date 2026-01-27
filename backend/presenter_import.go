@@ -60,6 +60,68 @@ type ImportResult struct {
 	ErrorMsgs []string `json:"error_messages,omitempty"`
 }
 
+// runPresenterImport runs the presenter import from CLI
+func runPresenterImport(app *pocketbase.PocketBase, presentationsAPIURL string) error {
+	url := presentationsAPIURL + "/api/projections/presenters"
+	log.Printf("[PresenterImport] Fetching presenters from %s", url)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to connect to Presentations app: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Presentations API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var presentersResp PresenterProjectionResponse
+	if err := json.Unmarshal(body, &presentersResp); err != nil {
+		return fmt.Errorf("failed to parse presenters data: %w", err)
+	}
+
+	log.Printf("[PresenterImport] Found %d presenters to import", len(presentersResp.Items))
+
+	result := ImportResult{Total: len(presentersResp.Items)}
+
+	for _, presenter := range presentersResp.Items {
+		if presenter.Email == "" {
+			result.Skipped++
+			continue
+		}
+
+		existing, _ := app.FindFirstRecordByFilter(
+			utils.CollectionContacts,
+			"email = {:email}",
+			map[string]any{"email": presenter.Email},
+		)
+		wasNew := existing == nil
+
+		if err := importPresenter(app, presenter); err != nil {
+			result.Errors++
+			log.Printf("[PresenterImport] Error importing %s: %v", presenter.Email, err)
+		} else {
+			if wasNew {
+				result.Created++
+			} else {
+				result.Updated++
+			}
+		}
+	}
+
+	log.Printf("[PresenterImport] Import complete: %d created, %d updated, %d skipped, %d errors",
+		result.Created, result.Updated, result.Skipped, result.Errors)
+
+	return nil
+}
+
 // fetchDAMAvatarURLs fetches avatar variant URLs from DAM for a presenter
 func fetchDAMAvatarURLs(presenterID string) (*DAMAvatarResponse, error) {
 	damURL := os.Getenv("DAM_PUBLIC_URL")
