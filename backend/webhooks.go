@@ -567,9 +567,24 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		"updated":     r.GetString("updated"),
 	}
 
-	// Avatar URL
+	// Avatar URL (CRM local file)
 	if avatar := r.GetString("avatar"); avatar != "" {
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
+	}
+
+	// DAM avatar variant URLs (from DAM sync)
+	avatarUrls := map[string]string{}
+	if thumb := r.GetString("avatar_thumb_url"); thumb != "" {
+		avatarUrls["thumb"] = thumb
+	}
+	if small := r.GetString("avatar_small_url"); small != "" {
+		avatarUrls["small"] = small
+	}
+	if original := r.GetString("avatar_original_url"); original != "" {
+		avatarUrls["original"] = original
+	}
+	if len(avatarUrls) > 0 {
+		data["avatar_urls"] = avatarUrls
 	}
 
 	// Organisation relation
