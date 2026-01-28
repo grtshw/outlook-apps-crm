@@ -714,6 +714,15 @@ func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase
 
 	record.Set("avatar", fsFile)
 
+	// Decrypt PII fields before saving so PocketBase validation passes
+	// (the encryption hook will re-encrypt them before DB write)
+	piiFields := []string{"email", "phone", "bio", "location"}
+	for _, field := range piiFields {
+		if v := record.GetString(field); v != "" {
+			record.Set(field, utils.DecryptField(v))
+		}
+	}
+
 	if err := app.Save(record); err != nil {
 		log.Printf("[ContactAvatarUpload] Failed to save: %v", err)
 		return utils.InternalErrorResponse(re, "Failed to save avatar")
