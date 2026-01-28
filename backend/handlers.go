@@ -546,6 +546,12 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	if v, ok := input["tags"].([]any); ok {
 		record.Set("tags", v)
 	}
+	if v, ok := input["roles"].([]any); ok {
+		record.Set("roles", v)
+	}
+	if v, ok := input["do_position"].(string); ok {
+		record.Set("do_position", v)
+	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
 	} else {
@@ -625,6 +631,12 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 	if v, ok := input["tags"].([]any); ok {
 		record.Set("tags", v)
+	}
+	if v, ok := input["roles"].([]any); ok {
+		record.Set("roles", v)
+	}
+	if v, ok := input["do_position"].(string); ok {
+		record.Set("do_position", v)
 	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
@@ -1206,18 +1218,31 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		"linkedin":   r.GetString("linkedin"),
 		"instagram":  r.GetString("instagram"),
 		"website":    r.GetString("website"),
-		"location":   utils.DecryptField(r.GetString("location")),
-		"tags":       r.Get("tags"),
-		"status":     r.GetString("status"),
-		"source":     r.GetString("source"),
-		"source_ids": r.Get("source_ids"),
-		"created":    r.GetString("created"),
-		"updated":    r.GetString("updated"),
+		"location":    utils.DecryptField(r.GetString("location")),
+		"do_position": r.GetString("do_position"),
+		"tags":        r.Get("tags"),
+		"roles":       r.Get("roles"),
+		"status":      r.GetString("status"),
+		"source":      r.GetString("source"),
+		"source_ids":  r.Get("source_ids"),
+		"created":     r.GetString("created"),
+		"updated":     r.GetString("updated"),
 	}
 
 	// Avatar URL
 	if avatar := r.GetString("avatar"); avatar != "" {
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
+	}
+
+	// DAM avatar variant URLs (from DAM sync)
+	if thumb := r.GetString("avatar_thumb_url"); thumb != "" {
+		data["avatar_thumb_url"] = thumb
+	}
+	if small := r.GetString("avatar_small_url"); small != "" {
+		data["avatar_small_url"] = small
+	}
+	if original := r.GetString("avatar_original_url"); original != "" {
+		data["avatar_original_url"] = original
 	}
 
 	// Organisation relation
@@ -1248,6 +1273,7 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		"location":    utils.DecryptField(r.GetString("location")),
 		"do_position": r.GetString("do_position"),
 		"tags":        r.Get("tags"),
+		"roles":       r.Get("roles"),
 		"created":     r.GetString("created"),
 		"updated":     r.GetString("updated"),
 	}

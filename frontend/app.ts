@@ -18,6 +18,7 @@ import { renderOrganisationsPage } from './pages/organisations';
 registerRoute('/login', renderLogin, { requiresAuth: false });
 registerRoute('/', renderDashboardPage, { requiresAuth: true });
 registerRoute('/contacts', renderContactsPage, { requiresAuth: true });
+registerRoute('/contacts/:id', renderContactsPage, { requiresAuth: true });
 registerRoute('/organisations', renderOrganisationsPage, { requiresAuth: true });
 registerRoute('/organisations/:id', renderOrganisationsPage, { requiresAuth: true });
 
