@@ -100,10 +100,14 @@ func main() {
 	// Register encryption hooks for PII fields
 	registerEncryptionHooks(app)
 
-	// Sync Microsoft profile photo on OAuth login
+	// Sync Microsoft profile photo on OAuth login (runs synchronously so the
+	// auth response includes the updated avatar filename)
 	app.OnRecordAuthWithOAuth2Request("users").BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
 		if e.OAuth2User != nil && e.OAuth2User.AccessToken != "" {
-			go syncMicrosoftProfilePhoto(app, e.Record, e.OAuth2User.AccessToken)
+			syncMicrosoftProfilePhoto(app, e.Record, e.OAuth2User.AccessToken)
+			if fresh, err := app.FindRecordById("users", e.Record.Id); err == nil {
+				e.Record = fresh
+			}
 		}
 		return e.Next()
 	})
@@ -240,6 +244,11 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	// Rate limited to prevent abuse
 	e.Router.POST("/api/webhooks/activity", func(re *core.RequestEvent) error {
 		return handleActivityWebhook(re, app)
+	}).BindFunc(utils.RateLimitExternalAPI)
+
+	// Avatar URL webhook receiver (from DAM - avatar variant URLs after processing)
+	e.Router.POST("/api/webhooks/avatar-urls", func(re *core.RequestEvent) error {
+		return handleAvatarURLWebhook(re, app)
 	}).BindFunc(utils.RateLimitExternalAPI)
 
 	// Project all endpoint - push all contacts and organisations to consumers
