@@ -4,6 +4,10 @@ node_modules/
 # Build output
 frontend/dist/
 crm
+pocketbase
+
+# Legacy frontend backup
+frontend-old/
 
 # PocketBase data
 pb_data/
