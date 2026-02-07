@@ -14,6 +14,23 @@ function getAuthHeaders(): HeadersInit {
   return token ? { Authorization: token } : {}
 }
 
+function jsonHeaders(): HeadersInit {
+  return { ...getAuthHeaders(), 'Content-Type': 'application/json' }
+}
+
+// Standard fetch helper — use for new API functions
+export async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { ...getAuthHeaders(), ...init?.headers },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `Request failed: ${res.status}`)
+  }
+  return res.json()
+}
+
 // Dashboard - compute stats from collections
 async function fetchCount(collection: string, filter?: string): Promise<number> {
   const params = new URLSearchParams({ page: '1', perPage: '1' })
@@ -97,11 +114,7 @@ export async function getContacts(params: {
 }
 
 export async function getContact(id: string): Promise<Contact> {
-  const response = await fetch(`/api/collections/contacts/records/${id}`, {
-    headers: { Authorization: pb.authStore.token },
-  })
-  if (!response.ok) throw new Error('Failed to fetch contact')
-  return response.json()
+  return fetchJSON<Contact>(`/api/collections/contacts/records/${id}`)
 }
 
 export async function createContact(data: Partial<Contact>): Promise<Contact> {
@@ -150,12 +163,12 @@ export async function getContactActivities(id: string): Promise<Activity[]> {
     sort: '-occurred_at',
     perPage: '50',
   })
-  const response = await fetch(`/api/collections/activities/records?${params}`, {
-    headers: { Authorization: pb.authStore.token },
-  })
-  if (!response.ok) return []
-  const data = await response.json()
-  return data.items || []
+  try {
+    const data = await fetchJSON<{ items: Activity[] }>(`/api/collections/activities/records?${params}`)
+    return data.items || []
+  } catch {
+    return []
+  }
 }
 
 // Organisations
@@ -199,11 +212,7 @@ export async function getOrganisations(params: {
 }
 
 export async function getOrganisation(id: string): Promise<Organisation> {
-  const response = await fetch(`/api/collections/organisations/records/${id}`, {
-    headers: { Authorization: pb.authStore.token },
-  })
-  if (!response.ok) throw new Error('Failed to fetch organisation')
-  return response.json()
+  return fetchJSON<Organisation>(`/api/collections/organisations/records/${id}`)
 }
 
 export async function createOrganisation(data: Partial<Organisation>): Promise<Organisation> {

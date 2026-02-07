@@ -8,6 +8,7 @@ interface AuthContext {
   login: (email: string, password: string) => Promise<User>
   loginWithMicrosoft: () => Promise<void>
   logout: () => void
+  refreshAuth: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContext | null>(null)
@@ -37,6 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pb.authStore.clear()
   }
 
+  const refreshAuth = async (): Promise<void> => {
+    try {
+      await pb.collection('users').authRefresh()
+    } catch {
+      pb.authStore.clear()
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -46,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         loginWithMicrosoft,
         logout,
+        refreshAuth,
       }}
     >
       {children}
