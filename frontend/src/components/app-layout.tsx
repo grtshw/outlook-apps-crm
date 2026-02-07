@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router'
 import { useAuth } from '@/hooks/use-pocketbase'
 import { pb } from '@/lib/pocketbase'
+import { getContacts, getOrganisations } from '@/lib/api'
 import {
   AppSidebar,
   type EcosystemApp,
   type NavGroup,
+  type SearchConfig,
+  type SearchResult,
+  type DomainAction,
 } from '@/components/ui/app-sidebar'
-import { LayoutDashboard, Users, Building2 } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Settings } from 'lucide-react'
 
 const FALLBACK_APPS: EcosystemApp[] = [
   { app_id: 'events', app_name: 'Events', app_url: 'https://events.theoutlook.io', app_icon: 'calendar4-event', sort_order: 1, is_active: true },
@@ -58,6 +62,56 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return location.pathname.startsWith(href)
   }
 
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      placeholder: 'Search contacts & organisations...',
+      onSearch: async (query: string) => {
+        const [contacts, orgs] = await Promise.all([
+          getContacts({ search: query, perPage: 5 }).catch(() => ({ items: [] })),
+          getOrganisations({ search: query, perPage: 5 }).catch(() => ({ items: [] })),
+        ])
+        const results: SearchResult[] = []
+        for (const c of contacts.items) {
+          results.push({
+            id: c.id,
+            label: c.name,
+            subtitle: c.email || c.organisation_name,
+            icon: Users,
+            href: `/contacts/${c.id}`,
+            category: 'Contacts',
+          })
+        }
+        for (const o of orgs.items) {
+          results.push({
+            id: o.id,
+            label: o.name,
+            subtitle: o.status,
+            icon: Building2,
+            href: `/organisations/${o.id}`,
+            category: 'Organisations',
+          })
+        }
+        return results
+      },
+      onSelect: (result: SearchResult) => {
+        if (result.href) navigate(result.href)
+      },
+    }),
+    [navigate]
+  )
+
+  const domainActions: DomainAction[] = useMemo(
+    () => [
+      {
+        id: 'settings',
+        icon: Settings,
+        tooltip: 'PocketBase admin',
+        href: '/_/',
+      },
+    ],
+    []
+  )
+
   return (
     <AppSidebar
       currentAppId="crm"
@@ -77,6 +131,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         logout()
         navigate('/login')
       }}
+      search={searchConfig}
+      domainActions={domainActions}
     >
       {children}
     </AppSidebar>
