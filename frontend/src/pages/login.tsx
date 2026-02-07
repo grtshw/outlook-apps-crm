@@ -14,7 +14,6 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
 
-  // Redirect if already logged in
   if (isLoggedIn) {
     navigate('/', { replace: true })
     return null
@@ -25,7 +24,7 @@ export function LoginPage() {
     try {
       await loginWithMicrosoft()
       navigate('/')
-    } catch (error) {
+    } catch {
       toast.error('Failed to sign in with Microsoft')
     } finally {
       setIsLoading(false)
@@ -38,7 +37,7 @@ export function LoginPage() {
     try {
       await login(email, password)
       navigate('/')
-    } catch (error) {
+    } catch {
       toast.error('Invalid email or password')
     } finally {
       setIsLoading(false)
