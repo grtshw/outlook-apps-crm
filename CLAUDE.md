@@ -8,62 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 When the user says `commit`, `push`, or `c+p` after making changes, skip verification steps (status, diff, log) and just commit with a sensible message and push. When the user says `deploy` or `d`, just run `fly deploy` without extra checks. Only do full verification for complex or ambiguous situations.
 
-## Shared Architecture (READ FIRST)
+## Shared UI Rules (STRICTLY ENFORCE)
 
-This app is part of The Outlook Apps ecosystem. **Before making changes**, read the shared documentation:
+This app uses shared shadcn/ui components symlinked from `outlook-apps-shadcn`. **Read and strictly follow** the rules in `../outlook-apps-shadcn/RULES.md` before making any frontend changes.
 
-| Document | Location | Purpose |
-|----------|----------|---------||
-| **ARCHITECTURE.md** | `ui-kit/ARCHITECTURE.md` | Component usage, examples, API reference |
-| **PATTERNS.md** | `ui-kit/PATTERNS.md` | Mandatory patterns, code standards, review checklist |
-| **DEPENDENCIES.md** | `ui-kit/DEPENDENCIES.md` | Shared dependency versions, update procedures |
-
-### Quick Reference - Mandatory Patterns
-
-```typescript
-// Security - ALWAYS escape user content
-import { escapeHtml } from '@theoutlook/ui-kit';
-html = `<p>${escapeHtml(userInput)}</p>`;
-
-// Loading - Use ui-kit skeletons
-import { renderTableSkeleton } from '@theoutlook/ui-kit';
-
-// Confirmations - Use ui-kit dialogs
-import { showDeleteConfirmation } from '@theoutlook/ui-kit';
-
-// Toasts - Use ui-kit notifications
-import { showToast } from '@theoutlook/ui-kit';
-
-// Errors - Extract user-friendly messages
-import { extractErrorMessage } from '@theoutlook/ui-kit';
-
-// Buttons - ALWAYS use .btn class (NEVER inline Tailwind button styling)
-html = `<button class="btn">Primary</button>`;
-html = `<button class="btn btn-danger">Delete</button>`;
-html = `<button class="btn btn-secondary">Cancel</button>`;
-```
-
-### Critical Rule: ui-kit Is Mandatory
-
-**NEVER create custom implementations when ui-kit provides the functionality.** Do not modify or move away from ui-kit patterns unless explicitly instructed by the user. When functionality is missing from ui-kit, **ASK FIRST** before adding to ui-kit or creating pattern exceptions.
-
-### ui-kit Principles and Enforcement
-
-**Goal:** Build universal UI components that minimise refactor effort by centralising structure, styling, accessibility, and interaction patterns in the ui-kit.
-
-**Component ownership boundaries:**
-
-| ui-kit components must own | Templates/app screens must own |
-|---------------------------|-------------------------------|
-| Semantics and accessibility (elements, aria, keyboard behaviour) | Data shaping and mapping |
-| Internal layout and spacing rules | Business logic and state |
-| Interaction patterns and visual states | Event wiring and side effects |
-| Design tokens and styling primitives | Routing, permissions, and orchestration |
-| Portable variants that work across apps | |
-
-**Hard rule:** Templates/screens must pass **data**, not **layout decisions**.
-- Allowed: `title`, `description`, `items`, `status`, `tone`, `size`, `icon`, `actions`
-- Not allowed: raw layout classes, spacing rules, DOM structure overrides
+Key rules:
+- `components/ui/` is a symlink — never edit UI components in this repo, edit them in `outlook-apps-shadcn`
+- **Never pass dimension classes to `<SheetContent>`** — the shared component owns all sizing
+- Pages pass data and behaviour, not layout decisions
 
 ## Development
 
