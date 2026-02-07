@@ -1,0 +1,3 @@
+[submodule "shadcn"]
+	path = shadcn
+	url = https://github.com/grtshw/outlook-apps-shadcn.git

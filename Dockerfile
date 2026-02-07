@@ -6,8 +6,12 @@ WORKDIR /build
 # Copy ui-kit submodule (dependency for frontend)
 COPY ui-kit ./ui-kit
 
-# Copy frontend source
+# Copy shadcn shared components
+COPY shadcn ./shadcn
+
+# Copy frontend source and resolve symlink
 COPY frontend ./frontend
+RUN rm -f frontend/src/components/ui && cp -r shadcn/ui frontend/src/components/ui
 WORKDIR /build/frontend
 
 # Install dependencies
