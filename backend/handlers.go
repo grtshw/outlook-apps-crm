@@ -1212,6 +1212,12 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	})
 }
 
+// handleAvatarURLWebhook receives avatar variant URLs from DAM after processing
+func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	// TODO: implement avatar URL webhook handler
+	return utils.SuccessResponse(re, "ok")
+}
+
 // --- Response Builders ---
 
 // buildContactResponse builds a contact response object
