@@ -1,135 +1,84 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router'
 import { useAuth } from '@/hooks/use-pocketbase'
+import { pb } from '@/lib/pocketbase'
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from '@/components/ui/sidebar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Separator } from '@/components/ui/separator'
-import { LayoutDashboard, Users, Building2, LogOut, ChevronUp } from 'lucide-react'
+  AppSidebar,
+  type EcosystemApp,
+  type NavGroup,
+} from '@/components/ui/app-sidebar'
+import { LayoutDashboard, Users, Building2 } from 'lucide-react'
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Contacts', href: '/contacts', icon: Users },
-  { name: 'Organisations', href: '/organisations', icon: Building2 },
+const FALLBACK_APPS: EcosystemApp[] = [
+  { app_id: 'events', app_name: 'Events', app_url: 'https://events.theoutlook.io', app_icon: 'calendar4-event', sort_order: 1, is_active: true },
+  { app_id: 'presentations', app_name: 'Presentations', app_url: 'https://presentations.theoutlook.io', app_icon: 'easel3', sort_order: 2, is_active: true },
+  { app_id: 'crm', app_name: 'CRM', app_url: 'https://crm.theoutlook.io', app_icon: 'person-vcard', sort_order: 3, is_active: true },
+  { app_id: 'awards', app_name: 'Awards', app_url: 'https://awards.theoutlook.io/dashboard', app_icon: 'trophy', sort_order: 4, is_active: true },
+  { app_id: 'dam', app_name: 'DAM', app_url: 'https://dam.theoutlook.io', app_icon: 'images', sort_order: 5, is_active: true },
+]
+
+const navigation: NavGroup[] = [
+  {
+    items: [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { name: 'Contacts', href: '/contacts', icon: Users },
+      { name: 'Organisations', href: '/organisations', icon: Building2 },
+    ],
+  },
 ]
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
+  const [apps, setApps] = useState<EcosystemApp[]>(FALLBACK_APPS)
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  useEffect(() => {
+    pb.collection('app_settings')
+      .getFullList({ sort: 'sort_order', filter: 'is_active=true' })
+      .then((records) => {
+        setApps(
+          records.map((r) => ({
+            app_id: r.get<string>('app_id'),
+            app_name: r.get<string>('app_name'),
+            app_url: r.get<string>('app_url'),
+            app_icon: r.get<string>('app_icon'),
+            sort_order: r.get<number>('sort_order'),
+            is_active: r.get<boolean>('is_active'),
+          }))
+        )
+      })
+      .catch(() => {
+        // keep fallback
+      })
+  }, [])
+
+  const isActive = (href: string) => {
+    if (href === '/') return location.pathname === '/'
+    return location.pathname.startsWith(href)
   }
 
-  const initials = user?.name
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-
   return (
-    <SidebarProvider>
-      <Sidebar variant="inset">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <div className="flex items-center gap-2 px-2 py-1.5">
-                <img src="/images/logo-white.svg" alt="CRM" className="h-6" />
-                <span className="text-lg tracking-tight">CRM</span>
-              </div>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navigation.map((item) => (
-                  <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                      onClick={() => navigate(item.href)}
-                      isActive={
-                        item.href === '/'
-                          ? location.pathname === '/'
-                          : location.pathname.startsWith(item.href)
-                      }
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.name}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton className="h-auto py-2">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={user?.avatarURL} />
-                      <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col items-start text-sm">
-                      <span className="truncate">{user?.name}</span>
-                      <span className="text-xs text-sidebar-foreground/60 truncate">
-                        {user?.email}
-                      </span>
-                    </div>
-                    <ChevronUp className="ml-auto h-4 w-4" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="top"
-                  className="w-[--radix-popper-anchor-width]"
-                >
-                  <DropdownMenuItem disabled>
-                    <span className="text-xs text-muted-foreground">
-                      {user?.role === 'admin' ? 'Administrator' : 'Viewer'}
-                    </span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-2" />
-          <Separator orientation="vertical" className="h-4" />
-        </header>
-        <main className="flex-1 overflow-auto p-12">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+    <AppSidebar
+      currentAppId="crm"
+      apps={apps}
+      navGroups={navigation}
+      user={{
+        name: user?.name ?? '',
+        email: user?.email ?? '',
+        avatarUrl: user?.avatar
+          ? `/api/files/${user.collectionId}/${user.id}/${user.avatar}`
+          : undefined,
+        role: user?.role === 'admin' ? 'Administrator' : 'Viewer',
+      }}
+      isActive={isActive}
+      onNavigate={(href) => navigate(href)}
+      onSignOut={() => {
+        logout()
+        navigate('/login')
+      }}
+    >
+      {children}
+    </AppSidebar>
   )
 }
