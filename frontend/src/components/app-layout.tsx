@@ -43,12 +43,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       .then((records) => {
         setApps(
           records.map((r) => ({
-            app_id: r.get<string>('app_id'),
-            app_name: r.get<string>('app_name'),
-            app_url: r.get<string>('app_url'),
-            app_icon: r.get<string>('app_icon'),
-            sort_order: r.get<number>('sort_order'),
-            is_active: r.get<boolean>('is_active'),
+            app_id: r['app_id'] as string,
+            app_name: r['app_name'] as string,
+            app_url: r['app_url'] as string,
+            app_icon: r['app_icon'] as string,
+            sort_order: r['sort_order'] as number,
+            is_active: r['is_active'] as boolean,
           }))
         )
       })
@@ -61,6 +61,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (href === '/') return location.pathname === '/'
     return location.pathname.startsWith(href)
   }
+
+  const appName = apps.find((a) => a.app_id === 'crm')?.app_name ?? 'CRM'
+
+  useEffect(() => {
+    for (const group of navigation) {
+      const match = group.items.find((item) => isActive(item.href))
+      if (match) {
+        const parts = [match.name, group.label, appName].filter(Boolean)
+        document.title = parts.join(' – ')
+        return
+      }
+    }
+    document.title = appName
+  }, [location.pathname, appName])
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
