@@ -14,10 +14,6 @@ function getAuthHeaders(): HeadersInit {
   return token ? { Authorization: token } : {}
 }
 
-function jsonHeaders(): HeadersInit {
-  return { ...getAuthHeaders(), 'Content-Type': 'application/json' }
-}
-
 // Standard fetch helper — use for new API functions
 export async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
