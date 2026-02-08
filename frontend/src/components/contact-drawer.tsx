@@ -50,7 +50,7 @@ function DrawerSection({ title, children, defaultOpen = true, badge }: DrawerSec
       <div className="border border-border rounded-lg">
         <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-muted/50 transition-colors">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{title}</span>
+            <span className="text-sm">{title}</span>
             {badge !== undefined && badge > 0 && (
               <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{badge}</span>
             )}
@@ -230,7 +230,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
           {/* Details section - always open */}
           <div className="border border-border rounded-lg p-4 space-y-4">
-            <h3 className="text-sm font-medium">Details</h3>
+            <h3 className="text-sm">Details</h3>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

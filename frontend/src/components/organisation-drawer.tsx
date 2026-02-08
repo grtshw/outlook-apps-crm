@@ -47,7 +47,7 @@ function DrawerSection({ title, children, defaultOpen = true }: DrawerSectionPro
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="border border-border rounded-lg">
         <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-          <span className="text-sm font-medium">{title}</span>
+          <span className="text-sm">{title}</span>
           <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -192,7 +192,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
 
           {/* Details section - always open */}
           <div className="border border-border rounded-lg p-4 space-y-4">
-            <h3 className="text-sm font-medium">Details</h3>
+            <h3 className="text-sm">Details</h3>
 
             <div>
               <FieldLabel htmlFor="name">Name *</FieldLabel>

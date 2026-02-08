@@ -176,7 +176,7 @@ export function ContactsPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div className="font-medium">{contact.name}</div>
+                        <div>{contact.name}</div>
                         <div className="text-sm text-muted-foreground">{contact.email}</div>
                       </div>
                     </div>
