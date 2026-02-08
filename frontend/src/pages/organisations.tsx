@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, ChevronLeft, ChevronRight, Building2 } from 'lucide-react'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
+import { PageHeader } from '@/components/ui/page-header'
 
 export function OrganisationsPage() {
   const { id } = useParams()
@@ -59,14 +60,13 @@ export function OrganisationsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Organisations</h1>
+      <PageHeader title="Organisations">
         {isAdmin && (
           <Button onClick={handleAddNew}>
             <Plus className="w-4 h-4 mr-1" /> Add organisation
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">

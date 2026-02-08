@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router'
 import { useAuth } from '@/hooks/use-pocketbase'
-import { pb } from '@/lib/pocketbase'
 import { getContacts, getOrganisations } from '@/lib/api'
 import {
   AppSidebar,
@@ -35,34 +34,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout } = useAuth()
-  const [apps, setApps] = useState<EcosystemApp[]>(FALLBACK_APPS)
-
-  useEffect(() => {
-    pb.collection('app_settings')
-      .getFullList({ sort: 'sort_order', filter: 'is_active=true' })
-      .then((records) => {
-        setApps(
-          records.map((r) => ({
-            app_id: r['app_id'] as string,
-            app_name: r['app_name'] as string,
-            app_url: r['app_url'] as string,
-            app_icon: r['app_icon'] as string,
-            sort_order: r['sort_order'] as number,
-            is_active: r['is_active'] as boolean,
-          }))
-        )
-      })
-      .catch(() => {
-        // keep fallback
-      })
-  }, [])
 
   const isActive = (href: string) => {
     if (href === '/') return location.pathname === '/'
     return location.pathname.startsWith(href)
   }
 
-  const appName = apps.find((a) => a.app_id === 'crm')?.app_name ?? 'CRM'
+  const appName = FALLBACK_APPS.find((a) => a.app_id === 'crm')?.app_name ?? 'CRM'
 
   useEffect(() => {
     for (const group of navigation) {
@@ -129,7 +107,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppSidebar
       currentAppId="crm"
-      apps={apps}
+      apps={FALLBACK_APPS}
       navGroups={navigation}
       user={{
         name: user?.name ?? '',

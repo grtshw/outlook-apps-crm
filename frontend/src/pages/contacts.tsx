@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ContactDrawer } from '@/components/contact-drawer'
+import { PageHeader } from '@/components/ui/page-header'
 
 const ROLE_VARIANTS: Record<ContactRole, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   presenter: 'default',
@@ -85,14 +86,13 @@ export function ContactsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl">Contacts</h1>
+      <PageHeader title="Contacts">
         {isAdmin && (
           <Button onClick={handleAddNew}>
             <Plus className="w-4 h-4 mr-1" /> Add contact
           </Button>
         )}
-      </div>
+      </PageHeader>
 
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">

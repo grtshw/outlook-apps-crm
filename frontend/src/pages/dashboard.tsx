@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Users, Building2, Activity, Plus } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 
 export function DashboardPage() {
   const { user } = useAuth()
@@ -16,14 +17,12 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl">Dashboard</h1>
-        {user && (
-          <p className="text-muted-foreground">
-            Welcome back, {user.name || user.email}
-          </p>
-        )}
-      </div>
+      <PageHeader title="Dashboard" />
+      {user && (
+        <p className="text-muted-foreground">
+          Welcome back, {user.name || user.email}
+        </p>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
