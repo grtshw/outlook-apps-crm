@@ -8,7 +8,9 @@ import {
   Sheet,
   SheetContent,
   SheetHeader,
+  SheetFooter,
   SheetTitle,
+  SheetSection,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,13 +36,13 @@ interface OrganisationDrawerProps {
   organisation: Organisation | null
 }
 
-interface DrawerSectionProps {
+interface CollapsibleSectionProps {
   title: string
   children: React.ReactNode
   defaultOpen?: boolean
 }
 
-function DrawerSection({ title, children, defaultOpen = true }: DrawerSectionProps) {
+function CollapsibleSection({ title, children, defaultOpen = true }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
@@ -155,14 +157,14 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
-        <SheetHeader className="pb-4">
+        <SheetHeader>
           <SheetTitle>{isNew ? 'Add organisation' : 'Edit organisation'}</SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {/* Header with logo for existing organisations */}
           {!isNew && (
-            <div className="flex items-center gap-4 pb-4">
+            <div className="flex items-center gap-4 pb-2">
               <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
                 {organisation?.logo_square_url || organisation?.logo_standard_url ? (
                   <img
@@ -190,10 +192,8 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
             </div>
           )}
 
-          {/* Details section - always open */}
-          <div className="border border-border rounded-lg p-4 space-y-4">
-            <h3 className="text-sm">Details</h3>
-
+          {/* Details section */}
+          <SheetSection title="Details">
             <div>
               <FieldLabel htmlFor="name">Name *</FieldLabel>
               <Input
@@ -221,10 +221,10 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </SheetSection>
 
           {/* Descriptions section */}
-          <DrawerSection title="Descriptions" defaultOpen={hasDescriptions}>
+          <CollapsibleSection title="Descriptions" defaultOpen={hasDescriptions}>
             <div>
               <FieldLabel htmlFor="description_short">Short description</FieldLabel>
               <Textarea
@@ -270,10 +270,10 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                 {formData.description_long.length}/1000
               </p>
             </div>
-          </DrawerSection>
+          </CollapsibleSection>
 
           {/* Social and web section */}
-          <DrawerSection title="Social and web" defaultOpen={hasSocial}>
+          <CollapsibleSection title="Social and web" defaultOpen={hasSocial}>
             <div>
               <FieldLabel htmlFor="website">Website</FieldLabel>
               <div className="flex gap-2">
@@ -303,11 +303,11 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                 placeholder="https://linkedin.com/company/..."
               />
             </div>
-          </DrawerSection>
+          </CollapsibleSection>
 
           {/* Created/updated section - only for existing organisations */}
           {!isNew && organisation && (
-            <DrawerSection title="Created/updated" defaultOpen={false}>
+            <CollapsibleSection title="Created/updated" defaultOpen={false}>
               <div className="space-y-2 text-sm text-muted-foreground">
                 {organisation.source && (
                   <p>
@@ -321,37 +321,37 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                   Updated: <span className="text-foreground">{new Date(organisation.updated).toLocaleDateString()}</span>
                 </p>
               </div>
-            </DrawerSection>
-          )}
-
-          {/* Action buttons */}
-          {isAdmin && (
-            <div className="flex gap-2 pt-4">
-              {!isNew && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  onClick={handleDelete}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
-              </Button>
-            </div>
+            </CollapsibleSection>
           )}
         </form>
+
+        {/* Action buttons in sticky footer */}
+        {isAdmin && (
+          <SheetFooter>
+            {!isNew && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
+            </Button>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   )
