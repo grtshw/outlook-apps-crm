@@ -1,13 +1,26 @@
 import type { ReactNode } from 'react'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+
+interface Column<T> {
+  label: string
+  className?: string
+  render: (item: T) => ReactNode
+}
 
 interface EntityListProps<T> {
   items: T[]
   isLoading: boolean
   layout: 'list' | 'cards'
-  getName: (item: T) => string
-  renderListItem: (item: T) => ReactNode
+  columns: Column<T>[]
   renderCard: (item: T) => ReactNode
   onItemClick: (item: T) => void
   emptyMessage?: string
@@ -17,19 +30,33 @@ export function EntityList<T extends { id: string }>({
   items,
   isLoading,
   layout,
-  getName,
-  renderListItem,
+  columns,
   renderCard,
   onItemClick,
   emptyMessage = 'No results found',
 }: EntityListProps<T>) {
   if (isLoading) {
     return layout === 'list' ? (
-      <div className="space-y-2">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 rounded-lg" />
-        ))}
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {columns.map((col, i) => (
+              <TableHead key={i} className={col.className}>{col.label}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <TableRow key={i}>
+              {columns.map((_, j) => (
+                <TableCell key={j}>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     ) : (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {Array.from({ length: 12 }).map((_, i) => (
@@ -61,36 +88,30 @@ export function EntityList<T extends { id: string }>({
     )
   }
 
-  // List view with alphabetical dividers
-  const groups: { letter: string; items: T[] }[] = []
-  for (const item of items) {
-    const letter = (getName(item)?.[0] || '#').toUpperCase()
-    const last = groups[groups.length - 1]
-    if (last && last.letter === letter) {
-      last.items.push(item)
-    } else {
-      groups.push({ letter, items: [item] })
-    }
-  }
-
   return (
-    <div className="space-y-1">
-      {groups.map((group) => (
-        <div key={group.letter}>
-          <div className="px-2 py-1.5 text-xs text-muted-foreground tracking-widest uppercase">
-            {group.letter}
-          </div>
-          {group.items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer hover:bg-accent transition-colors"
-              onClick={() => onItemClick(item)}
-            >
-              {renderListItem(item)}
-            </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {columns.map((col, i) => (
+            <TableHead key={i} className={col.className}>{col.label}</TableHead>
           ))}
-        </div>
-      ))}
-    </div>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((item) => (
+          <TableRow
+            key={item.id}
+            className="cursor-pointer"
+            onClick={() => onItemClick(item)}
+          >
+            {columns.map((col, i) => (
+              <TableCell key={i} className={col.className}>
+                {col.render(item)}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

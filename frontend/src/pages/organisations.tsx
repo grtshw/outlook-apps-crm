@@ -138,30 +138,37 @@ export function OrganisationsPage() {
         items={data?.items ?? []}
         isLoading={isLoading}
         layout={layout}
-        getName={(org) => org.name}
         onItemClick={openOrg}
         emptyMessage="No organisations found"
-        renderListItem={(org) => (
-          <>
-            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
-              {org.logo_square_url || org.logo_standard_url ? (
-                <img
-                  src={org.logo_square_url || org.logo_standard_url}
-                  alt={org.name}
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : (
-                <Building2 className="w-4 h-4 text-muted-foreground" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="truncate">{org.name}</div>
-            </div>
-            {org.status === 'archived' && (
-              <Badge variant="secondary">Archived</Badge>
-            )}
-          </>
-        )}
+        columns={[
+          {
+            label: 'Organisation',
+            render: (org: Organisation) => (
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                  {org.logo_square_url || org.logo_standard_url ? (
+                    <img
+                      src={org.logo_square_url || org.logo_standard_url}
+                      alt={org.name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  ) : (
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
+                <span>{org.name}</span>
+              </div>
+            ),
+          },
+          {
+            label: 'Status',
+            render: (org: Organisation) => (
+              org.status === 'archived'
+                ? <Badge variant="secondary">Archived</Badge>
+                : <Badge variant="default">Active</Badge>
+            ),
+          },
+        ]}
         renderCard={(org) => (
           <CardContent className="flex flex-col items-center text-center">
             <div className="w-full aspect-square flex items-center justify-center mb-3 rounded-lg bg-muted overflow-hidden">

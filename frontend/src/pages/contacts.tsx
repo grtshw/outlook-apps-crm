@@ -230,54 +230,76 @@ export function ContactsPage() {
         items={data?.items ?? []}
         isLoading={isLoading}
         layout={layout}
-        getName={(c) => c.name}
         onItemClick={openContact}
         emptyMessage="No contacts found"
-        renderListItem={(contact) => (
-          <>
-            {mergeMode && (
+        columns={[
+          ...(mergeMode ? [{
+            label: '',
+            className: 'w-[40px]',
+            render: (contact: Contact) => (
               <Checkbox
                 checked={selectedIds.has(contact.id)}
                 onCheckedChange={() => toggleSelection(contact.id)}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
               />
-            )}
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url} />
-              <AvatarFallback className="text-xs">
-                {initials(contact.name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="truncate">{contact.name}</div>
-              <div className="text-sm text-muted-foreground truncate">{contact.email}</div>
-            </div>
-            <span className="text-sm text-muted-foreground hidden md:block">
-              {contact.organisation_name || '—'}
-            </span>
-            <div className="flex-wrap gap-1 hidden lg:flex">
-              {contact.roles?.slice(0, 2).map((role) => (
-                <Badge key={role} variant={ROLE_VARIANTS[role]}>
-                  {role}
-                </Badge>
-              ))}
-              {(contact.roles?.length || 0) > 2 && (
-                <Badge variant="outline">+{contact.roles!.length - 2}</Badge>
-              )}
-            </div>
-            <Badge
-              variant={
-                contact.status === 'active'
-                  ? 'default'
-                  : contact.status === 'inactive'
-                  ? 'secondary'
-                  : 'outline'
-              }
-            >
-              {contact.status}
-            </Badge>
-          </>
-        )}
+            ),
+          }] : []),
+          {
+            label: 'Name',
+            className: 'w-[300px]',
+            render: (contact: Contact) => (
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url} />
+                  <AvatarFallback className="text-xs">
+                    {initials(contact.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div>{contact.name}</div>
+                  <div className="text-sm text-muted-foreground">{contact.email}</div>
+                </div>
+              </div>
+            ),
+          },
+          {
+            label: 'Organisation',
+            render: (contact: Contact) => (
+              <span className="text-muted-foreground">{contact.organisation_name || '—'}</span>
+            ),
+          },
+          {
+            label: 'Roles',
+            render: (contact: Contact) => (
+              <div className="flex flex-wrap gap-1">
+                {contact.roles?.slice(0, 2).map((role) => (
+                  <Badge key={role} variant={ROLE_VARIANTS[role]}>
+                    {role}
+                  </Badge>
+                ))}
+                {(contact.roles?.length || 0) > 2 && (
+                  <Badge variant="outline">+{contact.roles!.length - 2}</Badge>
+                )}
+              </div>
+            ),
+          },
+          {
+            label: 'Status',
+            render: (contact: Contact) => (
+              <Badge
+                variant={
+                  contact.status === 'active'
+                    ? 'default'
+                    : contact.status === 'inactive'
+                    ? 'secondary'
+                    : 'outline'
+                }
+              >
+                {contact.status}
+              </Badge>
+            ),
+          },
+        ]}
         renderCard={(contact) => (
           <CardContent className="flex flex-col items-center text-center pt-6">
             <Avatar className="h-16 w-16 mb-3">
