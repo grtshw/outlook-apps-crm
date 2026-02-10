@@ -8,11 +8,13 @@ import {
   Sheet,
   SheetContent,
   SheetHeader,
+  SheetFooter,
   SheetTitle,
+  SheetSection,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { RichTextEditor } from '@/components/rich-text-editor'
 import {
   Select,
   SelectContent,
@@ -35,14 +37,14 @@ interface ContactDrawerProps {
   contact: Contact | null
 }
 
-interface DrawerSectionProps {
+interface CollapsibleSectionProps {
   title: string
   children: React.ReactNode
   defaultOpen?: boolean
   badge?: number
 }
 
-function DrawerSection({ title, children, defaultOpen = true, badge }: DrawerSectionProps) {
+function CollapsibleSection({ title, children, defaultOpen = true, badge }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
@@ -90,6 +92,11 @@ function getActivityIcon(sourceApp: string) {
     default:
       return Clock
   }
+}
+
+function getAvatarSrc(contact: Contact | null) {
+  if (!contact) return undefined
+  return contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url || undefined
 }
 
 export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
@@ -204,17 +211,17 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader className="pb-4">
+      <SheetContent>
+        <SheetHeader>
           <SheetTitle>{isNew ? 'Add contact' : 'Edit contact'}</SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {/* Header with avatar for existing contacts */}
           {!isNew && (
-            <div className="flex items-center gap-4 pb-4">
+            <div className="flex items-center gap-4 pb-2">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={contact?.avatar_thumb_url || contact?.avatar_url} />
+                <AvatarImage src={getAvatarSrc(contact)} />
                 <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
               <div>
@@ -228,10 +235,18 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
             </div>
           )}
 
-          {/* Details section - always open */}
-          <div className="border border-border rounded-lg p-4 space-y-4">
-            <h3 className="text-sm">Details</h3>
+          {/* DEBUG: avatar URLs */}
+          {!isNew && contact && (
+            <div className="text-xs bg-muted p-3 rounded-lg space-y-1 break-all">
+              <p>avatar_url: {contact.avatar_url || '(empty)'}</p>
+              <p>avatar_thumb_url: {contact.avatar_thumb_url || '(empty)'}</p>
+              <p>avatar_small_url: {contact.avatar_small_url || '(empty)'}</p>
+              <p>avatar_original_url: {contact.avatar_original_url || '(empty)'}</p>
+            </div>
+          )}
 
+          {/* Details section */}
+          <SheetSection title="Details">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="name">Name *</FieldLabel>
@@ -307,24 +322,19 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </SheetSection>
 
           {/* Bio and location section */}
-          <DrawerSection title="Bio and location" defaultOpen={hasBioOrLocation}>
+          <CollapsibleSection title="Bio and location" defaultOpen={hasBioOrLocation}>
             <div>
-              <FieldLabel htmlFor="bio">Bio</FieldLabel>
-              <Textarea
-                id="bio"
-                value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                rows={4}
-                disabled={!isAdmin}
+              <FieldLabel>Bio</FieldLabel>
+              <RichTextEditor
+                content={formData.bio}
+                onChange={(html) => setFormData({ ...formData, bio: html })}
                 placeholder="Brief biography"
-                maxLength={500}
+                minHeight={100}
+                disabled={!isAdmin}
               />
-              <p className="text-xs text-muted-foreground text-right mt-1">
-                {formData.bio.length}/500
-              </p>
             </div>
             <div>
               <FieldLabel htmlFor="location">Location</FieldLabel>
@@ -336,10 +346,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 placeholder="e.g., Melbourne, Australia"
               />
             </div>
-          </DrawerSection>
+          </CollapsibleSection>
 
           {/* Social and web section */}
-          <DrawerSection title="Social and web" defaultOpen={hasSocial}>
+          <CollapsibleSection title="Social and web" defaultOpen={hasSocial}>
             <div>
               <FieldLabel htmlFor="linkedin">LinkedIn</FieldLabel>
               <div className="flex gap-2">
@@ -379,11 +389,11 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 placeholder="https://example.com"
               />
             </div>
-          </DrawerSection>
+          </CollapsibleSection>
 
           {/* Activity section - only for existing contacts */}
           {!isNew && (
-            <DrawerSection title="Activity" defaultOpen={false} badge={activities.length}>
+            <CollapsibleSection title="Activity" defaultOpen={false} badge={activities.length}>
               {activities.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No activities recorded yet.</p>
               ) : (
@@ -419,12 +429,12 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   })}
                 </div>
               )}
-            </DrawerSection>
+            </CollapsibleSection>
           )}
 
           {/* Created/updated section - only for existing contacts */}
           {!isNew && contact && (
-            <DrawerSection title="Created/updated" defaultOpen={false}>
+            <CollapsibleSection title="Created/updated" defaultOpen={false}>
               <div className="space-y-2 text-sm text-muted-foreground">
                 {contact.source && (
                   <p>
@@ -438,37 +448,37 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   Updated: <span className="text-foreground">{new Date(contact.updated).toLocaleDateString()}</span>
                 </p>
               </div>
-            </DrawerSection>
-          )}
-
-          {/* Action buttons */}
-          {isAdmin && (
-            <div className="flex gap-2 pt-4">
-              {!isNew && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="icon"
-                  onClick={handleDelete}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="flex-1" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
-              </Button>
-            </div>
+            </CollapsibleSection>
           )}
         </form>
+
+        {/* Action buttons in sticky footer */}
+        {isAdmin && (
+          <SheetFooter>
+            {!isNew && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <div className="flex-1" />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
+            </Button>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   )
