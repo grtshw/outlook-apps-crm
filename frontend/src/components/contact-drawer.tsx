@@ -235,16 +235,6 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
             </div>
           )}
 
-          {/* DEBUG: avatar URLs */}
-          {!isNew && contact && (
-            <div className="text-xs bg-muted p-3 rounded-lg space-y-1 break-all">
-              <p>avatar_url: {contact.avatar_url || '(empty)'}</p>
-              <p>avatar_thumb_url: {contact.avatar_thumb_url || '(empty)'}</p>
-              <p>avatar_small_url: {contact.avatar_small_url || '(empty)'}</p>
-              <p>avatar_original_url: {contact.avatar_original_url || '(empty)'}</p>
-            </div>
-          )}
-
           {/* Details section */}
           <SheetSection title="Details">
             <div className="grid grid-cols-2 gap-4">
