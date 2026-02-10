@@ -97,10 +97,11 @@ func runPresenterImport(app *pocketbase.PocketBase, presentationsAPIURL string) 
 			continue
 		}
 
+		idx := utils.BlindIndex(presenter.Email)
 		existing, _ := app.FindFirstRecordByFilter(
 			utils.CollectionContacts,
-			"email = {:email}",
-			map[string]any{"email": presenter.Email},
+			"email_index = {:idx}",
+			map[string]any{"idx": idx},
 		)
 		wasNew := existing == nil
 
@@ -209,10 +210,11 @@ func handleImportPresenters(re *core.RequestEvent, app *pocketbase.PocketBase) e
 		}
 
 		// Check if contact exists before import to track created vs updated
+		idx := utils.BlindIndex(presenter.Email)
 		existing, _ := app.FindFirstRecordByFilter(
 			utils.CollectionContacts,
-			"email = {:email}",
-			map[string]any{"email": presenter.Email},
+			"email_index = {:idx}",
+			map[string]any{"idx": idx},
 		)
 		wasNew := existing == nil
 
@@ -243,11 +245,12 @@ func importPresenter(app *pocketbase.PocketBase, presenter PresenterFromAPI) err
 		return fmt.Errorf("contacts collection not found: %w", err)
 	}
 
-	// Find existing contact by email
+	// Find existing contact by blind index (email is encrypted)
+	blindIndex := utils.BlindIndex(presenter.Email)
 	existing, _ := app.FindFirstRecordByFilter(
 		utils.CollectionContacts,
-		"email = {:email}",
-		map[string]any{"email": presenter.Email},
+		"email_index = {:idx}",
+		map[string]any{"idx": blindIndex},
 	)
 
 	var record *core.Record
