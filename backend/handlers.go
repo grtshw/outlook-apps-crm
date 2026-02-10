@@ -1218,6 +1218,158 @@ func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	return utils.SuccessResponse(re, "ok")
 }
 
+// --- Merge Handler ---
+
+// MergeContactsInput is the request payload for merging contacts
+type MergeContactsInput struct {
+	PrimaryID       string            `json:"primary_id"`
+	MergedIDs       []string          `json:"merged_ids"`
+	FieldSelections map[string]string `json:"field_selections"` // field -> source contact ID
+	MergedRoles     []string          `json:"merged_roles"`
+	MergedTags      []string          `json:"merged_tags"`
+}
+
+// handleContactsMerge merges multiple contacts into a single primary contact
+func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	var input MergeContactsInput
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	// Validate input
+	if input.PrimaryID == "" {
+		return utils.BadRequestResponse(re, "primary_id is required")
+	}
+	if len(input.MergedIDs) == 0 {
+		return utils.BadRequestResponse(re, "At least one merged_id is required")
+	}
+	for _, mid := range input.MergedIDs {
+		if mid == input.PrimaryID {
+			return utils.BadRequestResponse(re, "primary_id cannot be in merged_ids")
+		}
+	}
+
+	// Load all contacts
+	primaryRecord, err := app.FindRecordById(utils.CollectionContacts, input.PrimaryID)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Primary contact not found")
+	}
+
+	allContacts := map[string]*core.Record{input.PrimaryID: primaryRecord}
+	for _, mid := range input.MergedIDs {
+		record, err := app.FindRecordById(utils.CollectionContacts, mid)
+		if err != nil {
+			return utils.NotFoundResponse(re, fmt.Sprintf("Contact %s not found", mid))
+		}
+		allContacts[mid] = record
+	}
+
+	// Build merged values from field_selections
+	scalarFields := []string{
+		"name", "email", "phone", "pronouns", "bio", "job_title",
+		"linkedin", "instagram", "website", "location", "do_position",
+		"organisation", "status", "source",
+		"avatar_url", "avatar_thumb_url", "avatar_small_url", "avatar_original_url",
+		"hubspot_contact_id", "hubspot_synced_at",
+	}
+	piiFields := map[string]bool{"email": true, "phone": true, "bio": true, "location": true}
+
+	for _, field := range scalarFields {
+		sourceID, ok := input.FieldSelections[field]
+		if !ok {
+			continue
+		}
+		sourceRecord, ok := allContacts[sourceID]
+		if !ok {
+			return utils.BadRequestResponse(re, fmt.Sprintf("Invalid source contact for field %s", field))
+		}
+		val := sourceRecord.GetString(field)
+		if piiFields[field] {
+			val = utils.DecryptField(val)
+		}
+		primaryRecord.Set(field, val)
+	}
+
+	// Set array fields
+	primaryRecord.Set("roles", input.MergedRoles)
+	primaryRecord.Set("tags", input.MergedTags)
+
+	// Deep merge source_ids from all contacts
+	mergedSourceIDs := map[string]any{}
+	for _, record := range allContacts {
+		if sourceIDs := record.Get("source_ids"); sourceIDs != nil {
+			if m, ok := sourceIDs.(map[string]any); ok {
+				for k, v := range m {
+					mergedSourceIDs[k] = v
+				}
+			}
+		}
+	}
+	primaryRecord.Set("source_ids", mergedSourceIDs)
+
+	// Execute in transaction
+	activitiesReassigned := 0
+
+	err = app.RunInTransaction(func(txApp core.App) error {
+		// First: reassign activities and delete merged contacts
+		for _, mid := range input.MergedIDs {
+			record := allContacts[mid]
+
+			// Reassign activities to primary
+			activities, _ := txApp.FindRecordsByFilter(
+				utils.CollectionActivities,
+				"contact = {:contactId}", "", 0, 0,
+				map[string]any{"contactId": mid},
+			)
+			for _, activity := range activities {
+				activity.Set("contact", input.PrimaryID)
+				if err := txApp.Save(activity); err != nil {
+					return fmt.Errorf("failed to reassign activity %s: %w", activity.Id, err)
+				}
+				activitiesReassigned++
+			}
+
+			// Delete the merged contact
+			if err := txApp.Delete(record); err != nil {
+				return fmt.Errorf("failed to delete contact %s: %w", mid, err)
+			}
+		}
+
+		// Second: decrypt PII fields on primary before save (encryption hooks re-encrypt)
+		for _, field := range []string{"email", "phone", "bio", "location"} {
+			if v := primaryRecord.GetString(field); v != "" {
+				primaryRecord.Set(field, utils.DecryptField(v))
+			}
+		}
+
+		// Save the updated primary contact
+		if err := txApp.Save(primaryRecord); err != nil {
+			return fmt.Errorf("failed to save primary contact: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("[ContactMerge] Transaction failed: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to merge contacts")
+	}
+
+	// Audit log
+	utils.LogFromRequest(app, re, "merge", "contacts", input.PrimaryID, "success",
+		map[string]any{
+			"primary_id":            input.PrimaryID,
+			"merged_ids":            input.MergedIDs,
+			"activities_reassigned": activitiesReassigned,
+		}, "")
+
+	return utils.DataResponse(re, map[string]any{
+		"id":                    input.PrimaryID,
+		"activities_reassigned": activitiesReassigned,
+		"contacts_deleted":      len(input.MergedIDs),
+	})
+}
+
 // --- Response Builders ---
 
 // buildContactResponse builds a contact response object
@@ -1244,8 +1396,10 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		"updated":     r.GetString("updated"),
 	}
 
-	// Avatar URL
-	if avatar := r.GetString("avatar"); avatar != "" {
+	// Avatar: prefer DAM URL field, fall back to local file
+	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
+		data["avatar_url"] = avatarURL
+	} else if avatar := r.GetString("avatar"); avatar != "" {
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
@@ -1293,8 +1447,10 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		"updated":     r.GetString("updated"),
 	}
 
-	// Avatar URL (CRM local file)
-	if avatar := r.GetString("avatar"); avatar != "" {
+	// Avatar: prefer DAM URL field, fall back to local file
+	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
+		data["avatar_url"] = avatarURL
+	} else if avatar := r.GetString("avatar"); avatar != "" {
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 

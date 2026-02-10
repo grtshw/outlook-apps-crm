@@ -198,6 +198,11 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleContactDelete(re, app)
 	}).BindFunc(utils.RequireAdmin)
 
+	// Merge contacts
+	e.Router.POST("/api/contacts/merge", func(re *core.RequestEvent) error {
+		return handleContactsMerge(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	// Contact avatar upload
 	e.Router.POST("/api/contacts/{id}/avatar", func(re *core.RequestEvent) error {
 		return handleContactAvatarUpload(re, app)

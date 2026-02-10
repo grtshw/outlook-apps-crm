@@ -69,7 +69,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 }
 
-// Contacts
+// Contacts — use custom endpoints that handle PII decryption
 export async function getContacts(params: {
   page?: number
   perPage?: number
@@ -81,90 +81,72 @@ export async function getContacts(params: {
   queryParams.set('page', String(params.page || 1))
   queryParams.set('perPage', String(params.perPage || 25))
   queryParams.set('sort', params.sort || 'name')
-
-  const filters: string[] = []
   if (params.status && params.status !== 'all') {
-    filters.push(`status='${params.status}'`)
+    queryParams.set('status', params.status)
   }
   if (params.search) {
-    const search = params.search.replace(/'/g, "\\'")
-    filters.push(`(name~'${search}'||email~'${search}')`)
-  }
-  if (filters.length > 0) {
-    queryParams.set('filter', filters.join('&&'))
+    queryParams.set('search', params.search)
   }
 
-  const response = await fetch(`/api/collections/contacts/records?${queryParams}`, {
-    headers: getAuthHeaders(),
-  })
-  if (!response.ok) throw new Error('Failed to fetch contacts')
-  const data = await response.json()
-
-  return {
-    items: data.items,
-    page: data.page,
-    perPage: data.perPage,
-    totalItems: data.totalItems,
-    totalPages: data.totalPages,
-  }
+  return fetchJSON<PaginatedResult<Contact>>(`/api/contacts?${queryParams}`)
 }
 
 export async function getContact(id: string): Promise<Contact> {
-  return fetchJSON<Contact>(`/api/collections/contacts/records/${id}`)
+  return fetchJSON<Contact>(`/api/contacts/${id}`)
 }
 
 export async function createContact(data: Partial<Contact>): Promise<Contact> {
-  const response = await fetch('/api/collections/contacts/records', {
+  return fetchJSON<Contact>('/api/contacts', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: pb.authStore.token,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Failed to create contact')
-  }
-  return response.json()
 }
 
 export async function updateContact(id: string, data: Partial<Contact>): Promise<Contact> {
-  const response = await fetch(`/api/collections/contacts/records/${id}`, {
+  return fetchJSON<Contact>(`/api/contacts/${id}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: pb.authStore.token,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Failed to update contact')
-  }
-  return response.json()
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  const response = await fetch(`/api/collections/contacts/records/${id}`, {
+  await fetchJSON<{ message: string }>(`/api/contacts/${id}`, {
     method: 'DELETE',
-    headers: { Authorization: pb.authStore.token },
   })
-  if (!response.ok) throw new Error('Failed to delete contact')
 }
 
 export async function getContactActivities(id: string): Promise<Activity[]> {
-  const params = new URLSearchParams({
-    filter: `contact='${id}'`,
-    sort: '-occurred_at',
-    perPage: '50',
-  })
   try {
-    const data = await fetchJSON<{ items: Activity[] }>(`/api/collections/activities/records?${params}`)
-    return data.items || []
+    const data = await fetchJSON<Activity[]>(`/api/contacts/${id}/activities`)
+    return data || []
   } catch {
     return []
   }
+}
+
+// Merge contacts
+export interface MergeContactsRequest {
+  primary_id: string
+  merged_ids: string[]
+  field_selections: Record<string, string>
+  merged_roles: string[]
+  merged_tags: string[]
+}
+
+export interface MergeContactsResponse {
+  id: string
+  activities_reassigned: number
+  contacts_deleted: number
+}
+
+export async function mergeContacts(data: MergeContactsRequest): Promise<MergeContactsResponse> {
+  return fetchJSON<MergeContactsResponse>('/api/contacts/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 // Organisations
