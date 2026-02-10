@@ -154,7 +154,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent>
         <SheetHeader className="pb-4">
           <SheetTitle>{isNew ? 'Add organisation' : 'Edit organisation'}</SheetTitle>
         </SheetHeader>

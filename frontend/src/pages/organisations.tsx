@@ -4,11 +4,10 @@ import { useParams, useNavigate } from 'react-router'
 import { getOrganisations, getOrganisation } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import type { Organisation } from '@/lib/pocketbase'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -16,9 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, ChevronLeft, ChevronRight, Building2 } from 'lucide-react'
+import { Plus, Search, ChevronLeft, ChevronRight, Building2, LayoutGrid, List } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
+import { EntityList } from '@/components/entity-list'
 import { PageHeader } from '@/components/ui/page-header'
+
+function getStoredLayout(): 'list' | 'cards' {
+  try {
+    const v = localStorage.getItem('crm-orgs-layout')
+    if (v === 'list' || v === 'cards') return v
+  } catch { /* ignore */ }
+  return 'list'
+}
 
 export function OrganisationsPage() {
   const { id } = useParams()
@@ -27,8 +36,14 @@ export function OrganisationsPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('active')
+  const [layout, setLayoutState] = useState<'list' | 'cards'>(getStoredLayout)
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedOrg, setSelectedOrg] = useState<Organisation | null>(null)
+
+  const setLayout = (v: 'list' | 'cards') => {
+    setLayoutState(v)
+    try { localStorage.setItem('crm-orgs-layout', v) } catch { /* ignore */ }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['organisations', page, search, status],
@@ -97,51 +112,78 @@ export function OrganisationsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1 border rounded-md p-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-7 w-7', layout === 'list' && 'bg-accent')}
+            onClick={() => setLayout('list')}
+            title="List view"
+          >
+            <List className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-7 w-7', layout === 'cards' && 'bg-accent')}
+            onClick={() => setLayout('cards')}
+            title="Card view"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-lg" />
-          ))}
-        </div>
-      ) : data?.items.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No organisations found
+      <EntityList
+        items={data?.items ?? []}
+        isLoading={isLoading}
+        layout={layout}
+        getName={(org) => org.name}
+        onItemClick={openOrg}
+        emptyMessage="No organisations found"
+        renderListItem={(org) => (
+          <>
+            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
+              {org.logo_square_url || org.logo_standard_url ? (
+                <img
+                  src={org.logo_square_url || org.logo_standard_url}
+                  alt={org.name}
+                  className="max-w-full max-h-full object-contain"
+                />
+              ) : (
+                <Building2 className="w-4 h-4 text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="truncate">{org.name}</div>
+            </div>
+            {org.status === 'archived' && (
+              <Badge variant="secondary">Archived</Badge>
+            )}
+          </>
+        )}
+        renderCard={(org) => (
+          <CardContent className="flex flex-col items-center text-center">
+            <div className="w-full aspect-square flex items-center justify-center mb-3 rounded-lg bg-muted overflow-hidden">
+              {org.logo_square_url || org.logo_standard_url ? (
+                <img
+                  src={org.logo_square_url || org.logo_standard_url}
+                  alt={org.name}
+                  className="max-w-full max-h-full object-contain p-2"
+                />
+              ) : (
+                <Building2 className="w-12 h-12 text-muted-foreground" />
+              )}
+            </div>
+            <p className="text-sm line-clamp-2">{org.name}</p>
+            {org.status === 'archived' && (
+              <Badge variant="secondary" className="mt-2">
+                Archived
+              </Badge>
+            )}
           </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {data?.items.map((org) => (
-            <Card
-              key={org.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => openOrg(org)}
-            >
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="w-full aspect-square flex items-center justify-center mb-3 rounded-lg bg-muted overflow-hidden">
-                  {org.logo_square_url || org.logo_standard_url ? (
-                    <img
-                      src={org.logo_square_url || org.logo_standard_url}
-                      alt={org.name}
-                      className="max-w-full max-h-full object-contain p-2"
-                    />
-                  ) : (
-                    <Building2 className="w-12 h-12 text-muted-foreground" />
-                  )}
-                </div>
-                <p className="text-sm line-clamp-2">{org.name}</p>
-                {org.status === 'archived' && (
-                  <Badge variant="secondary" className="mt-2">
-                    Archived
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        )}
+      />
 
       {data && data.totalPages > 1 && (
         <div className="flex items-center justify-between">

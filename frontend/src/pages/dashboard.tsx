@@ -35,7 +35,7 @@ export function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Link to="/contacts" className="block">
               <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-12 h-12 rounded-full bg-brand-green/10 flex items-center justify-center">
                       <Users className="w-6 h-6 text-brand-green" />
@@ -56,7 +56,7 @@ export function DashboardPage() {
 
             <Link to="/organisations" className="block">
               <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
+                <CardContent>
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-12 h-12 rounded-full bg-brand-purple/10 flex items-center justify-center">
                       <Building2 className="w-6 h-6 text-brand-purple" />
@@ -75,7 +75,7 @@ export function DashboardPage() {
             </Link>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent>
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
                     <Activity className="w-6 h-6 text-amber-600" />
@@ -93,7 +93,7 @@ export function DashboardPage() {
           </div>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent>
               <h2 className="text-lg mb-4">Quick actions</h2>
               <div className="flex flex-wrap gap-3">
                 <Button variant="secondary" asChild>
