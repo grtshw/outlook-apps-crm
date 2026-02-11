@@ -75,6 +75,63 @@ export interface Activity extends RecordModel {
   occurred_at?: string
 }
 
+export interface EventProjection extends RecordModel {
+  event_id: string
+  slug: string
+  name: string
+  edition_year: number
+  date: string
+  venue: string
+  venue_city: string
+  format: string
+  event_type: string
+  status: string
+  capacity: number
+  description: string
+}
+
+export interface GuestList extends RecordModel {
+  name: string
+  description: string
+  event_projection: string
+  event_name: string
+  created_by: string
+  status: 'draft' | 'active' | 'archived'
+  item_count: number
+  share_count: number
+}
+
+export interface GuestListItem extends RecordModel {
+  contact_id: string
+  contact_name: string
+  contact_job_title: string
+  contact_organisation_name: string
+  contact_linkedin: string
+  contact_location: string
+  contact_degrees: '1st' | '2nd' | '3rd' | ''
+  contact_relationship: number
+  contact_status?: string
+  contact_avatar_url?: string
+  contact_avatar_small_url?: string
+  contact_avatar_thumb_url?: string
+  invite_round: '1st' | '2nd' | '3rd' | 'maybe' | ''
+  invite_status: 'pending' | 'accepted' | 'declined' | 'no_show' | ''
+  notes: string
+  client_notes: string
+  sort_order: number
+}
+
+export interface GuestListShare extends RecordModel {
+  token: string
+  recipient_email: string
+  recipient_name: string
+  expires_at: string
+  revoked: boolean
+  verified_at: string
+  last_accessed_at: string
+  access_count: number
+}
+
 export interface PaginatedResult<T> {
   items: T[]
   page: number
