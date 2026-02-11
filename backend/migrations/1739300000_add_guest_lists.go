@@ -154,7 +154,7 @@ func createGuestListItemsCollection(app core.App) error {
 			Name:      "invite_status",
 			Required:  false,
 			MaxSelect: 1,
-			Values:    []string{"pending", "accepted", "declined", "no_show"},
+			Values:    []string{"invited", "accepted", "declined", "no_show"},
 		},
 		&core.TextField{
 			Id:       "gli_notes",

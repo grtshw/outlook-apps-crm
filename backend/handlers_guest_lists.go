@@ -323,7 +323,7 @@ func handleGuestListItemCreate(re *core.RequestEvent, app *pocketbase.PocketBase
 	record.Set("guest_list", listID)
 	record.Set("contact", contactID)
 	record.Set("invite_round", input["invite_round"])
-	record.Set("invite_status", stringOrDefault(input["invite_status"], "pending"))
+	record.Set("invite_status", stringOrDefault(input["invite_status"], "invited"))
 	record.Set("notes", input["notes"])
 	record.Set("sort_order", nextSort)
 
@@ -394,7 +394,7 @@ func handleGuestListItemBulkAdd(re *core.RequestEvent, app *pocketbase.PocketBas
 		record.Set("guest_list", listID)
 		record.Set("contact", contactID)
 		record.Set("invite_round", input.InviteRound)
-		record.Set("invite_status", "pending")
+		record.Set("invite_status", "invited")
 		record.Set("sort_order", nextSort)
 		record.Set("contact_name", contact.GetString("name"))
 		record.Set("contact_job_title", contact.GetString("job_title"))

@@ -115,7 +115,7 @@ export interface GuestListItem extends RecordModel {
   contact_avatar_small_url?: string
   contact_avatar_thumb_url?: string
   invite_round: '1st' | '2nd' | '3rd' | 'maybe' | ''
-  invite_status: 'pending' | 'accepted' | 'declined' | 'no_show' | ''
+  invite_status: 'invited' | 'accepted' | 'declined' | 'no_show' | ''
   notes: string
   client_notes: string
   sort_order: number
