@@ -143,7 +143,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     location: '',
     status: 'active' as Contact['status'],
     organisation: '',
-    degrees: '' as string,
+    degrees: '' as Contact['degrees'] | '',
     relationship: 0,
     notes: '',
   })

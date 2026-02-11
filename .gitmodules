@@ -1,3 +1,6 @@
 [submodule "shadcn"]
 	path = shadcn
 	url = https://github.com/grtshw/outlook-apps-shadcn.git
+[submodule "projections/events"]
+	path = projections/events
+	url = https://github.com/grtshw/outlook-apps-projections-events.git
