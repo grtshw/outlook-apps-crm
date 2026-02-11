@@ -16,14 +16,14 @@ func init() {
 
 		changed := false
 
-		// degrees - LinkedIn connection degree (1st, 2nd, 3rd)
+		// degrees - connection degree (1st degree, 2nd degree, 3rd degree)
 		if !fieldExists(collection, "degrees") {
 			collection.Fields.Add(&core.SelectField{
 				Id:        "cont_degrees",
 				Name:      "degrees",
 				Required:  false,
 				MaxSelect: 1,
-				Values:    []string{"1st", "2nd", "3rd"},
+				Values:    []string{"1st degree", "2nd degree", "3rd degree"},
 			})
 			changed = true
 		}

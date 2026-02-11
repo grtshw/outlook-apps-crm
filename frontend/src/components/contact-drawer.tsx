@@ -94,7 +94,7 @@ function StarRating({ value, onChange, disabled }: { value: number; onChange: (v
             className={cn(
               'h-5 w-5 transition-colors',
               star <= value
-                ? 'fill-yellow-400 text-yellow-400'
+                ? 'fill-foreground text-foreground'
                 : 'text-muted-foreground/30',
             )}
           />
@@ -256,9 +256,8 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     .toUpperCase()
     .slice(0, 2)
 
-  const hasBioOrLocation = !!(formData.bio || formData.location)
+  const hasBio = !!formData.bio
   const hasSocial = !!(formData.linkedin || formData.instagram || formData.website)
-  const hasRelationship = !!(formData.degrees || formData.relationship || formData.notes)
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -268,14 +267,14 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Header with avatar for existing contacts */}
+          {/* Header with avatar and status for existing contacts */}
           {!isNew && (
             <div className="flex items-center gap-4 pb-2">
               <Avatar className="h-16 w-16">
                 <AvatarImage src={getAvatarSrc(contact)} />
                 <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-1">
                 <p className="text-lg">{contact?.name}</p>
                 {contact?.organisation_name && (
                   <p className="text-sm text-muted-foreground">
@@ -283,6 +282,20 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   </p>
                 )}
               </div>
+              <Select
+                value={formData.status}
+                onValueChange={(v) => setFormData({ ...formData, status: v as Contact['status'] })}
+                disabled={!isAdmin}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -335,18 +348,41 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="job_title">Job title</FieldLabel>
+                <Input
+                  id="job_title"
+                  value={formData.job_title}
+                  onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+                  disabled={!isAdmin}
+                  placeholder="e.g., Senior developer"
+                />
+              </div>
+              <div>
+                <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
+                <OrganisationCombobox
+                  value={formData.organisation}
+                  organisations={orgsData?.items ?? []}
+                  onChange={(orgId) => setFormData({ ...formData, organisation: orgId })}
+                  disabled={!isAdmin}
+                />
+              </div>
+            </div>
+
             <div>
-              <FieldLabel htmlFor="job_title">Job title</FieldLabel>
+              <FieldLabel htmlFor="location">Location</FieldLabel>
               <Input
-                id="job_title"
-                value={formData.job_title}
-                onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 disabled={!isAdmin}
-                placeholder="e.g., Senior developer"
+                placeholder="e.g., Melbourne, Australia"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Status for new contacts only (existing contacts show it in header) */}
+            {isNew && (
               <div>
                 <FieldLabel htmlFor="status">Status</FieldLabel>
                 <Select
@@ -364,36 +400,27 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
-                <OrganisationCombobox
-                  value={formData.organisation}
-                  organisations={orgsData?.items ?? []}
-                  onChange={(orgId) => setFormData({ ...formData, organisation: orgId })}
-                  disabled={!isAdmin}
-                />
-              </div>
-            </div>
+            )}
           </SheetSection>
 
           {/* Relationship section */}
-          <CollapsibleSection title="Relationship" defaultOpen={hasRelationship}>
+          <CollapsibleSection title="Relationship" defaultOpen={true}>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <FieldLabel htmlFor="degrees">LinkedIn degree</FieldLabel>
+                <FieldLabel htmlFor="degrees">Connection</FieldLabel>
                 <Select
                   value={formData.degrees || 'none'}
                   onValueChange={(v) => setFormData({ ...formData, degrees: v === 'none' ? '' : v as Contact['degrees'] })}
                   disabled={!isAdmin}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select degree" />
+                    <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="1st">1st</SelectItem>
-                    <SelectItem value="2nd">2nd</SelectItem>
-                    <SelectItem value="3rd">3rd</SelectItem>
+                    <SelectItem value="1st degree">1st degree</SelectItem>
+                    <SelectItem value="2nd degree">2nd degree</SelectItem>
+                    <SelectItem value="3rd degree">3rd degree</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -407,20 +434,19 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
             </div>
             <div>
-              <FieldLabel htmlFor="notes">Notes</FieldLabel>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                disabled={!isAdmin}
+              <FieldLabel>Notes</FieldLabel>
+              <RichTextEditor
+                content={formData.notes}
+                onChange={(html) => setFormData({ ...formData, notes: html })}
                 placeholder="Internal notes about this contact..."
-                rows={3}
+                minHeight={80}
+                disabled={!isAdmin}
               />
             </div>
           </CollapsibleSection>
 
-          {/* Bio and location section */}
-          <CollapsibleSection title="Bio and location" defaultOpen={hasBioOrLocation}>
+          {/* Bio section */}
+          <CollapsibleSection title="Bio" defaultOpen={hasBio}>
             <div>
               <FieldLabel>Bio</FieldLabel>
               <RichTextEditor
@@ -429,16 +455,6 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 placeholder="Brief biography"
                 minHeight={100}
                 disabled={!isAdmin}
-              />
-            </div>
-            <div>
-              <FieldLabel htmlFor="location">Location</FieldLabel>
-              <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                disabled={!isAdmin}
-                placeholder="e.g., Melbourne, Australia"
               />
             </div>
           </CollapsibleSection>

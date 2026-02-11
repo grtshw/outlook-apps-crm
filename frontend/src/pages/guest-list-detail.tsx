@@ -291,7 +291,7 @@ export function GuestListDetailPage() {
                 <TableHead>Invite status</TableHead>
                 <TableHead>LinkedIn</TableHead>
                 <TableHead>City</TableHead>
-                <TableHead>Degrees</TableHead>
+                <TableHead>Connection</TableHead>
                 <TableHead>Relationship</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Client notes</TableHead>

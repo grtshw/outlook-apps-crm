@@ -294,7 +294,7 @@ export function ContactsPage() {
                     className={cn(
                       'h-3.5 w-3.5',
                       star <= (contact.relationship || 0)
-                        ? 'fill-yellow-400 text-yellow-400'
+                        ? 'fill-foreground text-foreground'
                         : 'text-muted-foreground/20',
                     )}
                   />

@@ -38,7 +38,7 @@ export interface Contact extends RecordModel {
   status: 'active' | 'inactive' | 'archived'
   source?: string
   source_ids?: Record<string, string>
-  degrees?: '1st' | '2nd' | '3rd'
+  degrees?: '1st degree' | '2nd degree' | '3rd degree'
   relationship?: number
   notes?: string
 }
@@ -108,7 +108,7 @@ export interface GuestListItem extends RecordModel {
   contact_organisation_name: string
   contact_linkedin: string
   contact_location: string
-  contact_degrees: '1st' | '2nd' | '3rd' | ''
+  contact_degrees: '1st degree' | '2nd degree' | '3rd degree' | ''
   contact_relationship: number
   contact_status?: string
   contact_avatar_url?: string
