@@ -1201,14 +1201,16 @@ func handleActivityWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) er
 
 // handleProjectAll triggers projection of all contacts and organisations to consumers
 func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	counts, err := ProjectAll(app)
+	result, err := ProjectAll(app)
 	if err != nil {
 		return utils.InternalErrorResponse(re, err.Error())
 	}
 	return utils.DataResponse(re, map[string]any{
-		"status": "projected",
-		"counts": counts,
-		"total":  counts["contacts"] + counts["organisations"],
+		"status":        "projected",
+		"projection_id": result.ProjectionID,
+		"counts":        result.Counts,
+		"total":         result.Total,
+		"consumers":     result.ConsumerNames,
 	})
 }
 

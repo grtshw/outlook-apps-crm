@@ -285,9 +285,66 @@ export async function loadApps(): Promise<App[]> {
   return []
 }
 
-// Projection - not available with standalone PocketBase
-export async function projectAll(): Promise<{ total: number; contacts: number; organisations: number }> {
-  throw new Error('Project all requires the full Go backend')
+// ── Projections ──
+
+export async function projectAll(): Promise<{
+  status: string
+  projection_id: string
+  total: number
+  counts: Record<string, number>
+  consumers: string[]
+}> {
+  return fetchJSON('/api/project-all', { method: 'POST' })
+}
+
+export async function getProjectionLogs(): Promise<{
+  logs: Array<{
+    id: string
+    created_at: string
+    record_count: number
+    consumers: Array<{
+      name: string
+      status: 'pending' | 'ok' | 'error' | 'partial'
+      message?: string
+      records_processed?: number
+      received_at?: string
+    }>
+  }>
+}> {
+  return fetchJSON('/api/projections/logs')
+}
+
+export async function getProjectionConsumers(): Promise<{
+  consumers: Array<{
+    id: string
+    name: string
+    app_id: string
+    enabled: boolean
+    last_consumption?: string
+    last_status?: string
+    last_message?: string
+  }>
+}> {
+  return fetchJSON('/api/projection-consumers')
+}
+
+export async function toggleProjectionConsumer(id: string): Promise<{ message: string; enabled: boolean }> {
+  return fetchJSON(`/api/projection-consumers/${id}/toggle`, { method: 'PATCH' })
+}
+
+export async function getProjectionProgress(projectionId: string): Promise<{
+  projection_id: string
+  total: number
+  completed: number
+  consumers: Array<{
+    name: string
+    status: 'pending' | 'ok' | 'error' | 'partial'
+    message?: string
+    records_processed?: number
+    received_at?: string
+  }>
+}> {
+  return fetchJSON(`/api/projections/${projectionId}/progress`)
 }
 
 // File URLs

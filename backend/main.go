@@ -66,11 +66,11 @@ func main() {
 				log.Fatalf("Failed to bootstrap: %v", err)
 			}
 			fmt.Println("Projecting all contacts and organisations to consumers...")
-			counts, err := ProjectAll(app)
+			result, err := ProjectAll(app)
 			if err != nil {
 				log.Fatalf("Projection failed: %v", err)
 			}
-			fmt.Printf("Projected %d contacts, %d organisations\n", counts["contacts"], counts["organisations"])
+			fmt.Printf("Projected %d contacts, %d organisations (projection_id: %s)\n", result.Counts["contacts"], result.Counts["organisations"], result.ProjectionID)
 		},
 	})
 
@@ -260,6 +260,28 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.POST("/api/project-all", func(re *core.RequestEvent) error {
 		return handleProjectAll(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Projection management endpoints
+	e.Router.GET("/api/projections/logs", func(re *core.RequestEvent) error {
+		return handleProjectionLogs(app, re)
+	}).BindFunc(utils.RequireAuth)
+
+	e.Router.GET("/api/projections/{id}/progress", func(re *core.RequestEvent) error {
+		return handleProjectionProgress(app, re)
+	}).BindFunc(utils.RequireAuth)
+
+	e.Router.GET("/api/projection-consumers", func(re *core.RequestEvent) error {
+		return handleListProjectionConsumers(app, re)
+	}).BindFunc(utils.RequireAuth)
+
+	e.Router.PATCH("/api/projection-consumers/{id}/toggle", func(re *core.RequestEvent) error {
+		return handleToggleProjectionConsumer(app, re)
+	}).BindFunc(utils.RequireAdmin)
+
+	// Projection callback endpoint (public - consumers report status)
+	e.Router.POST("/api/projections/callback", func(re *core.RequestEvent) error {
+		return handleProjectionCallback(app, re)
+	}).BindFunc(utils.RateLimitExternalAPI)
 
 	// Import presenters from Presentations app (admin only)
 	e.Router.POST("/api/import/presenters", func(re *core.RequestEvent) error {

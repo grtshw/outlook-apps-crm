@@ -9,8 +9,9 @@ import {
   type SearchConfig,
   type SearchResult,
   type DomainAction,
+  type ProfileMenuItem,
 } from '@/components/ui/app-sidebar'
-import { LayoutDashboard, Users, Building2, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Settings, Radio } from 'lucide-react'
 
 const FALLBACK_APPS: EcosystemApp[] = [
   { app_id: 'events', app_name: 'Events', app_url: 'https://events.theoutlook.io', app_icon: 'calendar4-event', sort_order: 1, is_active: true },
@@ -50,6 +51,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         document.title = parts.join(' – ')
         return
       }
+    }
+    const profileMatch = profileMenuItems.find((item) => item.href && location.pathname.startsWith(item.href))
+    if (profileMatch) {
+      document.title = [profileMatch.label, appName].filter(Boolean).join(' – ')
+      return
     }
     document.title = appName
   }, [location.pathname, appName])
@@ -92,6 +98,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     [navigate]
   )
 
+  const profileMenuItems: ProfileMenuItem[] = [
+    { label: 'Projections', icon: Radio, href: '/projections' },
+  ]
+
   const domainActions: DomainAction[] = useMemo(
     () => [
       {
@@ -125,6 +135,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       }}
       search={searchConfig}
       domainActions={domainActions}
+      profileMenuItems={profileMenuItems}
     >
       {children}
     </AppSidebar>

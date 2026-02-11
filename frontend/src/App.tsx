@@ -4,6 +4,7 @@ import { LoginPage } from '@/pages/login'
 import { DashboardPage } from '@/pages/dashboard'
 import { ContactsPage } from '@/pages/contacts'
 import { OrganisationsPage } from '@/pages/organisations'
+import CRMProjectionsPage from '@/pages/projections'
 import { AppLayout } from '@/components/app-layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ function App() {
                 <Route path="/contacts/:id" element={<ContactsPage />} />
                 <Route path="/organisations" element={<OrganisationsPage />} />
                 <Route path="/organisations/:id" element={<OrganisationsPage />} />
+                <Route path="/projections" element={<CRMProjectionsPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

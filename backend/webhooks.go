@@ -859,75 +859,110 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 	log.Printf("[Webhook] Registered hooks for collections: contacts, organisations")
 }
 
+// ProjectAllResult contains the result of projecting all records.
+type ProjectAllResult struct {
+	ProjectionID   string         `json:"projection_id"`
+	Counts         map[string]int `json:"counts"`
+	Total          int            `json:"total"`
+	ConsumerNames  []string       `json:"consumer_names"`
+}
+
 // ProjectAll sends all contacts and organisations to consumers (for initial sync or resync)
-func ProjectAll(app *pocketbase.PocketBase) (map[string]int, error) {
+func ProjectAll(app *pocketbase.PocketBase) (ProjectAllResult, error) {
 	baseURL := os.Getenv("PUBLIC_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://crm.theoutlook.io"
 	}
 
-	counts := map[string]int{
-		"contacts":      0,
-		"organisations": 0,
+	result := ProjectAllResult{
+		Counts: map[string]int{
+			"contacts":      0,
+			"organisations": 0,
+		},
+	}
+
+	// Get consumer names for the projection log
+	consumers := getProjectionConsumers(app)
+	for _, c := range consumers {
+		result.ConsumerNames = append(result.ConsumerNames, c.AppID)
+	}
+
+	// Count records first
+	contacts, err := app.FindAllRecords(utils.CollectionContacts)
+	if err != nil {
+		log.Printf("[ProjectAll] Failed to fetch contacts: %v", err)
+	}
+	organisations, orgErr := app.FindAllRecords(utils.CollectionOrganisations)
+	if orgErr != nil {
+		log.Printf("[ProjectAll] Failed to fetch organisations: %v", orgErr)
+	}
+
+	// Count projectable records
+	for _, r := range contacts {
+		if shouldProjectContact(r) {
+			result.Counts["contacts"]++
+		}
+	}
+	for _, r := range organisations {
+		if shouldProjectOrganisation(r) {
+			result.Counts["organisations"]++
+		}
+	}
+	result.Total = result.Counts["contacts"] + result.Counts["organisations"]
+
+	// Create projection log record
+	logsCollection, logErr := app.FindCollectionByNameOrId("projection_logs")
+	if logErr != nil {
+		log.Printf("[ProjectAll] Warning: projection_logs collection not found: %v", logErr)
+	} else {
+		logRecord := core.NewRecord(logsCollection)
+		logRecord.Set("record_count", result.Total)
+		logRecord.Set("consumers", result.ConsumerNames)
+		if err := app.Save(logRecord); err != nil {
+			log.Printf("[ProjectAll] Failed to create projection log: %v", err)
+		} else {
+			result.ProjectionID = logRecord.Id
+			log.Printf("[ProjectAll] Created projection log %s", result.ProjectionID)
+		}
 	}
 
 	// WaitGroup to track all webhook goroutines
 	var wg sync.WaitGroup
 
 	// Project all active/inactive contacts
-	contacts, err := app.FindAllRecords(utils.CollectionContacts)
-	if err != nil {
-		log.Printf("[ProjectAll] Failed to fetch contacts: %v", err)
-	} else {
-		for _, r := range contacts {
-			if shouldProjectContact(r) {
-				// Send to Presentations/Website
-				payload := WebhookPayload{
-					Action:     "upsert",
-					Collection: "contacts",
-					Record:     buildContactWebhookPayload(r, app, baseURL),
-					Timestamp:  time.Now().UTC().Format(time.RFC3339),
-				}
-				sendWebhookToAllConsumersSync(app, payload, &wg)
-
-				// Send to DAM (presenter format)
-				sendContactToDAMSync(r, app, baseURL, "upsert", &wg)
-
-				counts["contacts"]++
+	for _, r := range contacts {
+		if shouldProjectContact(r) {
+			payload := WebhookPayload{
+				Action:     "upsert",
+				Collection: "contacts",
+				Record:     buildContactWebhookPayload(r, app, baseURL),
+				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
+			sendWebhookToAllConsumersSync(app, payload, &wg)
+			sendContactToDAMSync(r, app, baseURL, "upsert", &wg)
 		}
 	}
 
 	// Project all active organisations
-	organisations, err := app.FindAllRecords(utils.CollectionOrganisations)
-	if err != nil {
-		log.Printf("[ProjectAll] Failed to fetch organisations: %v", err)
-	} else {
-		for _, r := range organisations {
-			if shouldProjectOrganisation(r) {
-				// Send to Presentations/Website
-				payload := WebhookPayload{
-					Action:     "upsert",
-					Collection: "organisations",
-					Record:     buildOrganisationWebhookPayload(r, baseURL),
-					Timestamp:  time.Now().UTC().Format(time.RFC3339),
-				}
-				sendWebhookToAllConsumersSync(app, payload, &wg)
-
-				// Send to DAM (projection format)
-				sendOrganisationToDAMSync(r, app, baseURL, "upsert", &wg)
-
-				counts["organisations"]++
+	for _, r := range organisations {
+		if shouldProjectOrganisation(r) {
+			payload := WebhookPayload{
+				Action:     "upsert",
+				Collection: "organisations",
+				Record:     buildOrganisationWebhookPayload(r, baseURL),
+				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
+			sendWebhookToAllConsumersSync(app, payload, &wg)
+			sendOrganisationToDAMSync(r, app, baseURL, "upsert", &wg)
 		}
 	}
 
 	// Wait for all webhooks to complete
-	log.Printf("[ProjectAll] Waiting for %d contacts and %d organisations webhooks to complete...", counts["contacts"], counts["organisations"])
+	log.Printf("[ProjectAll] Waiting for %d contacts and %d organisations webhooks to complete...", result.Counts["contacts"], result.Counts["organisations"])
 	wg.Wait()
 
-	log.Printf("[ProjectAll] Projected %d contacts, %d organisations", counts["contacts"], counts["organisations"])
-	return counts, nil
+	log.Printf("[ProjectAll] Projected %d contacts, %d organisations (projection_id: %s)", result.Counts["contacts"], result.Counts["organisations"], result.ProjectionID)
+	return result, nil
 }
 
 // maskURL masks sensitive parts of a URL for logging
