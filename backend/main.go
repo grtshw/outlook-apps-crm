@@ -13,6 +13,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/spf13/cobra"
+	"github.com/theoutlook/projections/events/receiver"
 )
 
 func main() {
@@ -76,6 +77,9 @@ func main() {
 
 	// OnServe hook - runs when the server starts
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		// Configure SendGrid SMTP
+		configurePocketBaseSMTP(app)
+
 		// Security headers middleware
 		e.Router.BindFunc(securityHeadersMiddleware)
 
@@ -288,6 +292,94 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleImportPresenters(re, app)
 	}).BindFunc(utils.RequireAdmin)
 
+	// Event projection webhook (COPE - receive events from Events app)
+	eventReceiver := receiver.NewReceiver(receiver.Config{
+		WebhookSecret: os.Getenv("PROJECTION_WEBHOOK_SECRET"),
+		ConsumerName:  "crm",
+	}, app)
+	e.Router.POST("/api/webhooks/event-projection", eventReceiver.HandleWebhook).BindFunc(utils.RateLimitExternalAPI)
+
+	// Event projections list (for guest list event dropdown)
+	e.Router.GET("/api/event-projections", func(re *core.RequestEvent) error {
+		return handleListEventProjections(re, app)
+	}).BindFunc(utils.RequireAuth)
+
+	// Guest lists CRUD (admin only)
+	e.Router.GET("/api/guest-lists", func(re *core.RequestEvent) error {
+		return handleGuestListsList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/guest-lists/{id}", func(re *core.RequestEvent) error {
+		return handleGuestListGet(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists", func(re *core.RequestEvent) error {
+		return handleGuestListCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.PATCH("/api/guest-lists/{id}", func(re *core.RequestEvent) error {
+		return handleGuestListUpdate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.DELETE("/api/guest-lists/{id}", func(re *core.RequestEvent) error {
+		return handleGuestListDelete(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Guest list items (admin only)
+	e.Router.GET("/api/guest-lists/{id}/items", func(re *core.RequestEvent) error {
+		return handleGuestListItemsList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/items", func(re *core.RequestEvent) error {
+		return handleGuestListItemCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/items/bulk", func(re *core.RequestEvent) error {
+		return handleGuestListItemBulkAdd(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.PATCH("/api/guest-list-items/{itemId}", func(re *core.RequestEvent) error {
+		return handleGuestListItemUpdate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.DELETE("/api/guest-list-items/{itemId}", func(re *core.RequestEvent) error {
+		return handleGuestListItemDelete(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Guest list shares (admin only)
+	e.Router.GET("/api/guest-lists/{id}/shares", func(re *core.RequestEvent) error {
+		return handleGuestListSharesList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/shares", func(re *core.RequestEvent) error {
+		return handleGuestListShareCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.DELETE("/api/guest-list-shares/{shareId}", func(re *core.RequestEvent) error {
+		return handleGuestListShareRevoke(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Public share endpoints (no CRM auth, rate limited)
+	e.Router.GET("/api/public/guest-lists/{token}", func(re *core.RequestEvent) error {
+		return handlePublicGuestListInfo(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.POST("/api/public/guest-lists/{token}/send-otp", func(re *core.RequestEvent) error {
+		return handlePublicGuestListSendOTP(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.POST("/api/public/guest-lists/{token}/verify", func(re *core.RequestEvent) error {
+		return handlePublicGuestListVerify(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.GET("/api/public/guest-lists/{token}/view", func(re *core.RequestEvent) error {
+		return handlePublicGuestListView(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.PATCH("/api/public/guest-lists/{token}/items/{itemId}", func(re *core.RequestEvent) error {
+		return handlePublicGuestListItemUpdate(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
 	log.Printf("[Routes] Registered API endpoints")
 }
 
@@ -395,7 +487,7 @@ func registerEncryptionHooks(app *pocketbase.PocketBase) {
 // registerAuditHooks sets up audit logging for CRUD operations and auth events
 func registerAuditHooks(app *pocketbase.PocketBase) {
 	// Collections to audit
-	collections := []string{"contacts", "organisations", "activities"}
+	collections := []string{"contacts", "organisations", "activities", "guest_lists", "guest_list_items", "guest_list_shares"}
 
 	for _, coll := range collections {
 		collName := coll // capture for closure

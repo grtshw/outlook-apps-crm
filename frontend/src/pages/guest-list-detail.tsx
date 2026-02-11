@@ -348,7 +348,7 @@ export function GuestListDetailPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="invited">Invited</SelectItem>
                           <SelectItem value="accepted">Accepted</SelectItem>
                           <SelectItem value="declined">Declined</SelectItem>
                           <SelectItem value="no_show">No show</SelectItem>

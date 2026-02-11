@@ -2,11 +2,16 @@ package utils
 
 // Collection names
 const (
-	CollectionUsers         = "users"
-	CollectionContacts      = "contacts"
-	CollectionOrganisations = "organisations"
-	CollectionActivities    = "activities"
-	CollectionAppSettings   = "app_settings"
+	CollectionUsers              = "users"
+	CollectionContacts           = "contacts"
+	CollectionOrganisations      = "organisations"
+	CollectionActivities         = "activities"
+	CollectionAppSettings        = "app_settings"
+	CollectionEventProjections   = "event_projections"
+	CollectionGuestLists         = "guest_lists"
+	CollectionGuestListItems     = "guest_list_items"
+	CollectionGuestListShares    = "guest_list_shares"
+	CollectionGuestListOTPCodes  = "guest_list_otp_codes"
 )
 
 // Field names

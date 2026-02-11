@@ -6,6 +6,10 @@ import {
   type DashboardStats,
   type PaginatedResult,
   type App,
+  type EventProjection,
+  type GuestList,
+  type GuestListItem,
+  type GuestListShare,
 } from './pocketbase'
 import type { RecordModel } from 'pocketbase'
 
@@ -345,6 +349,122 @@ export async function getProjectionProgress(projectionId: string): Promise<{
   }>
 }> {
   return fetchJSON(`/api/projections/${projectionId}/progress`)
+}
+
+// ── Event Projections ──
+
+export async function getEventProjections(params?: { search?: string }): Promise<{ items: EventProjection[] }> {
+  const queryParams = new URLSearchParams()
+  if (params?.search) queryParams.set('search', params.search)
+  return fetchJSON(`/api/event-projections?${queryParams}`)
+}
+
+// ── Guest Lists ──
+
+export async function getGuestLists(params?: {
+  status?: string
+  search?: string
+}): Promise<{ items: GuestList[] }> {
+  const queryParams = new URLSearchParams()
+  if (params?.status && params.status !== 'all') queryParams.set('status', params.status)
+  if (params?.search) queryParams.set('search', params.search)
+  return fetchJSON(`/api/guest-lists?${queryParams}`)
+}
+
+export async function getGuestList(id: string): Promise<GuestList> {
+  return fetchJSON(`/api/guest-lists/${id}`)
+}
+
+export async function createGuestList(data: {
+  name: string
+  description?: string
+  event_projection?: string
+  status?: string
+}): Promise<{ id: string; name: string; status: string }> {
+  return fetchJSON('/api/guest-lists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateGuestList(
+  id: string,
+  data: Partial<{ name: string; description: string; event_projection: string; status: string }>
+): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-lists/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteGuestList(id: string): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-lists/${id}`, { method: 'DELETE' })
+}
+
+// ── Guest List Items ──
+
+export async function getGuestListItems(listId: string): Promise<{ items: GuestListItem[] }> {
+  return fetchJSON(`/api/guest-lists/${listId}/items`)
+}
+
+export async function addGuestListItem(
+  listId: string,
+  data: { contact_id: string; invite_round?: string }
+): Promise<{ id: string; contact_id: string; contact_name: string }> {
+  return fetchJSON(`/api/guest-lists/${listId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function bulkAddGuestListItems(
+  listId: string,
+  data: { contact_ids: string[]; invite_round?: string }
+): Promise<{ added: number }> {
+  return fetchJSON(`/api/guest-lists/${listId}/items/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateGuestListItem(
+  itemId: string,
+  data: Partial<{ invite_round: string; invite_status: string; notes: string; sort_order: number }>
+): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-list-items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteGuestListItem(itemId: string): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-list-items/${itemId}`, { method: 'DELETE' })
+}
+
+// ── Guest List Shares ──
+
+export async function getGuestListShares(listId: string): Promise<{ items: GuestListShare[] }> {
+  return fetchJSON(`/api/guest-lists/${listId}/shares`)
+}
+
+export async function createGuestListShare(
+  listId: string,
+  data: { recipient_email: string; recipient_name?: string }
+): Promise<{ id: string; token: string; share_url: string; expires_at: string }> {
+  return fetchJSON(`/api/guest-lists/${listId}/shares`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function revokeGuestListShare(shareId: string): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-list-shares/${shareId}`, { method: 'DELETE' })
 }
 
 // File URLs
