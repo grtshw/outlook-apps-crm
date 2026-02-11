@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -25,9 +26,9 @@ func hashOTPCode(code string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// verifyOTPCode checks if a plaintext code matches a hash.
+// verifyOTPCode checks if a plaintext code matches a hash using constant-time comparison.
 func verifyOTPCode(code, hash string) bool {
-	return hashOTPCode(code) == hash
+	return hmac.Equal([]byte(hashOTPCode(code)), []byte(hash))
 }
 
 // generateToken creates a cryptographically secure 64-character hex token.

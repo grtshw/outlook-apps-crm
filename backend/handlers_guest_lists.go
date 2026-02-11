@@ -157,6 +157,10 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 		record.Set("event_projection", v)
 	}
 	if v, ok := input["status"].(string); ok {
+		allowed := map[string]bool{"draft": true, "active": true, "archived": true}
+		if !allowed[v] {
+			return utils.BadRequestResponse(re, "Invalid status value")
+		}
 		record.Set("status", v)
 	}
 
@@ -176,18 +180,35 @@ func handleGuestListDelete(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	}
 
 	// Cascade delete: OTP codes → shares → items → list
+	var deleteErrors []string
 	shares, _ := app.FindRecordsByFilter(utils.CollectionGuestListShares, "guest_list = {:id}", "", 0, 0, map[string]any{"id": id})
 	for _, share := range shares {
 		otps, _ := app.FindRecordsByFilter(utils.CollectionGuestListOTPCodes, "share = {:sid}", "", 0, 0, map[string]any{"sid": share.Id})
 		for _, otp := range otps {
-			app.Delete(otp)
+			if err := app.Delete(otp); err != nil {
+				deleteErrors = append(deleteErrors, fmt.Sprintf("otp %s: %v", otp.Id, err))
+			}
 		}
-		app.Delete(share)
+		if err := app.Delete(share); err != nil {
+			deleteErrors = append(deleteErrors, fmt.Sprintf("share %s: %v", share.Id, err))
+		}
 	}
 
 	items, _ := app.FindRecordsByFilter(utils.CollectionGuestListItems, "guest_list = {:id}", "", 0, 0, map[string]any{"id": id})
 	for _, item := range items {
-		app.Delete(item)
+		if err := app.Delete(item); err != nil {
+			deleteErrors = append(deleteErrors, fmt.Sprintf("item %s: %v", item.Id, err))
+		}
+	}
+
+	if len(deleteErrors) > 0 {
+		utils.LogAudit(app, utils.AuditEntry{
+			Action:       "delete",
+			ResourceType: utils.CollectionGuestLists,
+			ResourceID:   id,
+			Status:       "error",
+			ErrorMessage: fmt.Sprintf("Cascade delete had %d errors: %s", len(deleteErrors), strings.Join(deleteErrors, "; ")),
+		})
 	}
 
 	if err := app.Delete(record); err != nil {
@@ -368,6 +389,9 @@ func handleGuestListItemBulkAdd(re *core.RequestEvent, app *pocketbase.PocketBas
 	if len(input.ContactIDs) == 0 {
 		return utils.BadRequestResponse(re, "contact_ids is required")
 	}
+	if len(input.ContactIDs) > 200 {
+		return utils.BadRequestResponse(re, "Maximum 200 contacts per bulk add")
+	}
 
 	collection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
 	if err != nil {
@@ -426,9 +450,17 @@ func handleGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.PocketBase
 	}
 
 	if v, ok := input["invite_round"].(string); ok {
+		allowed := map[string]bool{"1st": true, "2nd": true, "3rd": true, "maybe": true}
+		if !allowed[v] {
+			return utils.BadRequestResponse(re, "Invalid invite_round value")
+		}
 		record.Set("invite_round", v)
 	}
 	if v, ok := input["invite_status"].(string); ok {
+		allowed := map[string]bool{"invited": true, "accepted": true, "declined": true, "no_show": true}
+		if !allowed[v] {
+			return utils.BadRequestResponse(re, "Invalid invite_status value")
+		}
 		record.Set("invite_status", v)
 	}
 	if v, ok := input["notes"].(string); ok {
@@ -514,6 +546,9 @@ func handleGuestListShareCreate(re *core.RequestEvent, app *pocketbase.PocketBas
 
 	if input.RecipientEmail == "" {
 		return utils.BadRequestResponse(re, "recipient_email is required")
+	}
+	if !strings.Contains(input.RecipientEmail, "@") || len(input.RecipientEmail) < 5 || len(input.RecipientEmail) > 254 {
+		return utils.BadRequestResponse(re, "Invalid email address")
 	}
 
 	token, err := generateToken()
