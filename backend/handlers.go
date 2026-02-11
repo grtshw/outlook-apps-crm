@@ -1234,8 +1234,159 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 // handleAvatarURLWebhook receives avatar variant URLs from DAM after processing
 func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	// TODO: implement avatar URL webhook handler
-	return utils.SuccessResponse(re, "ok")
+	// Read raw body for HMAC validation
+	bodyBytes, err := io.ReadAll(re.Request.Body)
+	if err != nil {
+		return utils.BadRequestResponse(re, "Failed to read request body")
+	}
+
+	// Validate HMAC signature
+	secret := os.Getenv("PROJECTION_WEBHOOK_SECRET")
+	if secret != "" {
+		signature := re.Request.Header.Get("X-Webhook-Signature")
+		if signature == "" {
+			log.Printf("[AvatarURLWebhook] Missing signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Missing signature"})
+		}
+
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write(bodyBytes)
+		expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+		if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+			log.Printf("[AvatarURLWebhook] Invalid signature from %s", re.RealIP())
+			return re.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid signature"})
+		}
+	}
+
+	var payload struct {
+		CrmID            string `json:"crm_id"`
+		AvatarThumbURL   string `json:"avatar_thumb_url"`
+		AvatarSmallURL   string `json:"avatar_small_url"`
+		AvatarOriginalURL string `json:"avatar_original_url"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		return utils.BadRequestResponse(re, "Invalid request body")
+	}
+
+	if payload.CrmID == "" {
+		return utils.BadRequestResponse(re, "crm_id is required")
+	}
+
+	record, err := app.FindRecordById(utils.CollectionContacts, payload.CrmID)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Contact not found")
+	}
+
+	if payload.AvatarThumbURL != "" {
+		record.Set("avatar_thumb_url", payload.AvatarThumbURL)
+	}
+	if payload.AvatarSmallURL != "" {
+		record.Set("avatar_small_url", payload.AvatarSmallURL)
+	}
+	if payload.AvatarOriginalURL != "" {
+		record.Set("avatar_original_url", payload.AvatarOriginalURL)
+	}
+
+	// Decrypt PII fields before save so encryption hooks re-encrypt correctly
+	piiFields := []string{"email", "phone", "bio", "location"}
+	for _, field := range piiFields {
+		if v := record.GetString(field); v != "" {
+			record.Set(field, utils.DecryptField(v))
+		}
+	}
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[AvatarURLWebhook] Failed to save contact %s: %v", payload.CrmID, err)
+		return utils.InternalErrorResponse(re, "Failed to update contact")
+	}
+
+	log.Printf("[AvatarURLWebhook] Updated avatar URLs for contact %s", payload.CrmID)
+	return utils.SuccessResponse(re, "Avatar URLs updated")
+}
+
+// handleSyncAvatarURLs pulls avatar URLs from DAM for all contacts
+func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	damURL := os.Getenv("DAM_PUBLIC_URL")
+	if damURL == "" {
+		damURL = "https://outlook-apps-dam.fly.dev"
+	}
+
+	resp, err := http.Get(damURL + "/api/public/people")
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to fetch people from DAM")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("DAM returned status %d", resp.StatusCode))
+	}
+
+	var damResp struct {
+		Items []struct {
+			CrmID             string `json:"crm_id"`
+			AvatarThumbURL    string `json:"avatar_thumb_url"`
+			AvatarSmallURL    string `json:"avatar_small_url"`
+			AvatarOriginalURL string `json:"avatar_original_url"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&damResp); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to parse DAM response")
+	}
+
+	updated := 0
+	skipped := 0
+	for _, person := range damResp.Items {
+		if person.CrmID == "" || (person.AvatarSmallURL == "" && person.AvatarThumbURL == "" && person.AvatarOriginalURL == "") {
+			skipped++
+			continue
+		}
+
+		record, err := app.FindRecordById(utils.CollectionContacts, person.CrmID)
+		if err != nil {
+			skipped++
+			continue
+		}
+
+		// Skip if already has avatar URLs
+		if record.GetString("avatar_small_url") != "" {
+			skipped++
+			continue
+		}
+
+		if person.AvatarThumbURL != "" {
+			record.Set("avatar_thumb_url", person.AvatarThumbURL)
+		}
+		if person.AvatarSmallURL != "" {
+			record.Set("avatar_small_url", person.AvatarSmallURL)
+		}
+		if person.AvatarOriginalURL != "" {
+			record.Set("avatar_original_url", person.AvatarOriginalURL)
+		}
+
+		// Decrypt PII fields before save
+		piiFields := []string{"email", "phone", "bio", "location"}
+		for _, field := range piiFields {
+			if v := record.GetString(field); v != "" {
+				record.Set(field, utils.DecryptField(v))
+			}
+		}
+
+		if err := app.Save(record); err != nil {
+			log.Printf("[SyncAvatarURLs] Failed to save contact %s: %v", person.CrmID, err)
+			continue
+		}
+		updated++
+	}
+
+	log.Printf("[SyncAvatarURLs] Updated %d contacts, skipped %d", updated, skipped)
+	return utils.DataResponse(re, map[string]any{
+		"updated": updated,
+		"skipped": skipped,
+		"total":   len(damResp.Items),
+	})
 }
 
 // --- Merge Handler ---

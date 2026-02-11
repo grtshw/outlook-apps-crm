@@ -260,6 +260,11 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleAvatarURLWebhook(re, app)
 	}).BindFunc(utils.RateLimitExternalAPI)
 
+	// Sync avatar URLs from DAM (admin only - one-time pull)
+	e.Router.POST("/api/admin/sync-avatar-urls", func(re *core.RequestEvent) error {
+		return handleSyncAvatarURLs(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	// Project all endpoint - push all contacts and organisations to consumers
 	e.Router.POST("/api/project-all", func(re *core.RequestEvent) error {
 		return handleProjectAll(re, app)
