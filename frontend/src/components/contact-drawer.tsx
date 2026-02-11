@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { OrganisationCombobox } from '@/components/organisation-combobox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Collapsible,
@@ -365,23 +366,12 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
               <div>
                 <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
-                <Select
-                  value={formData.organisation || 'none'}
-                  onValueChange={(v) => setFormData({ ...formData, organisation: v === 'none' ? '' : v })}
+                <OrganisationCombobox
+                  value={formData.organisation}
+                  organisations={orgsData?.items ?? []}
+                  onChange={(orgId) => setFormData({ ...formData, organisation: orgId })}
                   disabled={!isAdmin}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select organisation" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {orgsData?.items.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
             </div>
           </SheetSection>
