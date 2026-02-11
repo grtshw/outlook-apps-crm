@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Contact, Activity } from '@/lib/pocketbase'
-import { createContact, updateContact, deleteContact, getContactActivities } from '@/lib/api'
+import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import {
   Sheet,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import {
   Select,
@@ -28,7 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock } from 'lucide-react'
+import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ContactDrawerProps {
@@ -77,6 +78,31 @@ function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: React.R
   )
 }
 
+function StarRating({ value, onChange, disabled }: { value: number; onChange: (v: number) => void; disabled?: boolean }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => !disabled && onChange(value === star ? 0 : star)}
+          disabled={disabled}
+          className="p-0.5 disabled:cursor-not-allowed"
+        >
+          <Star
+            className={cn(
+              'h-5 w-5 transition-colors',
+              star <= value
+                ? 'fill-yellow-400 text-yellow-400'
+                : 'text-muted-foreground/30',
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function getActivityIcon(sourceApp: string) {
   switch (sourceApp) {
     case 'presentations':
@@ -116,6 +142,17 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     website: '',
     location: '',
     status: 'active' as Contact['status'],
+    organisation: '',
+    degrees: '' as string,
+    relationship: 0,
+    notes: '',
+  })
+
+  // Load organisations for picker
+  const { data: orgsData } = useQuery({
+    queryKey: ['organisations-picker'],
+    queryFn: () => getOrganisations({ perPage: 500, sort: 'name' }),
+    enabled: open,
   })
 
   // Load activities for existing contacts
@@ -139,6 +176,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         website: contact.website || '',
         location: contact.location || '',
         status: contact.status || 'active',
+        organisation: contact.organisation || '',
+        degrees: contact.degrees || '',
+        relationship: contact.relationship || 0,
+        notes: contact.notes || '',
       })
     } else {
       setFormData({
@@ -153,6 +194,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         website: '',
         location: '',
         status: 'active',
+        organisation: '',
+        degrees: '',
+        relationship: 0,
+        notes: '',
       })
     }
   }, [contact])
@@ -208,6 +253,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
   const hasBioOrLocation = !!(formData.bio || formData.location)
   const hasSocial = !!(formData.linkedin || formData.instagram || formData.website)
+  const hasRelationship = !!(formData.degrees || formData.relationship || formData.notes)
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -295,24 +341,89 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               />
             </div>
 
-            <div>
-              <FieldLabel htmlFor="status">Status</FieldLabel>
-              <Select
-                value={formData.status}
-                onValueChange={(v) => setFormData({ ...formData, status: v as Contact['status'] })}
-                disabled={!isAdmin}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="status">Status</FieldLabel>
+                <Select
+                  value={formData.status}
+                  onValueChange={(v) => setFormData({ ...formData, status: v as Contact['status'] })}
+                  disabled={!isAdmin}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
+                <Select
+                  value={formData.organisation || 'none'}
+                  onValueChange={(v) => setFormData({ ...formData, organisation: v === 'none' ? '' : v })}
+                  disabled={!isAdmin}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select organisation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {orgsData?.items.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </SheetSection>
+
+          {/* Relationship section */}
+          <CollapsibleSection title="Relationship" defaultOpen={hasRelationship}>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <FieldLabel htmlFor="degrees">LinkedIn degree</FieldLabel>
+                <Select
+                  value={formData.degrees || 'none'}
+                  onValueChange={(v) => setFormData({ ...formData, degrees: v === 'none' ? '' : v })}
+                  disabled={!isAdmin}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select degree" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="1st">1st</SelectItem>
+                    <SelectItem value="2nd">2nd</SelectItem>
+                    <SelectItem value="3rd">3rd</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FieldLabel>Relationship</FieldLabel>
+                <StarRating
+                  value={formData.relationship}
+                  onChange={(v) => setFormData({ ...formData, relationship: v })}
+                  disabled={!isAdmin}
+                />
+              </div>
+            </div>
+            <div>
+              <FieldLabel htmlFor="notes">Notes</FieldLabel>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                disabled={!isAdmin}
+                placeholder="Internal notes about this contact..."
+                rows={3}
+              />
+            </div>
+          </CollapsibleSection>
 
           {/* Bio and location section */}
           <CollapsibleSection title="Bio and location" defaultOpen={hasBioOrLocation}>

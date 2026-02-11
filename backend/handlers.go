@@ -562,6 +562,15 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	} else {
 		record.Set("source", "manual")
 	}
+	if v, ok := input["degrees"].(string); ok {
+		record.Set("degrees", v)
+	}
+	if v, ok := input["relationship"].(float64); ok {
+		record.Set("relationship", int(v))
+	}
+	if v, ok := input["notes"].(string); ok {
+		record.Set("notes", v)
+	}
 
 	if err := app.Save(record); err != nil {
 		log.Printf("[ContactCreate] Failed to save: %v", err)
@@ -640,6 +649,15 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
+	}
+	if v, ok := input["degrees"].(string); ok {
+		record.Set("degrees", v)
+	}
+	if v, ok := input["relationship"].(float64); ok {
+		record.Set("relationship", int(v))
+	}
+	if v, ok := input["notes"].(string); ok {
+		record.Set("notes", v)
 	}
 
 	if err := app.Save(record); err != nil {
@@ -1273,6 +1291,7 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 		"organisation", "status", "source",
 		"avatar_url", "avatar_thumb_url", "avatar_small_url", "avatar_original_url",
 		"hubspot_contact_id", "hubspot_synced_at",
+		"degrees", "relationship", "notes",
 	}
 	piiFields := map[string]bool{"email": true, "phone": true, "bio": true, "location": true}
 
@@ -1392,10 +1411,13 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		"tags":        r.Get("tags"),
 		"roles":       r.Get("roles"),
 		"status":      r.GetString("status"),
-		"source":      r.GetString("source"),
-		"source_ids":  r.Get("source_ids"),
-		"created":     r.GetString("created"),
-		"updated":     r.GetString("updated"),
+		"source":       r.GetString("source"),
+		"source_ids":   r.Get("source_ids"),
+		"degrees":      r.GetString("degrees"),
+		"relationship": r.GetInt("relationship"),
+		"notes":        r.GetString("notes"),
+		"created":      r.GetString("created"),
+		"updated":      r.GetString("updated"),
 	}
 
 	// Avatar: prefer DAM URL field, fall back to local file

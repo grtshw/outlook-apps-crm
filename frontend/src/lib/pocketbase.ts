@@ -38,6 +38,9 @@ export interface Contact extends RecordModel {
   status: 'active' | 'inactive' | 'archived'
   source?: string
   source_ids?: Record<string, string>
+  degrees?: '1st' | '2nd' | '3rd'
+  relationship?: number
+  notes?: string
 }
 
 export interface Organisation extends RecordModel {

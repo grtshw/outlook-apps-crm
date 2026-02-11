@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, ChevronLeft, ChevronRight, Merge, X, LayoutGrid, List } from 'lucide-react'
+import { Plus, Search, ChevronLeft, ChevronRight, Merge, X, LayoutGrid, List, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContactDrawer } from '@/components/contact-drawer'
 import { MergeContactsDialog } from '@/components/merge-contacts-dialog'
@@ -280,6 +280,25 @@ export function ContactsPage() {
                 {(contact.roles?.length || 0) > 2 && (
                   <Badge variant="outline">+{contact.roles!.length - 2}</Badge>
                 )}
+              </div>
+            ),
+          },
+          {
+            label: 'Relationship',
+            className: 'w-[120px]',
+            render: (contact: Contact) => (
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={cn(
+                      'h-3.5 w-3.5',
+                      star <= (contact.relationship || 0)
+                        ? 'fill-yellow-400 text-yellow-400'
+                        : 'text-muted-foreground/20',
+                    )}
+                  />
+                ))}
               </div>
             ),
           },
