@@ -8,8 +8,9 @@ import {
   getGuestListItems, updateGuestListItem, deleteGuestListItem,
   getGuestListShares, revokeGuestListShare,
   getEventProjections,
+  getContact,
 } from '@/lib/api'
-import type { GuestListItem, GuestListShare } from '@/lib/pocketbase'
+import type { Contact, GuestListItem, GuestListShare } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/ui/page-header'
 import { ContactSearchDrawer } from '@/components/contact-search-dialog'
+import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus } from 'lucide-react'
@@ -61,6 +63,8 @@ export function GuestListDetailPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
   const [editingNotesValue, setEditingNotesValue] = useState('')
+  const [contactDrawerOpen, setContactDrawerOpen] = useState(false)
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -206,6 +210,22 @@ export function GuestListDetailPage() {
     setEditingNotesId(null)
   }
 
+  const handleContactClick = async (item: GuestListItem) => {
+    try {
+      const contact = await getContact(item.contact_id)
+      setSelectedContact(contact)
+      setContactDrawerOpen(true)
+    } catch {
+      toast.error('Failed to load contact')
+    }
+  }
+
+  const handleCloseContactDrawer = () => {
+    setContactDrawerOpen(false)
+    setSelectedContact(null)
+    queryClient.invalidateQueries({ queryKey: ['guest-list-items', id] })
+  }
+
   const handleRemoveItem = (item: GuestListItem) => {
     deleteItemMutation.mutate(item.id)
   }
@@ -304,14 +324,18 @@ export function GuestListDetailPage() {
                 return (
                   <TableRow key={item.id} className={cn(isArchived && 'text-muted-foreground')}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 hover:underline cursor-pointer text-left"
+                        onClick={() => handleContactClick(item)}
+                      >
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={item.contact_avatar_small_url || item.contact_avatar_thumb_url || item.contact_avatar_url} />
                           <AvatarFallback className="text-xs">{initials(item.contact_name)}</AvatarFallback>
                         </Avatar>
                         {item.contact_name}
                         {isArchived && <Badge variant="outline">Archived</Badge>}
-                      </div>
+                      </button>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {item.contact_job_title || '—'}
@@ -601,6 +625,13 @@ export function GuestListDetailPage() {
         onOpenChange={setContactSearchOpen}
         listId={id!}
         existingContactIds={existingContactIds}
+      />
+
+      {/* Contact drawer */}
+      <ContactDrawer
+        open={contactDrawerOpen}
+        onClose={handleCloseContactDrawer}
+        contact={selectedContact}
       />
 
       {/* Share dialog */}
