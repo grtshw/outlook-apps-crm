@@ -235,7 +235,11 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    saveMutation.mutate(formData)
+    const { degrees, ...rest } = formData
+    saveMutation.mutate({
+      ...rest,
+      ...(degrees ? { degrees: degrees as Contact['degrees'] } : {}),
+    })
   }
 
   const handleDelete = () => {
@@ -389,7 +393,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 <FieldLabel htmlFor="degrees">LinkedIn degree</FieldLabel>
                 <Select
                   value={formData.degrees || 'none'}
-                  onValueChange={(v) => setFormData({ ...formData, degrees: v === 'none' ? '' : v })}
+                  onValueChange={(v) => setFormData({ ...formData, degrees: v === 'none' ? '' : v as Contact['degrees'] })}
                   disabled={!isAdmin}
                 >
                   <SelectTrigger>
