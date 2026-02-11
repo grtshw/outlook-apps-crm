@@ -27,6 +27,9 @@ RUN apk add --no-cache git
 
 WORKDIR /build
 
+# Copy local module dependencies
+COPY projections ./projections
+
 # Copy go mod files from backend
 COPY backend/go.mod backend/go.sum ./backend/
 WORKDIR /build/backend
