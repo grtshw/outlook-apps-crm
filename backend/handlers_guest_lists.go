@@ -10,6 +10,7 @@ import (
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // ============================================================================
@@ -681,7 +682,7 @@ func handlePublicGuestListSendOTP(re *core.RequestEvent, app *pocketbase.PocketB
 	email := share.GetString("recipient_email")
 
 	// Rate limit: max 3 OTP sends per 10 minutes per share
-	tenMinAgo := time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339)
+	tenMinAgo := time.Now().Add(-10 * time.Minute).UTC().Format(types.DefaultDateLayout)
 	recentCodes, _ := app.FindRecordsByFilter(
 		utils.CollectionGuestListOTPCodes,
 		"share = {:sid} && created >= {:since}",
@@ -763,7 +764,7 @@ func handlePublicGuestListVerify(re *core.RequestEvent, app *pocketbase.PocketBa
 		1, 0,
 		map[string]any{
 			"sid": share.Id,
-			"now": time.Now().UTC().Format(time.RFC3339),
+			"now": time.Now().UTC().Format(types.DefaultDateLayout),
 		},
 	)
 	if err != nil || len(otpRecords) == 0 {
@@ -995,11 +996,11 @@ func isExpired(expiresAt string) bool {
 	if expiresAt == "" {
 		return false
 	}
-	t, err := time.Parse(time.RFC3339, expiresAt)
+	dt, err := types.ParseDateTime(expiresAt)
 	if err != nil {
 		return false
 	}
-	return time.Now().After(t)
+	return time.Now().After(dt.Time())
 }
 
 func maskEmail(email string) string {
