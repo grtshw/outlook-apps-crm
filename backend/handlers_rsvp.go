@@ -135,6 +135,10 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		if rsvpStatus != "" {
 			response["rsvp_plus_one"] = result.Item.GetBool("rsvp_plus_one")
 			response["rsvp_plus_one_name"] = result.Item.GetString("rsvp_plus_one_name")
+			response["rsvp_plus_one_last_name"] = result.Item.GetString("rsvp_plus_one_last_name")
+			response["rsvp_plus_one_job_title"] = result.Item.GetString("rsvp_plus_one_job_title")
+			response["rsvp_plus_one_company"] = result.Item.GetString("rsvp_plus_one_company")
+			response["rsvp_plus_one_email"] = result.Item.GetString("rsvp_plus_one_email")
 			response["rsvp_plus_one_dietary"] = result.Item.GetString("rsvp_plus_one_dietary")
 			response["rsvp_comments"] = result.Item.GetString("rsvp_comments")
 		}
@@ -154,6 +158,10 @@ type rsvpInput struct {
 	AccessibilityRequirementsOther string `json:"accessibility_requirements_other"`
 	PlusOne                      bool     `json:"plus_one"`
 	PlusOneName                  string   `json:"plus_one_name"`
+	PlusOneLastName              string   `json:"plus_one_last_name"`
+	PlusOneJobTitle              string   `json:"plus_one_job_title"`
+	PlusOneCompany               string   `json:"plus_one_company"`
+	PlusOneEmail                 string   `json:"plus_one_email"`
 	PlusOneDietary               string   `json:"plus_one_dietary"`
 	Response                     string   `json:"response"`
 	InvitedBy                    string   `json:"invited_by"`
@@ -215,6 +223,10 @@ func setItemRSVPFields(item *core.Record, input *rsvpInput, fullName, now string
 	item.Set("rsvp_status", input.Response)
 	item.Set("rsvp_plus_one", input.PlusOne)
 	item.Set("rsvp_plus_one_name", input.PlusOneName)
+	item.Set("rsvp_plus_one_last_name", input.PlusOneLastName)
+	item.Set("rsvp_plus_one_job_title", input.PlusOneJobTitle)
+	item.Set("rsvp_plus_one_company", input.PlusOneCompany)
+	item.Set("rsvp_plus_one_email", input.PlusOneEmail)
 	item.Set("rsvp_plus_one_dietary", input.PlusOneDietary)
 	item.Set("rsvp_responded_at", now)
 	item.Set("rsvp_comments", input.Comments)
@@ -280,6 +292,84 @@ func upsertContactFromRSVP(app *pocketbase.PocketBase, contact *core.Record, inp
 	}
 }
 
+// upsertPlusOneContact silently creates or updates a contact record for the plus-one guest.
+func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
+	if !input.PlusOne || strings.TrimSpace(input.PlusOneEmail) == "" {
+		return
+	}
+
+	email := strings.TrimSpace(input.PlusOneEmail)
+	firstName := strings.TrimSpace(input.PlusOneName)
+	lastName := strings.TrimSpace(input.PlusOneLastName)
+	fullName := firstName
+	if lastName != "" {
+		fullName = firstName + " " + lastName
+	}
+
+	// Look up existing contact by email blind index
+	blindIdx := utils.BlindIndex(email)
+	if blindIdx != "" {
+		contacts, err := app.FindRecordsByFilter(
+			utils.CollectionContacts,
+			"email_index = {:idx}",
+			"", 1, 0,
+			map[string]any{"idx": blindIdx},
+		)
+		if err == nil && len(contacts) > 0 {
+			// Silently update existing contact
+			contact := contacts[0]
+			needsSave := false
+
+			if firstName != "" && firstName != contact.GetString("first_name") {
+				contact.Set("first_name", firstName)
+				needsSave = true
+			}
+			if lastName != "" && lastName != contact.GetString("last_name") {
+				contact.Set("last_name", lastName)
+				needsSave = true
+			}
+			if fullName != "" && fullName != contact.GetString("name") {
+				contact.Set("name", fullName)
+				needsSave = true
+			}
+			if input.PlusOneJobTitle != "" && input.PlusOneJobTitle != contact.GetString("job_title") {
+				contact.Set("job_title", input.PlusOneJobTitle)
+				needsSave = true
+			}
+
+			if needsSave {
+				if err := app.Save(contact); err != nil {
+					log.Printf("[RSVP] Failed to update plus-one contact %s: %v", contact.Id, err)
+				}
+			}
+			return
+		}
+	}
+
+	// No existing contact — create a new pending one
+	contactCollection, err := app.FindCollectionByNameOrId(utils.CollectionContacts)
+	if err != nil {
+		log.Printf("[RSVP] Failed to find contacts collection for plus-one: %v", err)
+		return
+	}
+
+	newContact := core.NewRecord(contactCollection)
+	newContact.Set("name", fullName)
+	newContact.Set("first_name", firstName)
+	newContact.Set("last_name", lastName)
+	newContact.Set("email", email) // encryption hooks handle this
+	newContact.Set("email_index", utils.BlindIndex(email))
+	if input.PlusOneJobTitle != "" {
+		newContact.Set("job_title", input.PlusOneJobTitle)
+	}
+	newContact.Set("status", "pending")
+	newContact.Set("source", "manual")
+
+	if err := app.Save(newContact); err != nil {
+		log.Printf("[RSVP] Failed to create plus-one contact: %v", err)
+	}
+}
+
 func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName, now string) error {
 	item := result.Item
 
@@ -301,6 +391,9 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 			upsertContactFromRSVP(app, contact, input, fullName)
 		}
 	}
+
+	// Silently upsert plus-one as a contact
+	upsertPlusOneContact(app, input)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_submit",
@@ -354,6 +447,9 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 			if err := app.Save(item); err != nil {
 				return utils.InternalErrorResponse(re, "Failed to save RSVP")
 			}
+
+			// Silently upsert plus-one as a contact
+			upsertPlusOneContact(app, input)
 
 			utils.LogAudit(app, utils.AuditEntry{
 				Action:       "rsvp_submit",
@@ -453,6 +549,9 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 		}
 		return utils.InternalErrorResponse(re, "Failed to save RSVP")
 	}
+
+	// Silently upsert plus-one as a contact
+	upsertPlusOneContact(app, input)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_submit",

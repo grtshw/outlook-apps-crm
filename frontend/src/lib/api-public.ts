@@ -87,6 +87,10 @@ export interface RSVPInfo {
   rsvp_status: 'accepted' | 'declined' | ''
   rsvp_plus_one: boolean
   rsvp_plus_one_name: string
+  rsvp_plus_one_last_name: string
+  rsvp_plus_one_job_title: string
+  rsvp_plus_one_company: string
+  rsvp_plus_one_email: string
   rsvp_plus_one_dietary: string
   rsvp_comments: string
 }
@@ -106,6 +110,10 @@ export interface RSVPSubmission {
   accessibility_requirements_other?: string
   plus_one?: boolean
   plus_one_name?: string
+  plus_one_last_name?: string
+  plus_one_job_title?: string
+  plus_one_company?: string
+  plus_one_email?: string
   plus_one_dietary?: string
   response: 'accepted' | 'declined'
   invited_by?: string
