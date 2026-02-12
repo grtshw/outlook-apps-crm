@@ -21,7 +21,7 @@ func configurePocketBaseSMTP(app *pocketbase.PocketBase) {
 	settings := app.Settings()
 
 	// Check if already configured correctly
-	if settings.SMTP.Enabled && settings.SMTP.Host == "smtp.sendgrid.net" {
+	if settings.SMTP.Enabled && settings.SMTP.Host == "smtp.sendgrid.net" && !settings.SMTP.TLS && settings.Meta.SenderAddress == "hello@wearetheoutlook.com.au" {
 		log.Println("[SMTP] Already configured correctly")
 		return
 	}
@@ -31,11 +31,11 @@ func configurePocketBaseSMTP(app *pocketbase.PocketBase) {
 	settings.SMTP.Port = 587
 	settings.SMTP.Username = "apikey"
 	settings.SMTP.Password = smtpPassword
-	settings.SMTP.TLS = true
+	settings.SMTP.TLS = false
 
 	// Sender info
 	settings.Meta.SenderName = "The Outlook"
-	settings.Meta.SenderAddress = "hello@theoutlook.io"
+	settings.Meta.SenderAddress = "hello@wearetheoutlook.com.au"
 
 	if err := app.Save(settings); err != nil {
 		log.Printf("[SMTP] Failed to save settings: %v", err)
@@ -176,5 +176,57 @@ func sendShareNotificationEmail(app *pocketbase.PocketBase, recipientEmail, reci
 	}
 
 	log.Printf("[Email] Share notification sent to %s for list %s", recipientEmail, listName)
+	return nil
+}
+
+// sendRSVPInviteEmail sends an RSVP invitation to a guest with their personal RSVP link.
+func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, eventName string) error {
+	name := recipientName
+	if name == "" {
+		name = "there"
+	}
+
+	eventContext := listName
+	if eventName != "" {
+		eventContext = eventName
+	}
+
+	subject := fmt.Sprintf("%s, you're invited to %s", name, eventContext)
+	content := fmt.Sprintf(`
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                You're invited to <strong>%s</strong>. Please let us know if you can make it.
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
+                    Respond now
+                </a>
+            </div>
+            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
+                Copy and paste if the link doesn't work:
+            </p>
+            <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 6px; margin: 0;">
+                <p style="color: #666666; font-size: 13px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                    %s
+                </p>
+            </div>
+            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
+                This link is personal to you. Please do not share it.
+            </p>
+`, name, eventContext, rsvpURL, rsvpURL)
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
+		Subject: subject,
+		HTML:    wrapEmailHTML(content),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send RSVP invite to %s: %v", recipientEmail, err)
+		return err
+	}
+
+	log.Printf("[Email] RSVP invite sent to %s for %s", recipientEmail, eventContext)
 	return nil
 }

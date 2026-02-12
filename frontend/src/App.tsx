@@ -8,6 +8,7 @@ import CRMProjectionsPage from '@/pages/projections'
 import { GuestListsPage } from '@/pages/guest-lists'
 import { GuestListDetailPage } from '@/pages/guest-list-detail'
 import { SharedGuestListPage } from '@/pages/shared-guest-list'
+import { RSVPPage } from '@/pages/rsvp'
 import { AppLayout } from '@/components/app-layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/shared/:token" element={<SharedGuestListPage />} />
+      <Route path="/rsvp/:token" element={<RSVPPage />} />
       <Route
         path="/*"
         element={

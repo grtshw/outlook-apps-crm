@@ -86,6 +86,12 @@ func main() {
 		return
 	}
 
+	if len(os.Args) > 1 && os.Args[1] == "profile-orgs" {
+		// Pass remaining args to profile→organisation link import
+		runProfileOrgsImport(os.Args[2:])
+		return
+	}
+
 	presURL := flag.String("presentations-url", "http://localhost:8091", "Presentations API URL")
 	crmURL := flag.String("crm-url", "http://localhost:8090", "CRM API URL")
 	crmEmail := flag.String("crm-email", "", "CRM admin email (required)")
@@ -98,6 +104,7 @@ func main() {
 		fmt.Println("  organisations-import [flags]              - Import orgs from Presentations")
 		fmt.Println("  organisations-import logos [flags]        - Import logos from Drupal")
 		fmt.Println("  organisations-import contacts [flags]     - Import organisation contacts from Drupal")
+		fmt.Println("  organisations-import profile-orgs [flags] - Link contacts to orgs from Drupal profiles")
 		fmt.Println("")
 		log.Fatal("CRM credentials required: -crm-email and -crm-password")
 	}

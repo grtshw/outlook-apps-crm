@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getContact, getContactActivities, mergeContacts } from '@/lib/api'
-import type { Contact, ContactRole } from '@/lib/pocketbase'
+import type { Contact, ContactRole, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
 import {
   Dialog,
   DialogContent,
@@ -27,8 +27,10 @@ interface MergeContactsDialogProps {
 }
 
 const SCALAR_FIELDS: { key: string; label: string }[] = [
-  { key: 'name', label: 'Name' },
+  { key: 'first_name', label: 'First name' },
+  { key: 'last_name', label: 'Last name' },
   { key: 'email', label: 'Email' },
+  { key: 'personal_email', label: 'Personal email' },
   { key: 'phone', label: 'Phone' },
   { key: 'pronouns', label: 'Pronouns' },
   { key: 'job_title', label: 'Job title' },
@@ -40,7 +42,23 @@ const SCALAR_FIELDS: { key: string; label: string }[] = [
   { key: 'organisation', label: 'Organisation' },
   { key: 'status', label: 'Status' },
   { key: 'source', label: 'Source' },
+  { key: 'dietary_requirements_other', label: 'Dietary (other)' },
+  { key: 'accessibility_requirements_other', label: 'Accessibility (other)' },
 ]
+
+const ALL_DIETARY: DietaryRequirement[] = ['vegetarian', 'vegan', 'gluten_free', 'dairy_free', 'nut_allergy', 'halal', 'kosher']
+const ALL_ACCESSIBILITY: AccessibilityRequirement[] = ['wheelchair_access', 'hearing_assistance', 'vision_assistance', 'sign_language_interpreter', 'mobility_assistance']
+
+const DIETARY_LABELS: Record<DietaryRequirement, string> = {
+  vegetarian: 'Vegetarian', vegan: 'Vegan', gluten_free: 'Gluten free',
+  dairy_free: 'Dairy free', nut_allergy: 'Nut allergy', halal: 'Halal', kosher: 'Kosher',
+}
+
+const ACCESSIBILITY_LABELS: Record<AccessibilityRequirement, string> = {
+  wheelchair_access: 'Wheelchair access', hearing_assistance: 'Hearing assistance',
+  vision_assistance: 'Vision assistance', sign_language_interpreter: 'Sign language interpreter',
+  mobility_assistance: 'Mobility assistance',
+}
 
 const ALL_ROLES: ContactRole[] = ['presenter', 'speaker', 'sponsor', 'judge', 'attendee', 'staff', 'volunteer']
 
@@ -98,8 +116,12 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
   const [fieldSelections, setFieldSelections] = useState<Record<string, string>>({})
   const [mergedRoles, setMergedRoles] = useState<string[]>([])
   const [mergedTags, setMergedTags] = useState<string[]>([])
+  const [mergedDietary, setMergedDietary] = useState<string[]>([])
+  const [mergedAccessibility, setMergedAccessibility] = useState<string[]>([])
   const [rolesInitialised, setRolesInitialised] = useState(false)
   const [tagsInitialised, setTagsInitialised] = useState(false)
+  const [dietaryInitialised, setDietaryInitialised] = useState(false)
+  const [accessibilityInitialised, setAccessibilityInitialised] = useState(false)
 
   // Initialise defaults once contacts are loaded
   if (contacts.length === contactIds.length && !rolesInitialised) {
@@ -124,6 +146,20 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
     contacts.forEach((c) => c.tags?.forEach((t) => allTags.add(t)))
     setMergedTags(Array.from(allTags))
     setTagsInitialised(true)
+  }
+
+  if (contacts.length === contactIds.length && !dietaryInitialised) {
+    const items = new Set<string>()
+    contacts.forEach((c) => c.dietary_requirements?.forEach((d) => items.add(d)))
+    setMergedDietary(Array.from(items))
+    setDietaryInitialised(true)
+  }
+
+  if (contacts.length === contactIds.length && !accessibilityInitialised) {
+    const items = new Set<string>()
+    contacts.forEach((c) => c.accessibility_requirements?.forEach((a) => items.add(a)))
+    setMergedAccessibility(Array.from(items))
+    setAccessibilityInitialised(true)
   }
 
   // Merged source_ids preview
@@ -155,6 +191,18 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
     )
   }
 
+  const toggleDietary = (item: string) => {
+    setMergedDietary((prev) =>
+      prev.includes(item) ? prev.filter((d) => d !== item) : [...prev, item]
+    )
+  }
+
+  const toggleAccessibility = (item: string) => {
+    setMergedAccessibility((prev) =>
+      prev.includes(item) ? prev.filter((a) => a !== item) : [...prev, item]
+    )
+  }
+
   // Build the actual avatar field selections based on which contact's avatar set is chosen
   const avatarSourceId = fieldSelections['avatar_url'] || primaryId
 
@@ -174,6 +222,8 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
         field_selections: fullSelections,
         merged_roles: mergedRoles,
         merged_tags: mergedTags,
+        merged_dietary_requirements: mergedDietary,
+        merged_accessibility_requirements: mergedAccessibility,
       })
     },
     onSuccess: (data) => {
@@ -204,6 +254,20 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
     const roles = new Set<string>()
     contacts.forEach((c) => c.roles?.forEach((r) => roles.add(r)))
     return ALL_ROLES.filter((r) => roles.has(r))
+  }, [contacts])
+
+  // Collect all dietary requirements present across contacts
+  const presentDietary = useMemo(() => {
+    const items = new Set<string>()
+    contacts.forEach((c) => c.dietary_requirements?.forEach((d) => items.add(d)))
+    return ALL_DIETARY.filter((d) => items.has(d))
+  }, [contacts])
+
+  // Collect all accessibility requirements present across contacts
+  const presentAccessibility = useMemo(() => {
+    const items = new Set<string>()
+    contacts.forEach((c) => c.accessibility_requirements?.forEach((a) => items.add(a)))
+    return ALL_ACCESSIBILITY.filter((a) => items.has(a))
   }, [contacts])
 
   if (!open) return null
@@ -386,6 +450,54 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
                             onCheckedChange={() => toggleTag(tag)}
                           />
                           <Badge variant="outline">{tag}</Badge>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Dietary requirements union */}
+              {presentDietary.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-3">Dietary requirements (combined)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {presentDietary.map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={mergedDietary.includes(item)}
+                            onCheckedChange={() => toggleDietary(item)}
+                          />
+                          <Badge variant="secondary">{DIETARY_LABELS[item]}</Badge>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Accessibility requirements union */}
+              {presentAccessibility.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-3">Accessibility requirements (combined)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {presentAccessibility.map((item) => (
+                        <label
+                          key={item}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={mergedAccessibility.includes(item)}
+                            onCheckedChange={() => toggleAccessibility(item)}
+                          />
+                          <Badge variant="secondary">{ACCESSIBILITY_LABELS[item]}</Badge>
                         </label>
                       ))}
                     </div>

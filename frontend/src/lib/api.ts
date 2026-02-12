@@ -137,6 +137,8 @@ export interface MergeContactsRequest {
   field_selections: Record<string, string>
   merged_roles: string[]
   merged_tags: string[]
+  merged_dietary_requirements: string[]
+  merged_accessibility_requirements: string[]
 }
 
 export interface MergeContactsResponse {
@@ -465,6 +467,29 @@ export async function createGuestListShare(
 
 export async function revokeGuestListShare(shareId: string): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-list-shares/${shareId}`, { method: 'DELETE' })
+}
+
+// RSVP admin endpoints
+export async function toggleGuestListRSVP(
+  listId: string,
+  enabled: boolean
+): Promise<{ rsvp_enabled: boolean; rsvp_generic_url: string }> {
+  return fetchJSON(`/api/guest-lists/${listId}/rsvp/enable`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+}
+
+export async function sendRSVPInvites(
+  listId: string,
+  itemIds?: string[]
+): Promise<{ sent: number; skipped: number }> {
+  return fetchJSON(`/api/guest-lists/${listId}/rsvp/send-invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: itemIds || [] }),
+  })
 }
 
 // File URLs

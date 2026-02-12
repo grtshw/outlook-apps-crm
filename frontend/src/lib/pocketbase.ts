@@ -12,10 +12,15 @@ export interface User extends RecordModel {
 }
 
 export type ContactRole = 'presenter' | 'speaker' | 'sponsor' | 'judge' | 'attendee' | 'staff' | 'volunteer'
+export type DietaryRequirement = 'vegetarian' | 'vegan' | 'gluten_free' | 'dairy_free' | 'nut_allergy' | 'halal' | 'kosher'
+export type AccessibilityRequirement = 'wheelchair_access' | 'hearing_assistance' | 'vision_assistance' | 'sign_language_interpreter' | 'mobility_assistance'
 
 export interface Contact extends RecordModel {
   email: string
+  first_name: string
+  last_name: string
   name: string
+  personal_email?: string
   phone?: string
   pronouns?: string
   bio?: string
@@ -35,12 +40,16 @@ export interface Contact extends RecordModel {
   organisation_name?: string
   tags?: string[]
   roles?: ContactRole[]
-  status: 'active' | 'inactive' | 'archived'
+  status: 'active' | 'inactive' | 'pending' | 'archived'
   source?: string
   source_ids?: Record<string, string>
-  degrees?: '1st degree' | '2nd degree' | '3rd degree'
+  degrees?: '1st' | '2nd' | '3rd'
   relationship?: number
   notes?: string
+  dietary_requirements?: DietaryRequirement[]
+  dietary_requirements_other?: string
+  accessibility_requirements?: AccessibilityRequirement[]
+  accessibility_requirements_other?: string
 }
 
 export interface Organisation extends RecordModel {
@@ -99,6 +108,9 @@ export interface GuestList extends RecordModel {
   status: 'draft' | 'active' | 'archived'
   item_count: number
   share_count: number
+  rsvp_enabled: boolean
+  rsvp_generic_token: string
+  rsvp_generic_url: string
 }
 
 export interface GuestListItem extends RecordModel {
@@ -108,17 +120,25 @@ export interface GuestListItem extends RecordModel {
   contact_organisation_name: string
   contact_linkedin: string
   contact_location: string
-  contact_degrees: '1st degree' | '2nd degree' | '3rd degree' | ''
+  contact_degrees: '1st' | '2nd' | '3rd' | ''
   contact_relationship: number
   contact_status?: string
   contact_avatar_url?: string
   contact_avatar_small_url?: string
   contact_avatar_thumb_url?: string
   invite_round: '1st' | '2nd' | '3rd' | 'maybe' | ''
-  invite_status: 'invited' | 'accepted' | 'declined' | 'no_show' | ''
+  invite_status: 'to_invite' | 'invited' | 'accepted' | 'declined' | 'no_show' | ''
   notes: string
   client_notes: string
   sort_order: number
+  rsvp_token: string
+  rsvp_status: 'accepted' | 'declined' | ''
+  rsvp_dietary: string
+  rsvp_plus_one: boolean
+  rsvp_plus_one_name: string
+  rsvp_plus_one_dietary: string
+  rsvp_responded_at: string
+  rsvp_invited_by: string
 }
 
 export interface GuestListShare extends RecordModel {

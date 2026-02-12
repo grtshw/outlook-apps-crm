@@ -23,7 +23,7 @@ func init() {
 				Name:      "degrees",
 				Required:  false,
 				MaxSelect: 1,
-				Values:    []string{"1st degree", "2nd degree", "3rd degree"},
+				Values:    []string{"1st", "2nd", "3rd"},
 			})
 			changed = true
 		}

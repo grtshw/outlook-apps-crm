@@ -210,7 +210,7 @@ func createGuestListItemsCollection(app core.App) error {
 			Name:      "contact_degrees",
 			Required:  false,
 			MaxSelect: 1,
-			Values:    []string{"1st degree", "2nd degree", "3rd degree"},
+			Values:    []string{"1st", "2nd", "3rd"},
 		},
 		&core.NumberField{
 			Id:       "gli_contact_relationship",

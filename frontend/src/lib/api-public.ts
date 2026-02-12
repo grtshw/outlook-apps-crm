@@ -58,6 +58,7 @@ export interface SharedGuestListView {
     relationship: number
     notes: string
     client_notes: string
+    rsvp_status: string
   }>
   total_guests: number
   shared_by: string
@@ -66,6 +67,46 @@ export interface SharedGuestListView {
 
 export async function getSharedGuestList(token: string, sessionToken: string): Promise<SharedGuestListView> {
   return sessionFetch(`/api/public/guest-lists/${token}/view`, sessionToken)
+}
+
+// RSVP public endpoints
+export interface RSVPInfo {
+  type: 'personal' | 'generic'
+  list_name: string
+  event_name: string
+  prefilled_name: string
+  prefilled_email: string
+  prefilled_phone: string
+  already_responded: boolean
+  rsvp_status: 'accepted' | 'declined' | ''
+  rsvp_dietary: string
+  rsvp_plus_one: boolean
+  rsvp_plus_one_name: string
+  rsvp_plus_one_dietary: string
+}
+
+export async function getRSVPInfo(token: string): Promise<RSVPInfo> {
+  return publicFetch(`/api/public/rsvp/${token}`)
+}
+
+export interface RSVPSubmission {
+  name: string
+  email: string
+  phone?: string
+  dietary?: string
+  plus_one?: boolean
+  plus_one_name?: string
+  plus_one_dietary?: string
+  response: 'accepted' | 'declined'
+  invited_by?: string
+}
+
+export async function submitRSVP(token: string, data: RSVPSubmission): Promise<{ message: string }> {
+  return publicFetch(`/api/public/rsvp/${token}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 export async function updateSharedGuestListItem(

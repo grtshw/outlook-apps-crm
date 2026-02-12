@@ -201,6 +201,7 @@ export function ContactsPage() {
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
@@ -309,6 +310,8 @@ export function ContactsPage() {
                 variant={
                   contact.status === 'active'
                     ? 'default'
+                    : contact.status === 'pending'
+                    ? 'secondary'
                     : contact.status === 'inactive'
                     ? 'secondary'
                     : 'outline'

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/grtshw/outlook-apps-crm/utils"
@@ -262,6 +263,13 @@ func importPresenter(app *pocketbase.PocketBase, presenter PresenterFromAPI) err
 
 	// Map presenter fields to contact
 	record.Set("email", presenter.Email)
+	parts := strings.SplitN(strings.TrimSpace(presenter.Name), " ", 2)
+	record.Set("first_name", parts[0])
+	if len(parts) > 1 {
+		record.Set("last_name", parts[1])
+	} else {
+		record.Set("last_name", "")
+	}
 	record.Set("name", presenter.Name)
 	record.Set("phone", presenter.Phone)
 	record.Set("pronouns", presenter.Pronouns)

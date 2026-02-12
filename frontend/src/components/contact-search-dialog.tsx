@@ -105,7 +105,7 @@ export function ContactSearchDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Add contacts</SheetTitle>
+          <SheetTitle>Select guests</SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 min-h-0 flex flex-col gap-4 p-6">

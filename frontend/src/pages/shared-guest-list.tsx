@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { OTPInput } from '@/components/otp-input'
-import { Loader2, ExternalLink } from 'lucide-react'
+import { Loader2, ExternalLink, CircleCheck, XCircle } from 'lucide-react'
 
 export function SharedGuestListPage() {
   const { token } = useParams<{ token: string }>()
@@ -176,13 +176,17 @@ export function SharedGuestListPage() {
             <p className="text-lg">{shareInfo.list_name}</p>
             <p className="text-sm text-muted-foreground">Enter the verification code</p>
           </div>
-          <label className="flex items-start gap-3 text-left cursor-pointer rounded-lg border border-border p-4">
+          <OTPInput onComplete={handleVerify} disabled={verifying || !policyAccepted} />
+          <div
+            className="flex items-start gap-3 text-left cursor-pointer rounded-lg border border-border p-4"
+            onClick={() => setPolicyAccepted((v) => !v)}
+          >
             <Checkbox
               checked={policyAccepted}
               onCheckedChange={(checked) => setPolicyAccepted(checked === true)}
               className="mt-0.5"
             />
-            <span className="text-sm text-muted-foreground leading-relaxed">
+            <span className="font-sans text-sm text-muted-foreground leading-relaxed">
               I understand this guest list contains private and confidential information.
               I agree not to copy or download this data and acknowledge The Outlook&apos;s{' '}
               <a
@@ -190,12 +194,12 @@ export function SharedGuestListPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
               >
                 privacy policy
               </a>.
             </span>
-          </label>
-          <OTPInput onComplete={handleVerify} disabled={verifying || !policyAccepted} />
+          </div>
           {verifying && (
             <div className="flex items-center justify-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -268,6 +272,7 @@ export function SharedGuestListPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead className="w-32">Invite round</TableHead>
+                <TableHead className="w-24">RSVP</TableHead>
                 <TableHead>LinkedIn</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead>Notes</TableHead>
@@ -296,6 +301,21 @@ export function SharedGuestListPage() {
                         <SelectItem value="maybe">Maybe</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    {item.rsvp_status === 'accepted' ? (
+                      <span className="inline-flex items-center gap-1 text-green-600">
+                        <CircleCheck className="h-4 w-4" />
+                        <span className="text-sm">Accepted</span>
+                      </span>
+                    ) : item.rsvp_status === 'declined' ? (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        <XCircle className="h-4 w-4" />
+                        <span className="text-sm">Declined</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {item.linkedin && (

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -90,18 +91,26 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		}
 	}
 
+	rsvpGenericURL := ""
+	if record.GetBool("rsvp_enabled") && record.GetString("rsvp_generic_token") != "" {
+		rsvpGenericURL = fmt.Sprintf("%s/rsvp/%s", getBaseURL(), record.GetString("rsvp_generic_token"))
+	}
+
 	return re.JSON(http.StatusOK, map[string]any{
-		"id":               record.Id,
-		"name":             record.GetString("name"),
-		"description":      record.GetString("description"),
-		"event_projection": record.GetString("event_projection"),
-		"event_name":       eventName,
-		"status":           record.GetString("status"),
-		"created_by":       record.GetString("created_by"),
-		"item_count":       itemCount,
-		"share_count":      shareCount,
-		"created":          record.GetString("created"),
-		"updated":          record.GetString("updated"),
+		"id":                  record.Id,
+		"name":                record.GetString("name"),
+		"description":         record.GetString("description"),
+		"event_projection":    record.GetString("event_projection"),
+		"event_name":          eventName,
+		"status":              record.GetString("status"),
+		"created_by":          record.GetString("created_by"),
+		"item_count":          itemCount,
+		"share_count":         shareCount,
+		"rsvp_enabled":        record.GetBool("rsvp_enabled"),
+		"rsvp_generic_token":  record.GetString("rsvp_generic_token"),
+		"rsvp_generic_url":    rsvpGenericURL,
+		"created":             record.GetString("created"),
+		"updated":             record.GetString("updated"),
 	})
 }
 
@@ -163,6 +172,9 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 			return utils.BadRequestResponse(re, "Invalid status value")
 		}
 		record.Set("status", v)
+	}
+	if v, ok := input["rsvp_enabled"].(bool); ok {
+		record.Set("rsvp_enabled", v)
 	}
 
 	if err := app.Save(record); err != nil {
@@ -261,6 +273,14 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 			"notes":                     r.GetString("notes"),
 			"client_notes":              r.GetString("client_notes"),
 			"sort_order":                r.GetInt("sort_order"),
+			"rsvp_token":               r.GetString("rsvp_token"),
+			"rsvp_status":              r.GetString("rsvp_status"),
+			"rsvp_dietary":             r.GetString("rsvp_dietary"),
+			"rsvp_plus_one":            r.GetBool("rsvp_plus_one"),
+			"rsvp_plus_one_name":       r.GetString("rsvp_plus_one_name"),
+			"rsvp_plus_one_dietary":    r.GetString("rsvp_plus_one_dietary"),
+			"rsvp_responded_at":        r.GetString("rsvp_responded_at"),
+			"rsvp_invited_by":          r.GetString("rsvp_invited_by"),
 			"created":                   r.GetString("created"),
 		}
 
@@ -345,7 +365,7 @@ func handleGuestListItemCreate(re *core.RequestEvent, app *pocketbase.PocketBase
 	record.Set("guest_list", listID)
 	record.Set("contact", contactID)
 	record.Set("invite_round", input["invite_round"])
-	record.Set("invite_status", stringOrDefault(input["invite_status"], "invited"))
+	record.Set("invite_status", input["invite_status"])
 	record.Set("notes", input["notes"])
 	record.Set("sort_order", nextSort)
 
@@ -359,10 +379,11 @@ func handleGuestListItemCreate(re *core.RequestEvent, app *pocketbase.PocketBase
 	record.Set("contact_relationship", contact.GetInt("relationship"))
 
 	if err := app.Save(record); err != nil {
+		log.Printf("[GuestListItemCreate] Failed to save item for contact %s: %v", contactID, err)
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
 			return utils.BadRequestResponse(re, "Contact already in this guest list")
 		}
-		return utils.InternalErrorResponse(re, "Failed to add contact")
+		return utils.InternalErrorResponse(re, "Failed to add contact: "+err.Error())
 	}
 
 	return re.JSON(http.StatusCreated, map[string]any{
@@ -419,7 +440,6 @@ func handleGuestListItemBulkAdd(re *core.RequestEvent, app *pocketbase.PocketBas
 		record.Set("guest_list", listID)
 		record.Set("contact", contactID)
 		record.Set("invite_round", input.InviteRound)
-		record.Set("invite_status", "invited")
 		record.Set("sort_order", nextSort)
 		record.Set("contact_name", contact.GetString("name"))
 		record.Set("contact_job_title", contact.GetString("job_title"))
@@ -429,7 +449,9 @@ func handleGuestListItemBulkAdd(re *core.RequestEvent, app *pocketbase.PocketBas
 		record.Set("contact_degrees", contact.GetString("degrees"))
 		record.Set("contact_relationship", contact.GetInt("relationship"))
 
-		if err := app.Save(record); err == nil {
+		if err := app.Save(record); err != nil {
+			log.Printf("[GuestListBulkAdd] Failed to save item for contact %s: %v", contactID, err)
+		} else {
 			added++
 			nextSort++
 		}
@@ -458,7 +480,7 @@ func handleGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.PocketBase
 		record.Set("invite_round", v)
 	}
 	if v, ok := input["invite_status"].(string); ok {
-		allowed := map[string]bool{"invited": true, "accepted": true, "declined": true, "no_show": true}
+		allowed := map[string]bool{"to_invite": true, "invited": true, "accepted": true, "declined": true, "no_show": true}
 		if !allowed[v] {
 			return utils.BadRequestResponse(re, "Invalid invite_status value")
 		}
@@ -884,6 +906,7 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 			"relationship": r.GetInt("contact_relationship"),
 			"notes":        r.GetString("notes"),
 			"client_notes": r.GetString("client_notes"),
+			"rsvp_status":  r.GetString("rsvp_status"),
 		}
 	}
 

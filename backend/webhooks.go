@@ -435,20 +435,27 @@ func sendGenericWebhookToURL(payload any, url, secret, destination string) error
 // DAM expects contacts as "presenters" with presenter_id field
 func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) WebhookPayload {
 	data := map[string]any{
-		"id":          r.Id, // DAM maps this to presenter_id
-		"email":       utils.DecryptField(r.GetString("email")),
-		"name":        r.GetString("name"),
-		"phone":       utils.DecryptField(r.GetString("phone")),
-		"pronouns":    r.GetString("pronouns"),
-		"bio":         utils.DecryptField(r.GetString("bio")),
-		"job_title":   r.GetString("job_title"),
-		"linkedin":    r.GetString("linkedin"),
-		"instagram":   r.GetString("instagram"),
-		"website":     r.GetString("website"),
-		"location":    utils.DecryptField(r.GetString("location")),
-		"do_position": r.GetString("do_position"),
-		"created":     r.GetString("created"),
-		"updated":     r.GetString("updated"),
+		"id":             r.Id, // DAM maps this to presenter_id
+		"email":          utils.DecryptField(r.GetString("email")),
+		"first_name":     r.GetString("first_name"),
+		"last_name":      r.GetString("last_name"),
+		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
+		"personal_email": utils.DecryptField(r.GetString("personal_email")),
+		"phone":          utils.DecryptField(r.GetString("phone")),
+		"pronouns":       r.GetString("pronouns"),
+		"bio":            utils.DecryptField(r.GetString("bio")),
+		"job_title":      r.GetString("job_title"),
+		"linkedin":       r.GetString("linkedin"),
+		"instagram":      r.GetString("instagram"),
+		"website":        r.GetString("website"),
+		"location":       utils.DecryptField(r.GetString("location")),
+		"do_position":    r.GetString("do_position"),
+		"dietary_requirements":              r.Get("dietary_requirements"),
+		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
+		"accessibility_requirements":        r.Get("accessibility_requirements"),
+		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
+		"created":        r.GetString("created"),
+		"updated":        r.GetString("updated"),
 	}
 
 	// Avatar URL - DAM will download from this URL and generate variants
@@ -612,20 +619,27 @@ func sendOrganisationToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseU
 // buildContactWebhookPayload builds the webhook payload for a contact
 func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
-		"id":          r.Id,
-		"email":       utils.DecryptField(r.GetString("email")),
-		"name":        r.GetString("name"),
-		"phone":       utils.DecryptField(r.GetString("phone")),
-		"pronouns":    r.GetString("pronouns"),
-		"bio":         utils.DecryptField(r.GetString("bio")),
-		"job_title":   r.GetString("job_title"),
-		"linkedin":    r.GetString("linkedin"),
-		"instagram":   r.GetString("instagram"),
-		"website":     r.GetString("website"),
-		"location":    utils.DecryptField(r.GetString("location")),
-		"do_position": r.GetString("do_position"),
-		"created":     r.GetString("created"),
-		"updated":     r.GetString("updated"),
+		"id":             r.Id,
+		"email":          utils.DecryptField(r.GetString("email")),
+		"first_name":     r.GetString("first_name"),
+		"last_name":      r.GetString("last_name"),
+		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
+		"personal_email": utils.DecryptField(r.GetString("personal_email")),
+		"phone":          utils.DecryptField(r.GetString("phone")),
+		"pronouns":       r.GetString("pronouns"),
+		"bio":            utils.DecryptField(r.GetString("bio")),
+		"job_title":      r.GetString("job_title"),
+		"linkedin":       r.GetString("linkedin"),
+		"instagram":      r.GetString("instagram"),
+		"website":        r.GetString("website"),
+		"location":       utils.DecryptField(r.GetString("location")),
+		"do_position":    r.GetString("do_position"),
+		"dietary_requirements":              r.Get("dietary_requirements"),
+		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
+		"accessibility_requirements":        r.Get("accessibility_requirements"),
+		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
+		"created":        r.GetString("created"),
+		"updated":        r.GetString("updated"),
 	}
 
 	// Avatar URL (CRM local file)

@@ -26,7 +26,7 @@ const (
 
 // Status values
 var (
-	ContactStatuses      = []string{"active", "inactive", "archived"}
+	ContactStatuses      = []string{"active", "inactive", "pending", "archived"}
 	OrganisationStatuses = []string{"active", "archived"}
 	UserRoles            = []string{"admin", "viewer"}
 )
@@ -62,6 +62,9 @@ var (
 		"note_added",
 	}
 )
+
+// RSVP status values
+var RSVPStatuses = []string{"accepted", "declined"}
 
 // File size limits (in bytes)
 const (

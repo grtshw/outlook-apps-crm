@@ -79,12 +79,23 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 
 	// Validate required fields
 	email, _ := input["email"].(string)
-	name, _ := input["name"].(string)
 	if email == "" {
 		return utils.BadRequestResponse(re, "Email is required")
 	}
-	if name == "" {
-		return utils.BadRequestResponse(re, "Name is required")
+
+	// Accept first_name/last_name or fall back to splitting name
+	firstName, _ := input["first_name"].(string)
+	lastName, _ := input["last_name"].(string)
+	if firstName == "" {
+		name, _ := input["name"].(string)
+		if name == "" {
+			return utils.BadRequestResponse(re, "Name is required")
+		}
+		parts := strings.SplitN(strings.TrimSpace(name), " ", 2)
+		firstName = parts[0]
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
 	}
 
 	// Normalize email
@@ -103,7 +114,7 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 		return utils.DataResponse(re, map[string]any{
 			"id":       existing[0].Id,
 			"email":    utils.DecryptField(existing[0].GetString("email")),
-			"name":     existing[0].GetString("name"),
+			"name":     strings.TrimSpace(existing[0].GetString("first_name") + " " + existing[0].GetString("last_name")),
 			"existing": true,
 		})
 	}
@@ -117,7 +128,9 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 
 	// Set fields
 	record.Set("email", email)
-	record.Set("name", name)
+	record.Set("first_name", firstName)
+	record.Set("last_name", lastName)
+	record.Set("name", strings.TrimSpace(firstName+" "+lastName))
 	record.Set("source", "presentations") // Always mark source
 	record.Set("status", "active")
 
@@ -155,6 +168,7 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 		return utils.InternalErrorResponse(re, "Failed to create contact")
 	}
 
+	fullName := strings.TrimSpace(firstName + " " + lastName)
 	log.Printf("[ExternalContactCreate] Created contact: id=%s email=%s", record.Id, email)
 
 	// Webhook fires automatically via PocketBase hooks
@@ -162,7 +176,7 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 	return re.JSON(http.StatusCreated, map[string]any{
 		"id":       record.Id,
 		"email":    email, // Use original email, not encrypted record value
-		"name":     name,
+		"name":     fullName,
 		"existing": false,
 	})
 }
@@ -198,13 +212,36 @@ func handleExternalContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBa
 
 	// Allowed fields for external update
 	allowedFields := []string{
-		"name", "phone", "pronouns", "bio", "job_title",
+		"first_name", "last_name", "phone", "pronouns", "bio", "job_title",
 		"linkedin", "instagram", "website", "location",
 	}
 
 	for _, field := range allowedFields {
 		if val, ok := input[field]; ok {
 			record.Set(field, val)
+		}
+	}
+
+	// Backwards compatibility: accept "name" and split into first/last
+	if name, ok := input["name"].(string); ok && name != "" {
+		parts := strings.SplitN(strings.TrimSpace(name), " ", 2)
+		record.Set("first_name", parts[0])
+		if len(parts) > 1 {
+			record.Set("last_name", parts[1])
+		}
+	}
+
+	// Recompute denormalized name
+	fn := record.GetString("first_name")
+	ln := record.GetString("last_name")
+	record.Set("name", strings.TrimSpace(fn+" "+ln))
+
+	// Decrypt PII fields before save so PocketBase validation passes
+	// (the encryption hook will re-encrypt them before DB write)
+	for _, field := range []string{"email", "personal_email", "phone", "bio", "location"} {
+		val := record.GetString(field)
+		if val != "" {
+			record.Set(field, utils.DecryptField(val))
 		}
 	}
 
@@ -219,7 +256,7 @@ func handleExternalContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBa
 	return utils.DataResponse(re, map[string]any{
 		"id":      record.Id,
 		"email":   record.GetString("email"),
-		"name":    record.GetString("name"),
+		"name":    strings.TrimSpace(record.GetString("first_name") + " " + record.GetString("last_name")),
 		"updated": true,
 	})
 }
@@ -420,7 +457,7 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		filter = "status = {:status}"
 	}
 	if search != "" {
-		searchFilter := "(name ~ {:search} || email ~ {:search})"
+		searchFilter := "(name ~ {:search} || first_name ~ {:search} || last_name ~ {:search} || email ~ {:search})"
 		if filter != "" {
 			filter = filter + " && " + searchFilter
 		} else {
@@ -492,13 +529,14 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 
 	// Validate required fields
 	email, _ := input["email"].(string)
-	name, _ := input["name"].(string)
+	firstName, _ := input["first_name"].(string)
 	if email == "" {
 		return utils.BadRequestResponse(re, "Email is required")
 	}
-	if name == "" {
-		return utils.BadRequestResponse(re, "Name is required")
+	if firstName == "" {
+		return utils.BadRequestResponse(re, "First name is required")
 	}
+	lastName, _ := input["last_name"].(string)
 
 	// Check for duplicate email
 	existing, _ := app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": strings.ToLower(strings.TrimSpace(email))})
@@ -515,7 +553,12 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 
 	// Set fields
 	record.Set("email", strings.ToLower(strings.TrimSpace(email)))
-	record.Set("name", name)
+	record.Set("first_name", firstName)
+	record.Set("last_name", lastName)
+	record.Set("name", strings.TrimSpace(firstName+" "+lastName))
+	if v, ok := input["personal_email"].(string); ok && v != "" {
+		record.Set("personal_email", strings.ToLower(strings.TrimSpace(v)))
+	}
 	if v, ok := input["phone"].(string); ok {
 		record.Set("phone", v)
 	}
@@ -571,6 +614,18 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	if v, ok := input["notes"].(string); ok {
 		record.Set("notes", v)
 	}
+	if v, ok := input["dietary_requirements"].([]any); ok {
+		record.Set("dietary_requirements", v)
+	}
+	if v, ok := input["dietary_requirements_other"].(string); ok {
+		record.Set("dietary_requirements_other", v)
+	}
+	if v, ok := input["accessibility_requirements"].([]any); ok {
+		record.Set("accessibility_requirements", v)
+	}
+	if v, ok := input["accessibility_requirements_other"].(string); ok {
+		record.Set("accessibility_requirements_other", v)
+	}
 
 	if err := app.Save(record); err != nil {
 		log.Printf("[ContactCreate] Failed to save: %v", err)
@@ -599,9 +654,17 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 
 	// Update fields if provided
-	if v, ok := input["name"].(string); ok && v != "" {
-		record.Set("name", v)
+	if v, ok := input["first_name"].(string); ok {
+		record.Set("first_name", v)
 	}
+	if v, ok := input["last_name"].(string); ok {
+		record.Set("last_name", v)
+	}
+	// Recompute denormalized name
+	fn := record.GetString("first_name")
+	ln := record.GetString("last_name")
+	record.Set("name", strings.TrimSpace(fn+" "+ln))
+
 	if v, ok := input["email"].(string); ok && v != "" {
 		// Check for duplicate email (excluding current record)
 		email := strings.ToLower(strings.TrimSpace(v))
@@ -610,6 +673,14 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 			return utils.BadRequestResponse(re, "A contact with this email already exists")
 		}
 		record.Set("email", email)
+	}
+	if v, ok := input["personal_email"].(string); ok {
+		if v != "" {
+			record.Set("personal_email", strings.ToLower(strings.TrimSpace(v)))
+		} else {
+			record.Set("personal_email", "")
+			record.Set("personal_email_index", "")
+		}
 	}
 	if v, ok := input["phone"].(string); ok {
 		record.Set("phone", v)
@@ -658,6 +729,28 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 	if v, ok := input["notes"].(string); ok {
 		record.Set("notes", v)
+	}
+	if v, ok := input["dietary_requirements"].([]any); ok {
+		record.Set("dietary_requirements", v)
+	}
+	if v, ok := input["dietary_requirements_other"].(string); ok {
+		record.Set("dietary_requirements_other", v)
+	}
+	if v, ok := input["accessibility_requirements"].([]any); ok {
+		record.Set("accessibility_requirements", v)
+	}
+	if v, ok := input["accessibility_requirements_other"].(string); ok {
+		record.Set("accessibility_requirements_other", v)
+	}
+
+	// Decrypt PII fields before save so PocketBase validation passes
+	// (encrypted values like "enc:..." fail EmailField validation).
+	// The OnRecordUpdateExecute hook will re-encrypt them.
+	for _, field := range []string{"email", "personal_email", "phone", "bio", "location"} {
+		val := record.GetString(field)
+		if val != "" {
+			record.Set(field, utils.DecryptField(val))
+		}
 	}
 
 	if err := app.Save(record); err != nil {
@@ -734,7 +827,7 @@ func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase
 
 	// Decrypt PII fields before saving so PocketBase validation passes
 	// (the encryption hook will re-encrypt them before DB write)
-	piiFields := []string{"email", "phone", "bio", "location"}
+	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
 	for _, field := range piiFields {
 		if v := record.GetString(field); v != "" {
 			record.Set(field, utils.DecryptField(v))
@@ -1290,7 +1383,7 @@ func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	}
 
 	// Decrypt PII fields before save so encryption hooks re-encrypt correctly
-	piiFields := []string{"email", "phone", "bio", "location"}
+	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
 	for _, field := range piiFields {
 		if v := record.GetString(field); v != "" {
 			record.Set(field, utils.DecryptField(v))
@@ -1367,7 +1460,7 @@ func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		}
 
 		// Decrypt PII fields before save
-		piiFields := []string{"email", "phone", "bio", "location"}
+		piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
 		for _, field := range piiFields {
 			if v := record.GetString(field); v != "" {
 				record.Set(field, utils.DecryptField(v))
@@ -1396,8 +1489,10 @@ type MergeContactsInput struct {
 	PrimaryID       string            `json:"primary_id"`
 	MergedIDs       []string          `json:"merged_ids"`
 	FieldSelections map[string]string `json:"field_selections"` // field -> source contact ID
-	MergedRoles     []string          `json:"merged_roles"`
-	MergedTags      []string          `json:"merged_tags"`
+	MergedRoles                    []string          `json:"merged_roles"`
+	MergedTags                     []string          `json:"merged_tags"`
+	MergedDietaryRequirements      []string          `json:"merged_dietary_requirements"`
+	MergedAccessibilityRequirements []string         `json:"merged_accessibility_requirements"`
 }
 
 // handleContactsMerge merges multiple contacts into a single primary contact
@@ -1437,14 +1532,15 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 
 	// Build merged values from field_selections
 	scalarFields := []string{
-		"name", "email", "phone", "pronouns", "bio", "job_title",
+		"first_name", "last_name", "email", "personal_email", "phone", "pronouns", "bio", "job_title",
 		"linkedin", "instagram", "website", "location", "do_position",
 		"organisation", "status", "source",
 		"avatar_url", "avatar_thumb_url", "avatar_small_url", "avatar_original_url",
 		"hubspot_contact_id", "hubspot_synced_at",
 		"degrees", "relationship", "notes",
+		"dietary_requirements_other", "accessibility_requirements_other",
 	}
-	piiFields := map[string]bool{"email": true, "phone": true, "bio": true, "location": true}
+	piiFields := map[string]bool{"email": true, "personal_email": true, "phone": true, "bio": true, "location": true}
 
 	for _, field := range scalarFields {
 		sourceID, ok := input.FieldSelections[field]
@@ -1462,9 +1558,16 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 		primaryRecord.Set(field, val)
 	}
 
+	// Recompute denormalized name after merge
+	fn := primaryRecord.GetString("first_name")
+	ln := primaryRecord.GetString("last_name")
+	primaryRecord.Set("name", strings.TrimSpace(fn+" "+ln))
+
 	// Set array fields
 	primaryRecord.Set("roles", input.MergedRoles)
 	primaryRecord.Set("tags", input.MergedTags)
+	primaryRecord.Set("dietary_requirements", input.MergedDietaryRequirements)
+	primaryRecord.Set("accessibility_requirements", input.MergedAccessibilityRequirements)
 
 	// Deep merge source_ids from all contacts
 	mergedSourceIDs := map[string]any{}
@@ -1508,7 +1611,7 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 		}
 
 		// Second: decrypt PII fields on primary before save (encryption hooks re-encrypt)
-		for _, field := range []string{"email", "phone", "bio", "location"} {
+		for _, field := range []string{"email", "personal_email", "phone", "bio", "location"} {
 			if v := primaryRecord.GetString(field); v != "" {
 				primaryRecord.Set(field, utils.DecryptField(v))
 			}
@@ -1547,28 +1650,35 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 // buildContactResponse builds a contact response object
 func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
-		"id":         r.Id,
-		"email":      utils.DecryptField(r.GetString("email")),
-		"name":       r.GetString("name"),
-		"phone":      utils.DecryptField(r.GetString("phone")),
-		"pronouns":   r.GetString("pronouns"),
-		"bio":        utils.DecryptField(r.GetString("bio")),
-		"job_title":  r.GetString("job_title"),
-		"linkedin":   r.GetString("linkedin"),
-		"instagram":  r.GetString("instagram"),
-		"website":    r.GetString("website"),
-		"location":    utils.DecryptField(r.GetString("location")),
-		"do_position": r.GetString("do_position"),
-		"tags":        r.Get("tags"),
-		"roles":       r.Get("roles"),
-		"status":      r.GetString("status"),
-		"source":       r.GetString("source"),
-		"source_ids":   r.Get("source_ids"),
-		"degrees":      r.GetString("degrees"),
-		"relationship": r.GetInt("relationship"),
-		"notes":        r.GetString("notes"),
-		"created":      r.GetString("created"),
-		"updated":      r.GetString("updated"),
+		"id":             r.Id,
+		"email":          utils.DecryptField(r.GetString("email")),
+		"first_name":     r.GetString("first_name"),
+		"last_name":      r.GetString("last_name"),
+		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
+		"personal_email": utils.DecryptField(r.GetString("personal_email")),
+		"phone":          utils.DecryptField(r.GetString("phone")),
+		"pronouns":       r.GetString("pronouns"),
+		"bio":            utils.DecryptField(r.GetString("bio")),
+		"job_title":      r.GetString("job_title"),
+		"linkedin":       r.GetString("linkedin"),
+		"instagram":      r.GetString("instagram"),
+		"website":        r.GetString("website"),
+		"location":       utils.DecryptField(r.GetString("location")),
+		"do_position":    r.GetString("do_position"),
+		"tags":           r.Get("tags"),
+		"roles":          r.Get("roles"),
+		"status":         r.GetString("status"),
+		"source":         r.GetString("source"),
+		"source_ids":     r.Get("source_ids"),
+		"degrees":        r.GetString("degrees"),
+		"relationship":   r.GetInt("relationship"),
+		"notes":          r.GetString("notes"),
+		"dietary_requirements":              r.Get("dietary_requirements"),
+		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
+		"accessibility_requirements":        r.Get("accessibility_requirements"),
+		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
+		"created":        r.GetString("created"),
+		"updated":        r.GetString("updated"),
 	}
 
 	// Avatar: prefer DAM URL field, fall back to local file
@@ -1604,22 +1714,29 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 // buildContactProjection builds a contact projection for COPE consumers
 func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL string) map[string]any {
 	data := map[string]any{
-		"id":          r.Id,
-		"email":       utils.DecryptField(r.GetString("email")),
-		"name":        r.GetString("name"),
-		"phone":       utils.DecryptField(r.GetString("phone")),
-		"pronouns":    r.GetString("pronouns"),
-		"bio":         utils.DecryptField(r.GetString("bio")),
-		"job_title":   r.GetString("job_title"),
-		"linkedin":    r.GetString("linkedin"),
-		"instagram":   r.GetString("instagram"),
-		"website":     r.GetString("website"),
-		"location":    utils.DecryptField(r.GetString("location")),
-		"do_position": r.GetString("do_position"),
-		"tags":        r.Get("tags"),
-		"roles":       r.Get("roles"),
-		"created":     r.GetString("created"),
-		"updated":     r.GetString("updated"),
+		"id":             r.Id,
+		"email":          utils.DecryptField(r.GetString("email")),
+		"first_name":     r.GetString("first_name"),
+		"last_name":      r.GetString("last_name"),
+		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
+		"personal_email": utils.DecryptField(r.GetString("personal_email")),
+		"phone":          utils.DecryptField(r.GetString("phone")),
+		"pronouns":       r.GetString("pronouns"),
+		"bio":            utils.DecryptField(r.GetString("bio")),
+		"job_title":      r.GetString("job_title"),
+		"linkedin":       r.GetString("linkedin"),
+		"instagram":      r.GetString("instagram"),
+		"website":        r.GetString("website"),
+		"location":       utils.DecryptField(r.GetString("location")),
+		"do_position":    r.GetString("do_position"),
+		"tags":           r.Get("tags"),
+		"roles":          r.Get("roles"),
+		"dietary_requirements":              r.Get("dietary_requirements"),
+		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
+		"accessibility_requirements":        r.Get("accessibility_requirements"),
+		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
+		"created":        r.GetString("created"),
+		"updated":        r.GetString("updated"),
 	}
 
 	// Avatar: prefer DAM URL field, fall back to local file

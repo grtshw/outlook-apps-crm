@@ -385,6 +385,24 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handlePublicGuestListItemUpdate(re, app)
 	}).BindFunc(utils.RateLimitPublic)
 
+	// Public RSVP endpoints (no CRM auth, rate limited)
+	e.Router.GET("/api/public/rsvp/{token}", func(re *core.RequestEvent) error {
+		return handlePublicRSVPInfo(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.POST("/api/public/rsvp/{token}", func(re *core.RequestEvent) error {
+		return handlePublicRSVPSubmit(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	// Admin RSVP management
+	e.Router.POST("/api/guest-lists/{id}/rsvp/enable", func(re *core.RequestEvent) error {
+		return handleGuestListRSVPToggle(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/rsvp/send-invites", func(re *core.RequestEvent) error {
+		return handleGuestListRSVPSendInvites(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	log.Printf("[Routes] Registered API endpoints")
 }
 
@@ -425,7 +443,7 @@ func serveFrontend(e *core.ServeEvent) {
 // registerEncryptionHooks sets up PII field encryption for contacts
 func registerEncryptionHooks(app *pocketbase.PocketBase) {
 	// Only contacts collection has PII fields to encrypt
-	piiFields := []string{"email", "phone", "bio", "location"}
+	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
 
 	// Encrypt PII fields after validation, before database insert
 	// OnRecordCreateExecute fires after validation passes
@@ -453,6 +471,12 @@ func registerEncryptionHooks(app *pocketbase.PocketBase) {
 		if email := e.Record.GetString("email"); email != "" {
 			originalEmail := utils.DecryptField(email)
 			e.Record.Set("email_index", utils.BlindIndex(originalEmail))
+		}
+
+		// Set blind index for personal_email lookups
+		if personalEmail := e.Record.GetString("personal_email"); personalEmail != "" {
+			originalEmail := utils.DecryptField(personalEmail)
+			e.Record.Set("personal_email_index", utils.BlindIndex(originalEmail))
 		}
 
 		return e.Next()
@@ -483,6 +507,12 @@ func registerEncryptionHooks(app *pocketbase.PocketBase) {
 		if email := e.Record.GetString("email"); email != "" {
 			originalEmail := utils.DecryptField(email)
 			e.Record.Set("email_index", utils.BlindIndex(originalEmail))
+		}
+
+		// Update blind index for personal_email lookups
+		if personalEmail := e.Record.GetString("personal_email"); personalEmail != "" {
+			originalEmail := utils.DecryptField(personalEmail)
+			e.Record.Set("personal_email_index", utils.BlindIndex(originalEmail))
 		}
 
 		return e.Next()
@@ -546,7 +576,7 @@ func runPIIEncryptionMigration(app *pocketbase.PocketBase) error {
 
 	log.Printf("[EncryptPII] Found %d contacts to process", len(records))
 
-	piiFields := []string{"email", "phone", "bio", "location"}
+	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
 	migrated := 0
 	skipped := 0
 
@@ -582,6 +612,17 @@ func runPIIEncryptionMigration(app *pocketbase.PocketBase) error {
 			blindIndex := utils.BlindIndex(originalEmail)
 			if record.GetString("email_index") != blindIndex {
 				record.Set("email_index", blindIndex)
+				needsUpdate = true
+			}
+		}
+
+		// Update personal_email_index for blind search
+		personalEmail := record.GetString("personal_email")
+		if personalEmail != "" {
+			originalEmail := utils.DecryptField(personalEmail)
+			blindIndex := utils.BlindIndex(originalEmail)
+			if record.GetString("personal_email_index") != blindIndex {
+				record.Set("personal_email_index", blindIndex)
 				needsUpdate = true
 			}
 		}

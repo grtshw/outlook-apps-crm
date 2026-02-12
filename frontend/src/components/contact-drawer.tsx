@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { Contact, Activity } from '@/lib/pocketbase'
-import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations } from '@/lib/api'
+import type { Contact, Activity, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
+import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations, createOrganisation } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import {
   Sheet,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import {
   Select,
@@ -29,8 +30,26 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star } from 'lucide-react'
+import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+const DIETARY_OPTIONS: { value: DietaryRequirement; label: string }[] = [
+  { value: 'vegetarian', label: 'Vegetarian' },
+  { value: 'vegan', label: 'Vegan' },
+  { value: 'gluten_free', label: 'Gluten free' },
+  { value: 'dairy_free', label: 'Dairy free' },
+  { value: 'nut_allergy', label: 'Nut allergy' },
+  { value: 'halal', label: 'Halal' },
+  { value: 'kosher', label: 'Kosher' },
+]
+
+const ACCESSIBILITY_OPTIONS: { value: AccessibilityRequirement; label: string }[] = [
+  { value: 'wheelchair_access', label: 'Wheelchair access' },
+  { value: 'hearing_assistance', label: 'Hearing assistance' },
+  { value: 'vision_assistance', label: 'Vision assistance' },
+  { value: 'sign_language_interpreter', label: 'Sign language interpreter' },
+  { value: 'mobility_assistance', label: 'Mobility assistance' },
+]
 
 interface ContactDrawerProps {
   open: boolean
@@ -131,8 +150,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   const isNew = !contact?.id
 
   const [formData, setFormData] = useState({
-    name: '',
+    first_name: '',
+    last_name: '',
     email: '',
+    personal_email: '',
     phone: '',
     pronouns: '',
     job_title: '',
@@ -146,7 +167,12 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     degrees: '' as Contact['degrees'] | '',
     relationship: 0,
     notes: '',
+    dietary_requirements: [] as DietaryRequirement[],
+    dietary_requirements_other: '',
+    accessibility_requirements: [] as AccessibilityRequirement[],
+    accessibility_requirements_other: '',
   })
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Load organisations for picker
   const { data: orgsData } = useQuery({
@@ -165,8 +191,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   useEffect(() => {
     if (contact) {
       setFormData({
-        name: contact.name || '',
+        first_name: contact.first_name || '',
+        last_name: contact.last_name || '',
         email: contact.email || '',
+        personal_email: contact.personal_email || '',
         phone: contact.phone || '',
         pronouns: contact.pronouns || '',
         job_title: contact.job_title || '',
@@ -180,11 +208,17 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         degrees: contact.degrees || '',
         relationship: contact.relationship || 0,
         notes: contact.notes || '',
+        dietary_requirements: contact.dietary_requirements || [],
+        dietary_requirements_other: contact.dietary_requirements_other || '',
+        accessibility_requirements: contact.accessibility_requirements || [],
+        accessibility_requirements_other: contact.accessibility_requirements_other || '',
       })
     } else {
       setFormData({
-        name: '',
+        first_name: '',
+        last_name: '',
         email: '',
+        personal_email: '',
         phone: '',
         pronouns: '',
         job_title: '',
@@ -198,8 +232,13 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         degrees: '',
         relationship: 0,
         notes: '',
+        dietary_requirements: [],
+        dietary_requirements_other: '',
+        accessibility_requirements: [],
+        accessibility_requirements_other: '',
       })
     }
+    setFieldErrors({})
   }, [contact])
 
   const saveMutation = useMutation({
@@ -211,6 +250,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     },
     onSuccess: () => {
       toast.success(isNew ? 'Contact created' : 'Contact updated')
+      setFieldErrors({})
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       onClose()
@@ -233,8 +273,44 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     },
   })
 
+  const [quickOrgName, setQuickOrgName] = useState('')
+  const [showQuickOrg, setShowQuickOrg] = useState(false)
+
+  const createOrgMutation = useMutation({
+    mutationFn: (name: string) => createOrganisation({ name, status: 'active' }),
+    onSuccess: (org) => {
+      toast.success('Organisation created')
+      queryClient.invalidateQueries({ queryKey: ['organisations-picker'] })
+      setFormData((prev) => ({ ...prev, organisation: org.id }))
+      setQuickOrgName('')
+      setShowQuickOrg(false)
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const handleQuickCreateOrg = () => {
+    const name = quickOrgName.trim()
+    if (!name) return
+    createOrgMutation.mutate(name)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const errors: Record<string, string> = {}
+    if (!formData.first_name.trim()) errors.first_name = 'First name is required'
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Must be a valid email address'
+    }
+    if (formData.personal_email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.personal_email)) {
+      errors.personal_email = 'Must be a valid email address'
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+    setFieldErrors({})
     const { degrees, ...rest } = formData
     saveMutation.mutate({
       ...rest,
@@ -248,15 +324,23 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     }
   }
 
-  const initials = formData.name
-    .split(' ')
+  const initials = [formData.first_name, formData.last_name]
+    .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 
+  const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(' ')
+
   const hasBio = !!formData.bio
   const hasSocial = !!(formData.linkedin || formData.instagram || formData.website)
+  const hasRequirements = !!(
+    formData.dietary_requirements.length > 0 ||
+    formData.dietary_requirements_other ||
+    formData.accessibility_requirements.length > 0 ||
+    formData.accessibility_requirements_other
+  )
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -274,7 +358,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="text-lg">{contact?.name}</p>
+                <p className="text-lg">{fullName || contact?.name}</p>
                 {contact?.organisation_name && (
                   <p className="text-sm text-muted-foreground">
                     {contact.organisation_name}
@@ -292,6 +376,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
@@ -302,25 +387,60 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
           <SheetSection title="Details">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <FieldLabel htmlFor="name">Name *</FieldLabel>
+                <FieldLabel htmlFor="first_name">First name *</FieldLabel>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => {
+                    setFormData({ ...formData, first_name: e.target.value })
+                    if (fieldErrors.first_name) setFieldErrors((prev) => { const { first_name: _, ...rest } = prev; return rest })
+                  }}
+                  disabled={!isAdmin}
+                  className={fieldErrors.first_name ? 'border-destructive' : ''}
+                />
+                {fieldErrors.first_name && <p className="text-sm text-destructive mt-1">{fieldErrors.first_name}</p>}
+              </div>
+              <div>
+                <FieldLabel htmlFor="last_name">Last name</FieldLabel>
+                <Input
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                   disabled={!isAdmin}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="email">Email *</FieldLabel>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value })
+                    if (fieldErrors.email) setFieldErrors((prev) => { const { email: _, ...rest } = prev; return rest })
+                  }}
                   disabled={!isAdmin}
+                  className={fieldErrors.email ? 'border-destructive' : ''}
                 />
+                {fieldErrors.email && <p className="text-sm text-destructive mt-1">{fieldErrors.email}</p>}
+              </div>
+              <div>
+                <FieldLabel htmlFor="personal_email">Personal email</FieldLabel>
+                <Input
+                  id="personal_email"
+                  type="email"
+                  value={formData.personal_email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, personal_email: e.target.value })
+                    if (fieldErrors.personal_email) setFieldErrors((prev) => { const { personal_email: _, ...rest } = prev; return rest })
+                  }}
+                  disabled={!isAdmin}
+                  className={fieldErrors.personal_email ? 'border-destructive' : ''}
+                />
+                {fieldErrors.personal_email && <p className="text-sm text-destructive mt-1">{fieldErrors.personal_email}</p>}
               </div>
             </div>
 
@@ -359,13 +479,55 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
-                <OrganisationCombobox
-                  value={formData.organisation}
-                  organisations={orgsData?.items ?? []}
-                  onChange={(orgId) => setFormData({ ...formData, organisation: orgId })}
-                  disabled={!isAdmin}
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <FieldLabel htmlFor="organisation">Organisation</FieldLabel>
+                  {isAdmin && !showQuickOrg && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickOrg(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3" /> New
+                    </button>
+                  )}
+                </div>
+                {showQuickOrg ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={quickOrgName}
+                      onChange={(e) => setQuickOrgName(e.target.value)}
+                      placeholder="Organisation name"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); handleQuickCreateOrg() }
+                        if (e.key === 'Escape') { setShowQuickOrg(false); setQuickOrgName('') }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleQuickCreateOrg}
+                      disabled={!quickOrgName.trim() || createOrgMutation.isPending}
+                    >
+                      {createOrgMutation.isPending ? '...' : 'Add'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setShowQuickOrg(false); setQuickOrgName('') }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <OrganisationCombobox
+                    value={formData.organisation}
+                    organisations={orgsData?.items ?? []}
+                    onChange={(orgId) => setFormData({ ...formData, organisation: orgId })}
+                    disabled={!isAdmin}
+                  />
+                )}
               </div>
             </div>
 
@@ -395,6 +557,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
@@ -417,9 +580,9 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="1st degree">1st degree</SelectItem>
-                    <SelectItem value="2nd degree">2nd degree</SelectItem>
-                    <SelectItem value="3rd degree">3rd degree</SelectItem>
+                    <SelectItem value="1st">1st</SelectItem>
+                    <SelectItem value="2nd">2nd</SelectItem>
+                    <SelectItem value="3rd">3rd</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -439,6 +602,67 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
                 onChange={(html) => setFormData({ ...formData, notes: html })}
                 placeholder="Internal notes about this contact..."
                 minHeight={80}
+                disabled={!isAdmin}
+              />
+            </div>
+          </CollapsibleSection>
+
+          {/* Requirements section */}
+          <CollapsibleSection title="Requirements" defaultOpen={hasRequirements}>
+            <div>
+              <FieldLabel>Dietary requirements</FieldLabel>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mb-2">
+                {DIETARY_OPTIONS.map(({ value, label }) => (
+                  <label key={value} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={formData.dietary_requirements.includes(value)}
+                      onCheckedChange={(checked) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          dietary_requirements: checked
+                            ? [...prev.dietary_requirements, value]
+                            : prev.dietary_requirements.filter((v) => v !== value),
+                        }))
+                      }}
+                      disabled={!isAdmin}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <Input
+                placeholder="Other dietary requirements"
+                value={formData.dietary_requirements_other}
+                onChange={(e) => setFormData({ ...formData, dietary_requirements_other: e.target.value })}
+                disabled={!isAdmin}
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Accessibility requirements</FieldLabel>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mb-2">
+                {ACCESSIBILITY_OPTIONS.map(({ value, label }) => (
+                  <label key={value} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={formData.accessibility_requirements.includes(value)}
+                      onCheckedChange={(checked) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          accessibility_requirements: checked
+                            ? [...prev.accessibility_requirements, value]
+                            : prev.accessibility_requirements.filter((v) => v !== value),
+                        }))
+                      }}
+                      disabled={!isAdmin}
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <Input
+                placeholder="Other accessibility requirements"
+                value={formData.accessibility_requirements_other}
+                onChange={(e) => setFormData({ ...formData, accessibility_requirements_other: e.target.value })}
                 disabled={!isAdmin}
               />
             </div>
