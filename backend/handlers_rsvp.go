@@ -77,28 +77,55 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	response := map[string]any{
-		"type":       result.Type,
-		"list_name":  result.GuestList.GetString("name"),
-		"event_name": eventName,
+		"type":        result.Type,
+		"list_name":   result.GuestList.GetString("name"),
+		"event_name":  eventName,
+		"description": result.GuestList.GetString("description"),
 	}
 
 	if result.Type == "personal" && result.Item != nil {
 		// Pre-fill from linked contact
-		prefilledName := result.Item.GetString("contact_name")
+		prefilledFirstName := ""
+		prefilledLastName := ""
 		prefilledEmail := ""
 		prefilledPhone := ""
+		var dietaryReqs []string
+		dietaryOther := ""
+		var accessibilityReqs []string
+		accessibilityOther := ""
 
 		if contactID := result.Item.GetString("contact"); contactID != "" {
 			if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
+				prefilledFirstName = contact.GetString("first_name")
+				prefilledLastName = contact.GetString("last_name")
 				prefilledEmail = utils.DecryptField(contact.GetString("email"))
 				prefilledPhone = utils.DecryptField(contact.GetString("phone"))
-				prefilledName = contact.GetString("name")
+
+				// Dietary/accessibility from contact
+				if raw := contact.Get("dietary_requirements"); raw != nil {
+					if arr, ok := raw.([]string); ok {
+						dietaryReqs = arr
+					}
+				}
+				dietaryOther = contact.GetString("dietary_requirements_other")
+
+				if raw := contact.Get("accessibility_requirements"); raw != nil {
+					if arr, ok := raw.([]string); ok {
+						accessibilityReqs = arr
+					}
+				}
+				accessibilityOther = contact.GetString("accessibility_requirements_other")
 			}
 		}
 
-		response["prefilled_name"] = prefilledName
+		response["prefilled_first_name"] = prefilledFirstName
+		response["prefilled_last_name"] = prefilledLastName
 		response["prefilled_email"] = prefilledEmail
 		response["prefilled_phone"] = prefilledPhone
+		response["prefilled_dietary_requirements"] = dietaryReqs
+		response["prefilled_dietary_requirements_other"] = dietaryOther
+		response["prefilled_accessibility_requirements"] = accessibilityReqs
+		response["prefilled_accessibility_requirements_other"] = accessibilityOther
 
 		// Include existing RSVP data if already responded
 		rsvpStatus := result.Item.GetString("rsvp_status")
@@ -106,14 +133,31 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		response["rsvp_status"] = rsvpStatus
 
 		if rsvpStatus != "" {
-			response["rsvp_dietary"] = result.Item.GetString("rsvp_dietary")
 			response["rsvp_plus_one"] = result.Item.GetBool("rsvp_plus_one")
 			response["rsvp_plus_one_name"] = result.Item.GetString("rsvp_plus_one_name")
 			response["rsvp_plus_one_dietary"] = result.Item.GetString("rsvp_plus_one_dietary")
+			response["rsvp_comments"] = result.Item.GetString("rsvp_comments")
 		}
 	}
 
 	return re.JSON(http.StatusOK, response)
+}
+
+type rsvpInput struct {
+	FirstName                    string   `json:"first_name"`
+	LastName                     string   `json:"last_name"`
+	Email                        string   `json:"email"`
+	Phone                        string   `json:"phone"`
+	DietaryRequirements          []string `json:"dietary_requirements"`
+	DietaryRequirementsOther     string   `json:"dietary_requirements_other"`
+	AccessibilityRequirements    []string `json:"accessibility_requirements"`
+	AccessibilityRequirementsOther string `json:"accessibility_requirements_other"`
+	PlusOne                      bool     `json:"plus_one"`
+	PlusOneName                  string   `json:"plus_one_name"`
+	PlusOneDietary               string   `json:"plus_one_dietary"`
+	Response                     string   `json:"response"`
+	InvitedBy                    string   `json:"invited_by"`
+	Comments                     string   `json:"comments"`
 }
 
 func handlePublicRSVPSubmit(re *core.RequestEvent, app *pocketbase.PocketBase) error {
@@ -128,26 +172,17 @@ func handlePublicRSVPSubmit(re *core.RequestEvent, app *pocketbase.PocketBase) e
 		return re.JSON(http.StatusGone, map[string]string{"error": "RSVP is no longer available for this event"})
 	}
 
-	var input struct {
-		Name            string `json:"name"`
-		Email           string `json:"email"`
-		Phone           string `json:"phone"`
-		Dietary         string `json:"dietary"`
-		PlusOne         bool   `json:"plus_one"`
-		PlusOneName     string `json:"plus_one_name"`
-		PlusOneDietary  string `json:"plus_one_dietary"`
-		Response        string `json:"response"`
-		InvitedBy       string `json:"invited_by"`
-	}
+	var input rsvpInput
 	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
 		return utils.BadRequestResponse(re, "Invalid JSON")
 	}
 
 	// Validate required fields
-	input.Name = strings.TrimSpace(input.Name)
+	input.FirstName = strings.TrimSpace(input.FirstName)
+	input.LastName = strings.TrimSpace(input.LastName)
 	input.Email = strings.TrimSpace(input.Email)
-	if input.Name == "" {
-		return utils.BadRequestResponse(re, "Name is required")
+	if input.FirstName == "" {
+		return utils.BadRequestResponse(re, "First name is required")
 	}
 	if input.Email == "" || !strings.Contains(input.Email, "@") {
 		return utils.BadRequestResponse(re, "Valid email is required")
@@ -155,36 +190,105 @@ func handlePublicRSVPSubmit(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	if input.Response != "accepted" && input.Response != "declined" {
 		return utils.BadRequestResponse(re, "Response must be 'accepted' or 'declined'")
 	}
-	if len(input.Dietary) > 1000 {
-		return utils.BadRequestResponse(re, "Dietary requirements must be 1000 characters or less")
-	}
 	if len(input.PlusOneDietary) > 1000 {
 		return utils.BadRequestResponse(re, "Plus-one dietary requirements must be 1000 characters or less")
+	}
+	if len(input.Comments) > 2000 {
+		return utils.BadRequestResponse(re, "Comments must be 2000 characters or less")
+	}
+
+	// Compose full name for backward compat
+	fullName := input.FirstName
+	if input.LastName != "" {
+		fullName = input.FirstName + " " + input.LastName
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	if result.Type == "personal" {
-		return handlePersonalRSVP(re, app, result, input.Name, input.Email, input.Phone, input.Dietary, input.PlusOne, input.PlusOneName, input.PlusOneDietary, input.Response, now)
+		return handlePersonalRSVP(re, app, result, &input, fullName, now)
 	}
-	return handleGenericRSVP(re, app, result, input.Name, input.Email, input.Phone, input.Dietary, input.PlusOne, input.PlusOneName, input.PlusOneDietary, input.Response, input.InvitedBy, now)
+	return handleGenericRSVP(re, app, result, &input, fullName, now)
 }
 
-func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, name, email, phone, dietary string, plusOne bool, plusOneName, plusOneDietary, response, now string) error {
+func setItemRSVPFields(item *core.Record, input *rsvpInput, fullName, now string) {
+	item.Set("rsvp_status", input.Response)
+	item.Set("rsvp_plus_one", input.PlusOne)
+	item.Set("rsvp_plus_one_name", input.PlusOneName)
+	item.Set("rsvp_plus_one_dietary", input.PlusOneDietary)
+	item.Set("rsvp_responded_at", now)
+	item.Set("rsvp_comments", input.Comments)
+	item.Set("invite_status", input.Response) // sync invite_status
+}
+
+func upsertContactFromRSVP(app *pocketbase.PocketBase, contact *core.Record, input *rsvpInput, fullName string) {
+	needsSave := false
+
+	// Name
+	if input.FirstName != "" && input.FirstName != contact.GetString("first_name") {
+		contact.Set("first_name", input.FirstName)
+		needsSave = true
+	}
+	if input.LastName != contact.GetString("last_name") {
+		contact.Set("last_name", input.LastName)
+		needsSave = true
+	}
+	if fullName != "" && fullName != contact.GetString("name") {
+		contact.Set("name", fullName)
+		needsSave = true
+	}
+
+	// Email
+	currentEmail := utils.DecryptField(contact.GetString("email"))
+	if input.Email != "" && !strings.EqualFold(input.Email, currentEmail) {
+		contact.Set("email", input.Email)
+		contact.Set("email_index", utils.BlindIndex(input.Email))
+		needsSave = true
+	}
+
+	// Phone
+	currentPhone := utils.DecryptField(contact.GetString("phone"))
+	if input.Phone != "" && input.Phone != currentPhone {
+		contact.Set("phone", input.Phone)
+		needsSave = true
+	}
+
+	// Dietary requirements
+	if len(input.DietaryRequirements) > 0 {
+		contact.Set("dietary_requirements", input.DietaryRequirements)
+		needsSave = true
+	}
+	if input.DietaryRequirementsOther != "" {
+		contact.Set("dietary_requirements_other", input.DietaryRequirementsOther)
+		needsSave = true
+	}
+
+	// Accessibility requirements
+	if len(input.AccessibilityRequirements) > 0 {
+		contact.Set("accessibility_requirements", input.AccessibilityRequirements)
+		needsSave = true
+	}
+	if input.AccessibilityRequirementsOther != "" {
+		contact.Set("accessibility_requirements_other", input.AccessibilityRequirementsOther)
+		needsSave = true
+	}
+
+	if needsSave {
+		if err := app.Save(contact); err != nil {
+			log.Printf("[RSVP] Failed to update contact %s: %v", contact.Id, err)
+		}
+	}
+}
+
+func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName, now string) error {
 	item := result.Item
 
 	// Update RSVP fields on the item
-	item.Set("rsvp_status", response)
-	item.Set("rsvp_dietary", dietary)
-	item.Set("rsvp_plus_one", plusOne)
-	item.Set("rsvp_plus_one_name", plusOneName)
-	item.Set("rsvp_plus_one_dietary", plusOneDietary)
-	item.Set("rsvp_responded_at", now)
-	item.Set("invite_status", response) // sync invite_status
+	setItemRSVPFields(item, input, fullName, now)
 
 	// Update denormalized name if changed
-	if name != item.GetString("contact_name") {
-		item.Set("contact_name", name)
+	if fullName != item.GetString("contact_name") {
+		item.Set("contact_name", fullName)
 	}
 
 	if err := app.Save(item); err != nil {
@@ -194,31 +298,7 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 	// Upsert the linked contact directly
 	if contactID := item.GetString("contact"); contactID != "" {
 		if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
-			// Decrypt current values for comparison, then set new values
-			// The encryption hooks will re-encrypt on save
-			currentEmail := utils.DecryptField(contact.GetString("email"))
-			currentPhone := utils.DecryptField(contact.GetString("phone"))
-
-			needsSave := false
-			if name != "" && name != contact.GetString("name") {
-				contact.Set("name", name)
-				needsSave = true
-			}
-			if email != "" && !strings.EqualFold(email, currentEmail) {
-				contact.Set("email", email)
-				contact.Set("email_index", utils.BlindIndex(email))
-				needsSave = true
-			}
-			if phone != "" && phone != currentPhone {
-				contact.Set("phone", phone)
-				needsSave = true
-			}
-
-			if needsSave {
-				if err := app.Save(contact); err != nil {
-					log.Printf("[RSVP] Failed to update contact %s: %v", contactID, err)
-				}
-			}
+			upsertContactFromRSVP(app, contact, input, fullName)
 		}
 	}
 
@@ -229,17 +309,17 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 		IPAddress:    re.RealIP(),
 		UserAgent:    re.Request.UserAgent(),
 		Status:       "success",
-		Metadata:     map[string]any{"type": "personal", "response": response},
+		Metadata:     map[string]any{"type": "personal", "response": input.Response},
 	})
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 }
 
-func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, name, email, phone, dietary string, plusOne bool, plusOneName, plusOneDietary, response, invitedBy, now string) error {
+func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName, now string) error {
 	listID := result.GuestList.Id
 
 	// Check for existing contact by email using blind index
-	blindIdx := utils.BlindIndex(email)
+	blindIdx := utils.BlindIndex(input.Email)
 	var existingContact *core.Record
 
 	if blindIdx != "" {
@@ -255,6 +335,9 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 	}
 
 	if existingContact != nil {
+		// Update contact with RSVP data
+		upsertContactFromRSVP(app, existingContact, input, fullName)
+
 		// Check if this contact is already on this guest list
 		existingItems, err := app.FindRecordsByFilter(
 			utils.CollectionGuestListItems,
@@ -265,14 +348,8 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 		if err == nil && len(existingItems) > 0 {
 			// Update existing item with RSVP data
 			item := existingItems[0]
-			item.Set("rsvp_status", response)
-			item.Set("rsvp_dietary", dietary)
-			item.Set("rsvp_plus_one", plusOne)
-			item.Set("rsvp_plus_one_name", plusOneName)
-			item.Set("rsvp_plus_one_dietary", plusOneDietary)
-			item.Set("rsvp_responded_at", now)
-			item.Set("rsvp_invited_by", invitedBy)
-			item.Set("invite_status", response)
+			setItemRSVPFields(item, input, fullName, now)
+			item.Set("rsvp_invited_by", input.InvitedBy)
 
 			if err := app.Save(item); err != nil {
 				return utils.InternalErrorResponse(re, "Failed to save RSVP")
@@ -285,14 +362,14 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 				IPAddress:    re.RealIP(),
 				UserAgent:    re.Request.UserAgent(),
 				Status:       "success",
-				Metadata:     map[string]any{"type": "generic", "response": response, "matched_existing_item": true},
+				Metadata:     map[string]any{"type": "generic", "response": input.Response, "matched_existing_item": true},
 			})
 
 			return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 		}
 
 		// Contact exists but not on this list — create new item linking to existing contact
-		return createGuestListItemFromRSVP(re, app, listID, existingContact, dietary, plusOne, plusOneName, plusOneDietary, response, invitedBy, now)
+		return createGuestListItemFromRSVP(re, app, listID, existingContact, input, fullName, now)
 	}
 
 	// No matching contact — create new pending contact
@@ -302,24 +379,39 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 	}
 
 	newContact := core.NewRecord(contactCollection)
-	newContact.Set("name", name)
-	newContact.Set("email", email) // encryption hooks handle this
-	newContact.Set("email_index", utils.BlindIndex(email))
-	if phone != "" {
-		newContact.Set("phone", phone) // encryption hooks handle this
+	newContact.Set("name", fullName)
+	newContact.Set("first_name", input.FirstName)
+	newContact.Set("last_name", input.LastName)
+	newContact.Set("email", input.Email) // encryption hooks handle this
+	newContact.Set("email_index", utils.BlindIndex(input.Email))
+	if input.Phone != "" {
+		newContact.Set("phone", input.Phone) // encryption hooks handle this
 	}
 	newContact.Set("status", "pending")
 	newContact.Set("source", "manual")
+
+	if len(input.DietaryRequirements) > 0 {
+		newContact.Set("dietary_requirements", input.DietaryRequirements)
+	}
+	if input.DietaryRequirementsOther != "" {
+		newContact.Set("dietary_requirements_other", input.DietaryRequirementsOther)
+	}
+	if len(input.AccessibilityRequirements) > 0 {
+		newContact.Set("accessibility_requirements", input.AccessibilityRequirements)
+	}
+	if input.AccessibilityRequirementsOther != "" {
+		newContact.Set("accessibility_requirements_other", input.AccessibilityRequirementsOther)
+	}
 
 	if err := app.Save(newContact); err != nil {
 		log.Printf("[RSVP] Failed to create contact: %v", err)
 		return utils.InternalErrorResponse(re, "Failed to create contact")
 	}
 
-	return createGuestListItemFromRSVP(re, app, listID, newContact, dietary, plusOne, plusOneName, plusOneDietary, response, invitedBy, now)
+	return createGuestListItemFromRSVP(re, app, listID, newContact, input, fullName, now)
 }
 
-func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, listID string, contact *core.Record, dietary string, plusOne bool, plusOneName, plusOneDietary, response, invitedBy, now string) error {
+func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, listID string, contact *core.Record, input *rsvpInput, fullName, now string) error {
 	collection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
 	if err != nil {
 		return utils.InternalErrorResponse(re, "Collection not found")
@@ -338,11 +430,11 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 	record := core.NewRecord(collection)
 	record.Set("guest_list", listID)
 	record.Set("contact", contact.Id)
-	record.Set("invite_status", response)
+	record.Set("invite_status", input.Response)
 	record.Set("sort_order", nextSort)
 
 	// Denormalize contact fields
-	record.Set("contact_name", contact.GetString("name"))
+	record.Set("contact_name", fullName)
 	record.Set("contact_job_title", contact.GetString("job_title"))
 	record.Set("contact_organisation_name", orgName)
 	record.Set("contact_linkedin", contact.GetString("linkedin"))
@@ -351,13 +443,8 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 	record.Set("contact_relationship", contact.GetInt("relationship"))
 
 	// RSVP fields
-	record.Set("rsvp_status", response)
-	record.Set("rsvp_dietary", dietary)
-	record.Set("rsvp_plus_one", plusOne)
-	record.Set("rsvp_plus_one_name", plusOneName)
-	record.Set("rsvp_plus_one_dietary", plusOneDietary)
-	record.Set("rsvp_responded_at", now)
-	record.Set("rsvp_invited_by", invitedBy)
+	setItemRSVPFields(record, input, fullName, now)
+	record.Set("rsvp_invited_by", input.InvitedBy)
 
 	if err := app.Save(record); err != nil {
 		log.Printf("[RSVP] Failed to create guest list item: %v", err)
@@ -374,7 +461,7 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 		IPAddress:    re.RealIP(),
 		UserAgent:    re.Request.UserAgent(),
 		Status:       "success",
-		Metadata:     map[string]any{"type": "generic", "response": response, "contact_id": contact.Id, "new_contact": contact.GetString("status") == "pending"},
+		Metadata:     map[string]any{"type": "generic", "response": input.Response, "contact_id": contact.Id, "new_contact": contact.GetString("status") == "pending"},
 	})
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})

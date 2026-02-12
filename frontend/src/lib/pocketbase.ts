@@ -139,6 +139,7 @@ export interface GuestListItem extends RecordModel {
   rsvp_plus_one_dietary: string
   rsvp_responded_at: string
   rsvp_invited_by: string
+  rsvp_comments: string
 }
 
 export interface GuestListShare extends RecordModel {

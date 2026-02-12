@@ -281,6 +281,7 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 			"rsvp_plus_one_dietary":    r.GetString("rsvp_plus_one_dietary"),
 			"rsvp_responded_at":        r.GetString("rsvp_responded_at"),
 			"rsvp_invited_by":          r.GetString("rsvp_invited_by"),
+			"rsvp_comments":            r.GetString("rsvp_comments"),
 			"created":                   r.GetString("created"),
 		}
 
@@ -473,14 +474,14 @@ func handleGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.PocketBase
 	}
 
 	if v, ok := input["invite_round"].(string); ok {
-		allowed := map[string]bool{"1st": true, "2nd": true, "3rd": true, "maybe": true}
+		allowed := map[string]bool{"": true, "1st": true, "2nd": true, "3rd": true, "maybe": true}
 		if !allowed[v] {
 			return utils.BadRequestResponse(re, "Invalid invite_round value")
 		}
 		record.Set("invite_round", v)
 	}
 	if v, ok := input["invite_status"].(string); ok {
-		allowed := map[string]bool{"to_invite": true, "invited": true, "accepted": true, "declined": true, "no_show": true}
+		allowed := map[string]bool{"": true, "to_invite": true, "invited": true, "accepted": true, "declined": true, "no_show": true}
 		if !allowed[v] {
 			return utils.BadRequestResponse(re, "Invalid invite_status value")
 		}

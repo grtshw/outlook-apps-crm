@@ -173,6 +173,7 @@ export function GuestListDetailPage() {
     mutationFn: ({ itemId, data }: { itemId: string; data: Partial<{ invite_round: string; invite_status: string; notes: string }> }) =>
       updateGuestListItem(itemId, data),
     onSuccess: () => {
+      toast.success('Updated')
       queryClient.invalidateQueries({ queryKey: ['guest-list-items', id] })
     },
     onError: (error: Error) => toast.error(error.message),
@@ -387,7 +388,7 @@ export function GuestListDetailPage() {
             No guests added yet. Click 'Select guests' to get started.
           </p>
         ) : (
-          <div className="overflow-auto max-h-[calc(100vh-220px)] border rounded-md">
+          <div className="overflow-x-auto overflow-y-visible border rounded-md">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
@@ -788,10 +789,10 @@ export function GuestListDetailPage() {
                 </div>
               )}
 
-              {rsvpDetailItem.rsvp_dietary && (
+              {rsvpDetailItem.rsvp_comments && (
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Dietary requirements</p>
-                  <p>{rsvpDetailItem.rsvp_dietary}</p>
+                  <p className="text-sm text-muted-foreground">Comments</p>
+                  <p>{rsvpDetailItem.rsvp_comments}</p>
                 </div>
               )}
 

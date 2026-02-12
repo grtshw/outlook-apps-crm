@@ -74,15 +74,21 @@ export interface RSVPInfo {
   type: 'personal' | 'generic'
   list_name: string
   event_name: string
-  prefilled_name: string
+  description: string
+  prefilled_first_name: string
+  prefilled_last_name: string
   prefilled_email: string
   prefilled_phone: string
+  prefilled_dietary_requirements: string[]
+  prefilled_dietary_requirements_other: string
+  prefilled_accessibility_requirements: string[]
+  prefilled_accessibility_requirements_other: string
   already_responded: boolean
   rsvp_status: 'accepted' | 'declined' | ''
-  rsvp_dietary: string
   rsvp_plus_one: boolean
   rsvp_plus_one_name: string
   rsvp_plus_one_dietary: string
+  rsvp_comments: string
 }
 
 export async function getRSVPInfo(token: string): Promise<RSVPInfo> {
@@ -90,15 +96,20 @@ export async function getRSVPInfo(token: string): Promise<RSVPInfo> {
 }
 
 export interface RSVPSubmission {
-  name: string
+  first_name: string
+  last_name: string
   email: string
   phone?: string
-  dietary?: string
+  dietary_requirements?: string[]
+  dietary_requirements_other?: string
+  accessibility_requirements?: string[]
+  accessibility_requirements_other?: string
   plus_one?: boolean
   plus_one_name?: string
   plus_one_dietary?: string
   response: 'accepted' | 'declined'
   invited_by?: string
+  comments?: string
 }
 
 export async function submitRSVP(token: string, data: RSVPSubmission): Promise<{ message: string }> {
