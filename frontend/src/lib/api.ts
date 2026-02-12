@@ -405,6 +405,10 @@ export async function deleteGuestList(id: string): Promise<{ message: string }> 
   return fetchJSON(`/api/guest-lists/${id}`, { method: 'DELETE' })
 }
 
+export async function cloneGuestList(id: string): Promise<{ id: string; name: string; items_cloned: number }> {
+  return fetchJSON(`/api/guest-lists/${id}/clone`, { method: 'POST' })
+}
+
 // ── Guest List Items ──
 
 export async function getGuestListItems(listId: string): Promise<{ items: GuestListItem[] }> {

@@ -232,6 +232,72 @@ func handleGuestListDelete(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	return utils.SuccessResponse(re, "Guest list deleted")
 }
 
+func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	id := re.Request.PathValue("id")
+	source, err := app.FindRecordById(utils.CollectionGuestLists, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Guest list not found")
+	}
+
+	// Create cloned list
+	listCollection, err := app.FindCollectionByNameOrId(utils.CollectionGuestLists)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Collection not found")
+	}
+
+	newList := core.NewRecord(listCollection)
+	newList.Set("name", source.GetString("name")+" (copy)")
+	newList.Set("description", source.GetString("description"))
+	newList.Set("event_projection", source.GetString("event_projection"))
+	newList.Set("created_by", re.Auth.Id)
+	newList.Set("status", "draft")
+
+	if err := app.Save(newList); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to create cloned list")
+	}
+
+	// Clone items
+	sourceItems, _ := app.FindRecordsByFilter(utils.CollectionGuestListItems, "guest_list = {:id}", "sort_order", 0, 0, map[string]any{"id": id})
+
+	itemCollection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Items collection not found")
+	}
+
+	cloned := 0
+	for _, src := range sourceItems {
+		item := core.NewRecord(itemCollection)
+		item.Set("guest_list", newList.Id)
+		item.Set("contact", src.GetString("contact"))
+		item.Set("contact_name", src.GetString("contact_name"))
+		item.Set("contact_job_title", src.GetString("contact_job_title"))
+		item.Set("contact_organisation_name", src.GetString("contact_organisation_name"))
+		item.Set("contact_linkedin", src.GetString("contact_linkedin"))
+		item.Set("contact_location", src.GetString("contact_location"))
+		item.Set("contact_degrees", src.GetString("contact_degrees"))
+		item.Set("contact_relationship", src.GetInt("contact_relationship"))
+		item.Set("invite_round", src.GetString("invite_round"))
+		item.Set("notes", src.GetString("notes"))
+		item.Set("client_notes", src.GetString("client_notes"))
+		item.Set("sort_order", src.GetInt("sort_order"))
+
+		if err := app.Save(item); err != nil {
+			log.Printf("[GuestListClone] Failed to clone item %s: %v", src.Id, err)
+		} else {
+			cloned++
+		}
+	}
+
+	utils.LogFromRequest(app, re, "clone", utils.CollectionGuestLists, newList.Id, "success",
+		map[string]any{"source_id": id, "items_cloned": cloned}, "")
+
+	return re.JSON(http.StatusCreated, map[string]any{
+		"id":           newList.Id,
+		"name":         newList.GetString("name"),
+		"items_cloned": cloned,
+	})
+}
+
 // ============================================================================
 // Admin CRUD — Guest List Items
 // ============================================================================
@@ -308,11 +374,21 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 				} else if avatar := contact.GetString("avatar"); avatar != "" {
 					item["contact_avatar_url"] = getFileURL(baseURL, contact.Collection().Id, contact.Id, avatar)
 				}
-				if thumb := contact.GetString("avatar_thumb_url"); thumb != "" {
-					item["contact_avatar_thumb_url"] = thumb
+				thumbURL := contact.GetString("avatar_thumb_url")
+				smallURL := contact.GetString("avatar_small_url")
+				if smallURL == "" {
+					if cached, ok := GetDAMAvatarURLs(contactID); ok {
+						if thumbURL == "" {
+							thumbURL = cached.ThumbURL
+						}
+						smallURL = cached.SmallURL
+					}
 				}
-				if small := contact.GetString("avatar_small_url"); small != "" {
-					item["contact_avatar_small_url"] = small
+				if thumbURL != "" {
+					item["contact_avatar_thumb_url"] = thumbURL
+				}
+				if smallURL != "" {
+					item["contact_avatar_small_url"] = smallURL
 				}
 			} else {
 				item["contact_status"] = "deleted"

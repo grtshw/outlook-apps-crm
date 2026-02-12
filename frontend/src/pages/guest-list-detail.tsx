@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-pocketbase'
 import {
-  getGuestList, updateGuestList, deleteGuestList,
+  getGuestList, updateGuestList, deleteGuestList, cloneGuestList,
   getGuestListItems, updateGuestListItem, deleteGuestListItem,
   getGuestListShares, revokeGuestListShare,
   getEventProjections,
@@ -156,6 +156,16 @@ export function GuestListDetailPage() {
       toast.success('Guest list deleted')
       queryClient.invalidateQueries({ queryKey: ['guest-lists'] })
       navigate('/guest-lists')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const cloneListMutation = useMutation({
+    mutationFn: () => cloneGuestList(id!),
+    onSuccess: (data) => {
+      toast.success(`Cloned with ${data.items_cloned} guests`)
+      queryClient.invalidateQueries({ queryKey: ['guest-lists'] })
+      navigate(`/guest-lists/${data.id}`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -347,6 +357,9 @@ export function GuestListDetailPage() {
             </Button>
             <Button onClick={() => setContactSearchOpen(true)}>
               <UserPlus className="w-4 h-4 mr-1" /> Select guests
+            </Button>
+            <Button variant="outline" onClick={() => cloneListMutation.mutate()} disabled={cloneListMutation.isPending}>
+              <Copy className="w-4 h-4" />
             </Button>
             <Button variant="outline" onClick={handleDeleteList}>
               <Trash2 className="w-4 h-4" />

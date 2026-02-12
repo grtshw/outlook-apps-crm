@@ -92,6 +92,9 @@ func main() {
 		// Start the backup scheduler (runs at 3 AM AEST daily)
 		go scheduleBackups(app)
 
+		// Load DAM avatar URL cache (refreshed on project-all and avatar webhooks)
+		go RefreshDAMAvatarCache()
+
 		return e.Next()
 	})
 
@@ -328,6 +331,10 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 
 	e.Router.DELETE("/api/guest-lists/{id}", func(re *core.RequestEvent) error {
 		return handleGuestListDelete(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/clone", func(re *core.RequestEvent) error {
+		return handleGuestListClone(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
 	// Guest list items (admin only)

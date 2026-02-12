@@ -1316,6 +1316,7 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	if err != nil {
 		return utils.InternalErrorResponse(re, err.Error())
 	}
+	go RefreshDAMAvatarCache()
 	return utils.DataResponse(re, map[string]any{
 		"status":        "projected",
 		"projection_id": result.ProjectionID,
@@ -1396,6 +1397,7 @@ func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	}
 
 	log.Printf("[AvatarURLWebhook] Updated avatar URLs for contact %s", payload.CrmID)
+	go RefreshDAMAvatarCache()
 	return utils.SuccessResponse(re, "Avatar URLs updated")
 }
 
@@ -1688,14 +1690,30 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
-	// DAM avatar variant URLs (from DAM sync)
-	if thumb := r.GetString("avatar_thumb_url"); thumb != "" {
+	// DAM avatar variant URLs — prefer stored values, fall back to cached DAM lookup
+	thumb := r.GetString("avatar_thumb_url")
+	small := r.GetString("avatar_small_url")
+	original := r.GetString("avatar_original_url")
+
+	if small == "" {
+		if cached, ok := GetDAMAvatarURLs(r.Id); ok {
+			if thumb == "" {
+				thumb = cached.ThumbURL
+			}
+			small = cached.SmallURL
+			if original == "" {
+				original = cached.OriginalURL
+			}
+		}
+	}
+
+	if thumb != "" {
 		data["avatar_thumb_url"] = thumb
 	}
-	if small := r.GetString("avatar_small_url"); small != "" {
+	if small != "" {
 		data["avatar_small_url"] = small
 	}
-	if original := r.GetString("avatar_original_url"); original != "" {
+	if original != "" {
 		data["avatar_original_url"] = original
 	}
 
