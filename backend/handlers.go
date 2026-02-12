@@ -1002,6 +1002,9 @@ func handleOrganisationCreate(re *core.RequestEvent, app *pocketbase.PocketBase)
 	if v, ok := input["tags"].([]any); ok {
 		record.Set("tags", v)
 	}
+	if v, ok := input["industry"].(string); ok {
+		record.Set("industry", v)
+	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
 	} else {
@@ -1063,6 +1066,9 @@ func handleOrganisationUpdate(re *core.RequestEvent, app *pocketbase.PocketBase)
 	}
 	if v, ok := input["tags"].([]any); ok {
 		record.Set("tags", v)
+	}
+	if v, ok := input["industry"].(string); ok {
+		record.Set("industry", v)
 	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
@@ -1718,7 +1724,9 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 	}
 
 	// Organisation relation
-	if orgID := r.GetString("organisation"); orgID != "" {
+	orgID := r.GetString("organisation")
+	data["organisation"] = orgID
+	if orgID != "" {
 		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
 		if err == nil {
 			data["organisation_id"] = org.Id
@@ -1803,6 +1811,7 @@ func buildOrganisationResponse(r *core.Record, baseURL string) map[string]any {
 		"description_long":   r.GetString("description_long"),
 		"contacts":           r.Get("contacts"),
 		"tags":               r.Get("tags"),
+		"industry":           r.GetString("industry"),
 		"status":             r.GetString("status"),
 		"source":             r.GetString("source"),
 		"created":            r.GetString("created"),

@@ -67,6 +67,7 @@ export interface Organisation extends RecordModel {
   logo_inverted_url?: string
   contacts?: Array<{ name: string; linkedin?: string; email?: string }>
   tags?: string[]
+  industry?: string
   status: 'active' | 'archived'
   source?: string
   source_ids?: { presentations?: string; awards?: string; events?: string }

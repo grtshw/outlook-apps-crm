@@ -82,6 +82,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
     description_short: '',
     description_medium: '',
     description_long: '',
+    industry: '',
     status: 'active' as Organisation['status'],
   })
 
@@ -94,6 +95,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
         description_short: organisation.description_short || '',
         description_medium: organisation.description_medium || '',
         description_long: organisation.description_long || '',
+        industry: organisation.industry || '',
         status: organisation.status || 'active',
       })
     } else {
@@ -104,6 +106,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
         description_short: '',
         description_medium: '',
         description_long: '',
+        industry: '',
         status: 'active',
       })
     }
@@ -218,6 +221,38 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <FieldLabel htmlFor="industry">Industry</FieldLabel>
+              <Select
+                value={formData.industry || 'none'}
+                onValueChange={(v) => setFormData({ ...formData, industry: v === 'none' ? '' : v })}
+                disabled={!isAdmin}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="technology">Technology</SelectItem>
+                  <SelectItem value="media">Media</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="healthcare">Healthcare</SelectItem>
+                  <SelectItem value="education">Education</SelectItem>
+                  <SelectItem value="government">Government</SelectItem>
+                  <SelectItem value="retail">Retail</SelectItem>
+                  <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                  <SelectItem value="hospitality">Hospitality</SelectItem>
+                  <SelectItem value="real_estate">Real estate</SelectItem>
+                  <SelectItem value="energy">Energy</SelectItem>
+                  <SelectItem value="professional_services">Professional services</SelectItem>
+                  <SelectItem value="non_profit">Non-profit</SelectItem>
+                  <SelectItem value="sports">Sports</SelectItem>
+                  <SelectItem value="entertainment">Entertainment</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>

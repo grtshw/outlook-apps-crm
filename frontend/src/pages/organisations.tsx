@@ -161,6 +161,21 @@ export function OrganisationsPage() {
             ),
           },
           {
+            label: 'Industry',
+            render: (org: Organisation) => {
+              if (!org.industry) return <span className="text-muted-foreground">—</span>
+              const labels: Record<string, string> = {
+                technology: 'Technology', media: 'Media', finance: 'Finance',
+                healthcare: 'Healthcare', education: 'Education', government: 'Government',
+                retail: 'Retail', manufacturing: 'Manufacturing', hospitality: 'Hospitality',
+                real_estate: 'Real estate', energy: 'Energy',
+                professional_services: 'Professional services', non_profit: 'Non-profit',
+                sports: 'Sports', entertainment: 'Entertainment', other: 'Other',
+              }
+              return <span>{labels[org.industry] ?? org.industry}</span>
+            },
+          },
+          {
             label: 'Status',
             render: (org: Organisation) => (
               org.status === 'archived'
