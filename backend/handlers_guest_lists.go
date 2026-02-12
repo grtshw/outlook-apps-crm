@@ -239,6 +239,20 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		return utils.NotFoundResponse(re, "Guest list not found")
 	}
 
+	// Parse optional overrides from request body
+	var input map[string]any
+	_ = json.NewDecoder(re.Request.Body).Decode(&input)
+	if input == nil {
+		input = map[string]any{}
+	}
+
+	getName := func(key, fallback string) string {
+		if v, ok := input[key].(string); ok && v != "" {
+			return v
+		}
+		return fallback
+	}
+
 	// Create cloned list
 	listCollection, err := app.FindCollectionByNameOrId(utils.CollectionGuestLists)
 	if err != nil {
@@ -246,11 +260,11 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	newList := core.NewRecord(listCollection)
-	newList.Set("name", source.GetString("name")+" (copy)")
-	newList.Set("description", source.GetString("description"))
-	newList.Set("event_projection", source.GetString("event_projection"))
+	newList.Set("name", getName("name", source.GetString("name")+" (copy)"))
+	newList.Set("description", getName("description", source.GetString("description")))
+	newList.Set("event_projection", getName("event_projection", source.GetString("event_projection")))
 	newList.Set("created_by", re.Auth.Id)
-	newList.Set("status", "draft")
+	newList.Set("status", getName("status", "draft"))
 
 	if err := app.Save(newList); err != nil {
 		return utils.InternalErrorResponse(re, "Failed to create cloned list")

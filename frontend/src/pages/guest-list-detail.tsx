@@ -32,7 +32,10 @@ import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send } from 'lucide-react'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -65,6 +68,7 @@ export function GuestListDetailPage() {
   const [showContactCols, setShowContactCols] = useState(false)
   const [rsvpDetailItem, setRsvpDetailItem] = useState<GuestListItem | null>(null)
   const [rsvpDrawerOpen, setRsvpDrawerOpen] = useState(false)
+  const [cloneOpen, setCloneOpen] = useState(false)
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -72,6 +76,14 @@ export function GuestListDetailPage() {
     description: '',
     event_projection: '',
     status: '',
+  })
+
+  // Clone form state
+  const [cloneForm, setCloneForm] = useState({
+    name: '',
+    description: '',
+    event_projection: '',
+    status: 'draft',
   })
 
   // ── Queries ──
@@ -97,7 +109,7 @@ export function GuestListDetailPage() {
   const { data: eventsData } = useQuery({
     queryKey: ['event-projections'],
     queryFn: () => getEventProjections(),
-    enabled: editOpen,
+    enabled: editOpen || cloneOpen,
   })
 
   const items = itemsData?.items ?? []
@@ -161,8 +173,10 @@ export function GuestListDetailPage() {
   })
 
   const cloneListMutation = useMutation({
-    mutationFn: () => cloneGuestList(id!),
+    mutationFn: (data: { name: string; description: string; event_projection: string; status: string }) =>
+      cloneGuestList(id!, data),
     onSuccess: (data) => {
+      setCloneOpen(false)
       toast.success(`Cloned with ${data.items_cloned} guests`)
       queryClient.invalidateQueries({ queryKey: ['guest-lists'] })
       navigate(`/guest-lists/${data.id}`)
@@ -242,6 +256,22 @@ export function GuestListDetailPage() {
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault()
     updateListMutation.mutate(editForm)
+  }
+
+  const handleOpenClone = () => {
+    if (!guestList) return
+    setCloneForm({
+      name: guestList.name + ' (copy)',
+      description: guestList.description || '',
+      event_projection: guestList.event_projection || '',
+      status: 'draft',
+    })
+    setCloneOpen(true)
+  }
+
+  const handleClone = (e: React.FormEvent) => {
+    e.preventDefault()
+    cloneListMutation.mutate(cloneForm)
   }
 
   const handleDeleteList = () => {
@@ -343,9 +373,6 @@ export function GuestListDetailPage() {
       <PageHeader title={guestList.name}>
         {isAdmin && (
           <>
-            <Button variant="outline" onClick={handleOpenEdit}>
-              <Pencil className="w-4 h-4 mr-1" /> Edit
-            </Button>
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
               <Share2 className="w-4 h-4 mr-1" /> Share
             </Button>
@@ -358,12 +385,25 @@ export function GuestListDetailPage() {
             <Button onClick={() => setContactSearchOpen(true)}>
               <UserPlus className="w-4 h-4 mr-1" /> Select guests
             </Button>
-            <Button variant="outline" onClick={() => cloneListMutation.mutate()} disabled={cloneListMutation.isPending}>
-              <Copy className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" onClick={handleDeleteList}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <EllipsisVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleOpenEdit}>
+                  <Pencil className="w-4 h-4 mr-2" /> Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleOpenClone}>
+                  <Copy className="w-4 h-4 mr-2" /> Clone
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleDeleteList} variant="destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </PageHeader>
@@ -919,6 +959,78 @@ export function GuestListDetailPage() {
             </Button>
             <Button onClick={handleSaveEdit} disabled={updateListMutation.isPending}>
               {updateListMutation.isPending ? 'Saving...' : 'Save changes'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Clone sheet */}
+      <Sheet open={cloneOpen} onOpenChange={(o) => !o && setCloneOpen(false)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Clone guest list</SheetTitle>
+          </SheetHeader>
+
+          <form onSubmit={handleClone} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Name</label>
+              <Input
+                value={cloneForm.name}
+                onChange={(e) => setCloneForm({ ...cloneForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Description</label>
+              <Textarea
+                value={cloneForm.description}
+                onChange={(e) => setCloneForm({ ...cloneForm, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Event</label>
+              <Select
+                value={cloneForm.event_projection || 'none'}
+                onValueChange={(v) => setCloneForm({ ...cloneForm, event_projection: v === 'none' ? '' : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select event" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Status</label>
+              <Select
+                value={cloneForm.status}
+                onValueChange={(v) => setCloneForm({ ...cloneForm, status: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </form>
+
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setCloneOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleClone} disabled={cloneListMutation.isPending}>
+              {cloneListMutation.isPending ? 'Cloning...' : 'Clone'}
             </Button>
           </SheetFooter>
         </SheetContent>
