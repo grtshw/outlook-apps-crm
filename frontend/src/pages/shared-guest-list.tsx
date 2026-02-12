@@ -271,9 +271,9 @@ export function SharedGuestListPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Company</TableHead>
+                <TableHead>LinkedIn</TableHead>
                 <TableHead className="w-32">Invite round</TableHead>
                 <TableHead className="w-24">RSVP</TableHead>
-                <TableHead>LinkedIn</TableHead>
                 <TableHead>City</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Your notes</TableHead>
@@ -285,6 +285,19 @@ export function SharedGuestListPage() {
                   <TableCell>{item.name}</TableCell>
                   <TableCell className="text-muted-foreground">{item.role}</TableCell>
                   <TableCell className="text-muted-foreground">{item.company}</TableCell>
+                  <TableCell>
+                    {item.linkedin && (
+                      <a
+                        href={item.linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        <span className="text-sm">LinkedIn</span>
+                      </a>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Select
                       value={item.invite_round || ''}
@@ -315,19 +328,6 @@ export function SharedGuestListPage() {
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.linkedin && (
-                      <a
-                        href={item.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        <span className="text-sm">LinkedIn</span>
-                      </a>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{item.city}</TableCell>

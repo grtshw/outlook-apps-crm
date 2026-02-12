@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/mail"
 	"os"
+	"strings"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/tools/mailer"
@@ -138,7 +139,8 @@ func sendShareNotificationEmail(app *pocketbase.PocketBase, recipientEmail, reci
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Event: %s</p>`, eventName)
 	}
 
-	subject := fmt.Sprintf("%s, you've been invited to review %s", name, listName)
+	firstName := strings.Fields(name)[0]
+	subject := fmt.Sprintf("%s, you've been invited to review %s", firstName, listName)
 	content := fmt.Sprintf(`
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
