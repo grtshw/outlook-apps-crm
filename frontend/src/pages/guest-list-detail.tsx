@@ -21,7 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetSection,
 } from '@/components/ui/sheet'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -31,8 +31,8 @@ import { ContactSearchDrawer } from '@/components/contact-search-dialog'
 import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, Link } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -45,14 +45,6 @@ function formatDate(dateString: string | undefined | null): string {
     month: 'short',
     year: 'numeric',
   })
-}
-
-function hostnameFromUrl(url: string): string {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return url
-  }
 }
 
 export function GuestListDetailPage() {
@@ -72,8 +64,7 @@ export function GuestListDetailPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [showContactCols, setShowContactCols] = useState(false)
   const [rsvpDetailItem, setRsvpDetailItem] = useState<GuestListItem | null>(null)
-  const [sendInvitesOpen, setSendInvitesOpen] = useState(false)
-  const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(new Set())
+  const [rsvpDrawerOpen, setRsvpDrawerOpen] = useState(false)
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -213,16 +204,9 @@ export function GuestListDetailPage() {
     onSuccess: (data) => {
       toast.success(`Sent ${data.sent} invite${data.sent !== 1 ? 's' : ''}${data.skipped ? `, ${data.skipped} skipped` : ''}`)
       queryClient.invalidateQueries({ queryKey: ['guest-list-items', id] })
-      setSendInvitesOpen(false)
-      setSelectedInviteIds(new Set())
     },
     onError: (error: Error) => toast.error(error.message),
   })
-
-  // Items eligible for RSVP invites (have a contact, status is to_invite or empty)
-  const inviteableItems = items.filter(
-    (item) => item.contact_id && (item.invite_status === 'to_invite' || item.invite_status === '' || !item.invite_status)
-  )
 
   // RSVP summary counts
   const rsvpCounts = useMemo(() => {
@@ -355,6 +339,12 @@ export function GuestListDetailPage() {
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
               <Share2 className="w-4 h-4 mr-1" /> Share
             </Button>
+            <Button variant="outline" onClick={() => setRsvpDrawerOpen(true)}>
+              <Send className="w-4 h-4 mr-1" /> RSVP
+              {rsvpCounts.accepted > 0 && (
+                <Badge variant="secondary" className="ml-1">{rsvpCounts.accepted}</Badge>
+              )}
+            </Button>
             <Button onClick={() => setContactSearchOpen(true)}>
               <UserPlus className="w-4 h-4 mr-1" /> Select guests
             </Button>
@@ -393,22 +383,22 @@ export function GuestListDetailPage() {
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 {[
-                  { key: 'name', label: 'Name' },
-                  { key: 'role', label: 'Role' },
-                  { key: 'company', label: 'Company' },
+                  { key: 'name', label: 'Name', className: 'max-w-[180px]' },
+                  { key: 'role', label: 'Role', className: 'max-w-[140px]' },
+                  { key: 'company', label: 'Company', className: 'max-w-[120px]' },
+                  { key: null, label: '', className: 'w-[40px]' },
                   { key: 'invite_round', label: 'Invite round' },
                   { key: 'invite_status', label: 'Invite status' },
                   { key: null, label: 'RSVP' },
-                  { key: null, label: 'LinkedIn' },
                   { key: 'city', label: 'City', collapsible: true },
                   { key: 'connection', label: 'Connection', collapsible: true },
                   { key: 'relationship', label: 'Relationship', collapsible: true },
-                  { key: null, label: 'Notes' },
-                  { key: null, label: 'Client notes' },
-                ].filter((col) => !col.collapsible || showContactCols).map((col) => (
+                  { key: null, label: 'Notes', collapsible: true },
+                  { key: null, label: 'Client notes', collapsible: true },
+                ].filter((col) => !col.collapsible || showContactCols).map((col, idx) => (
                   <TableHead
-                    key={col.label}
-                    className={col.key ? 'cursor-pointer select-none hover:text-foreground' : ''}
+                    key={col.label || idx}
+                    className={cn(col.key ? 'cursor-pointer select-none hover:text-foreground' : '', col.className)}
                     onClick={col.key ? () => handleSort(col.key!) : undefined}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -429,25 +419,38 @@ export function GuestListDetailPage() {
                 const isArchived = item.contact_status === 'archived'
                 return (
                   <TableRow key={item.id} className={cn(isArchived && 'text-muted-foreground')}>
-                    <TableCell>
+                    <TableCell className="max-w-[180px]">
                       <button
                         type="button"
-                        className="flex items-center gap-2 hover:underline cursor-pointer text-left"
+                        className="flex items-center gap-2 hover:underline cursor-pointer text-left min-w-0"
                         onClick={() => handleContactClick(item)}
                       >
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="h-8 w-8 shrink-0">
                           <AvatarImage src={item.contact_avatar_small_url || item.contact_avatar_thumb_url || item.contact_avatar_url} />
                           <AvatarFallback className="text-xs">{initials(item.contact_name)}</AvatarFallback>
                         </Avatar>
-                        {item.contact_name}
+                        <span className="truncate">{item.contact_name}</span>
                         {isArchived && <Badge variant="outline">Archived</Badge>}
                       </button>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground max-w-[140px] truncate">
                       {item.contact_job_title || '—'}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground max-w-[120px] truncate">
                       {item.contact_organisation_name || '—'}
+                    </TableCell>
+                    <TableCell>
+                      {item.contact_linkedin ? (
+                        <a
+                          href={item.contact_linkedin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-foreground"
+                          title={item.contact_linkedin}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <Select
@@ -507,21 +510,6 @@ export function GuestListDetailPage() {
                         )}
                       </button>
                     </TableCell>
-                    <TableCell>
-                      {item.contact_linkedin ? (
-                        <a
-                          href={item.contact_linkedin}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline inline-flex items-center gap-1"
-                        >
-                          {hostnameFromUrl(item.contact_linkedin)}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
                     {showContactCols && (
                       <>
                         <TableCell className="text-muted-foreground">
@@ -541,40 +529,40 @@ export function GuestListDetailPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {editingNotesId === item.id ? (
+                            <Textarea
+                              value={editingNotesValue}
+                              onChange={(e) => setEditingNotesValue(e.target.value)}
+                              onBlur={() => handleNotesBlur(item)}
+                              autoFocus
+                              rows={2}
+                              className="min-w-[200px]"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleNotesClick(item)}
+                              className="text-left text-sm cursor-pointer min-w-[100px] min-h-[24px] rounded px-1 -mx-1 hover:bg-muted/50"
+                              disabled={!isAdmin}
+                            >
+                              {item.notes ? (
+                                <span className="line-clamp-2">{item.notes}</span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground max-w-xs">
+                          {item.client_notes ? (
+                            <span className="line-clamp-2">{item.client_notes}</span>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </TableCell>
                       </>
                     )}
-                    <TableCell>
-                      {editingNotesId === item.id ? (
-                        <Textarea
-                          value={editingNotesValue}
-                          onChange={(e) => setEditingNotesValue(e.target.value)}
-                          onBlur={() => handleNotesBlur(item)}
-                          autoFocus
-                          rows={2}
-                          className="min-w-[200px]"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleNotesClick(item)}
-                          className="text-left text-sm cursor-pointer min-w-[100px] min-h-[24px] rounded px-1 -mx-1 hover:bg-muted/50"
-                          disabled={!isAdmin}
-                        >
-                          {item.notes ? (
-                            <span className="line-clamp-2">{item.notes}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </button>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground max-w-xs">
-                      {item.client_notes ? (
-                        <span className="line-clamp-2">{item.client_notes}</span>
-                      ) : (
-                        <span>—</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       {isAdmin && (
                         <Button
@@ -680,78 +668,6 @@ export function GuestListDetailPage() {
         )}
       </div>
 
-      {/* RSVP section */}
-      {isAdmin && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg">RSVP</h2>
-            {guestList.rsvp_enabled && (
-              <Badge variant="secondary">
-                {rsvpCounts.accepted} accepted{rsvpCounts.plusOnes > 0 && ` (+${rsvpCounts.plusOnes} plus-ones)`}
-                {rsvpCounts.declined > 0 && `, ${rsvpCounts.declined} declined`}
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div
-              className="flex items-start gap-3 cursor-pointer rounded-lg border border-border p-4"
-              onClick={() => toggleRSVPMutation.mutate(!guestList.rsvp_enabled)}
-            >
-              <Checkbox
-                checked={guestList.rsvp_enabled}
-                onCheckedChange={(checked) => toggleRSVPMutation.mutate(checked === true)}
-              />
-              <div className="space-y-1">
-                <span className="text-sm">Enable RSVP</span>
-                <p className="text-sm text-muted-foreground">
-                  Allow guests to respond to invitations via personal or generic RSVP links.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {guestList.rsvp_enabled && (
-            <div className="space-y-4">
-              {/* Generic RSVP link */}
-              {guestList.rsvp_generic_url && (
-                <div className="flex items-center gap-2">
-                  <Link className="w-4 h-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm text-muted-foreground truncate">{guestList.rsvp_generic_url}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      navigator.clipboard.writeText(guestList.rsvp_generic_url!)
-                      toast.success('Generic RSVP link copied')
-                    }}
-                    title="Copy generic RSVP link"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {/* Send invites button */}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedInviteIds(new Set(inviteableItems.map((i) => i.id)))
-                  setSendInvitesOpen(true)
-                }}
-                disabled={inviteableItems.length === 0}
-              >
-                <Send className="w-4 h-4 mr-1" />
-                Send RSVP invites
-                {inviteableItems.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{inviteableItems.length}</Badge>
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* RSVP detail sheet */}
       <Sheet open={!!rsvpDetailItem} onOpenChange={(o) => !o && setRsvpDetailItem(null)}>
         <SheetContent>
@@ -843,90 +759,83 @@ export function GuestListDetailPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Send invites sheet */}
-      <Sheet open={sendInvitesOpen} onOpenChange={(o) => !o && setSendInvitesOpen(false)}>
+      {/* RSVP drawer */}
+      <Sheet open={rsvpDrawerOpen} onOpenChange={(o) => !o && setRsvpDrawerOpen(false)}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Send RSVP invites</SheetTitle>
+            <SheetTitle>RSVP</SheetTitle>
           </SheetHeader>
-          <div className="p-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Select guests to send personal RSVP invite emails. Only guests with a contact email and status "To invite" or no status are shown.
-            </p>
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <SheetSection title="RSVP links">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-sm">{guestList.rsvp_enabled ? 'Links are active' : 'Links are paused'}</span>
+                </div>
+                <Switch
+                  checked={guestList.rsvp_enabled}
+                  onCheckedChange={(checked) => toggleRSVPMutation.mutate(checked)}
+                />
+              </div>
 
-            {inviteableItems.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No eligible guests to invite.
-              </p>
-            ) : (
-              <>
-                <div
-                  className="flex items-center gap-2 cursor-pointer"
-                  onClick={() => {
-                    if (selectedInviteIds.size === inviteableItems.length) {
-                      setSelectedInviteIds(new Set())
-                    } else {
-                      setSelectedInviteIds(new Set(inviteableItems.map((i) => i.id)))
-                    }
-                  }}
-                >
-                  <Checkbox
-                    checked={selectedInviteIds.size === inviteableItems.length}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedInviteIds(new Set(inviteableItems.map((i) => i.id)))
-                      } else {
-                        setSelectedInviteIds(new Set())
-                      }
+              {(rsvpCounts.accepted > 0 || rsvpCounts.declined > 0) && (
+                <p className="text-sm text-muted-foreground">
+                  {rsvpCounts.accepted} accepted{rsvpCounts.plusOnes > 0 && ` (+${rsvpCounts.plusOnes} plus-ones)`}
+                  {rsvpCounts.declined > 0 && `, ${rsvpCounts.declined} declined`}
+                </p>
+              )}
+
+              {guestList.rsvp_generic_url && (
+                <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+                  <span className="text-sm text-muted-foreground truncate flex-1">{guestList.rsvp_generic_url}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(guestList.rsvp_generic_url!)
+                      toast.success('Generic RSVP link copied')
                     }}
-                  />
-                  <span className="text-sm">Select all ({inviteableItems.length})</span>
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
                 </div>
+              )}
+            </SheetSection>
 
-                <div className="space-y-1 max-h-[400px] overflow-y-auto">
-                  {inviteableItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 py-2 px-1 rounded hover:bg-muted/50 cursor-pointer"
-                      onClick={() => {
-                        setSelectedInviteIds((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(item.id)) {
-                            next.delete(item.id)
-                          } else {
-                            next.add(item.id)
-                          }
-                          return next
-                        })
-                      }}
-                    >
-                      <Checkbox checked={selectedInviteIds.has(item.id)} />
-                      <div className="min-w-0">
-                        <p className="text-sm truncate">{item.contact_name}</p>
-                        {item.contact_organisation_name && (
-                          <p className="text-xs text-muted-foreground truncate">{item.contact_organisation_name}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
+            {guestList.rsvp_enabled && (
+              <SheetSection title="Personal invites">
+                {items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    No guests on this list yet.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {items.map((item) => {
+                      const hasEmail = !!item.contact_email
+                      const wasSent = item.invite_status === 'invited' || item.rsvp_status !== ''
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 py-2.5 px-2">
+                          <span className="text-sm truncate w-[140px] shrink-0">{item.contact_name}</span>
+                          <span className="text-sm text-muted-foreground truncate w-[100px] shrink-0">{item.contact_organisation_name || '—'}</span>
+                          <span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{item.contact_email || 'No email'}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 cursor-pointer"
+                            disabled={!hasEmail || sendInvitesMutation.isPending}
+                            onClick={() => sendInvitesMutation.mutate([item.id])}
+                          >
+                            <Send className="w-3.5 h-3.5 mr-1" />
+                            {wasSent ? 'Resend' : 'Send'}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </SheetSection>
             )}
           </div>
 
-          <SheetFooter>
-            <Button variant="outline" onClick={() => setSendInvitesOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => sendInvitesMutation.mutate(Array.from(selectedInviteIds))}
-              disabled={sendInvitesMutation.isPending || selectedInviteIds.size === 0}
-            >
-              {sendInvitesMutation.isPending
-                ? 'Sending...'
-                : `Send to ${selectedInviteIds.size} guest${selectedInviteIds.size !== 1 ? 's' : ''}`}
-            </Button>
-          </SheetFooter>
         </SheetContent>
       </Sheet>
 

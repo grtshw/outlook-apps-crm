@@ -12,6 +12,9 @@ frontend-old/
 # PocketBase data
 pb_data/
 
+# Database snapshots
+backend/snapshots/
+
 # Environment files
 .env
 .env.local

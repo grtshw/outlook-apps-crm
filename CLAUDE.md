@@ -29,6 +29,23 @@ This runs:
 - Vite dev server on http://localhost:3000 (proxies API to backend)
 - PocketBase admin UI at http://localhost:8090/_/
 
+### Database location
+
+The database lives at **`pb_data/data.db`** (project root), NOT `backend/pb_data/data.db`. The `crm` binary runs from the project root so PocketBase uses `./pb_data/`. The `backend/` directory only contains Go source code.
+
+### Syncing production database
+
+```bash
+./scripts/sync-prod.sh --download   # Download prod DB to local
+./scripts/sync-prod.sh --upload     # Upload local DB to prod (DANGEROUS)
+```
+
+After syncing, set a local password:
+```bash
+./crm superuser upsert admin@local.dev LocalPassword123
+# Then start server, auth as superuser, PATCH the user record's password via API
+```
+
 ## First-time setup
 
 1. Start the server with `./start.sh`

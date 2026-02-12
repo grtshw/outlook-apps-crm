@@ -289,6 +289,7 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 		if contactID := r.GetString("contact"); contactID != "" {
 			if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
 				item["contact_status"] = contact.GetString("status")
+				item["contact_email"] = utils.DecryptField(contact.GetString("email"))
 				// Update denormalized fields with latest live data
 				item["contact_name"] = contact.GetString("name")
 				item["contact_job_title"] = contact.GetString("job_title")
