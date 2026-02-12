@@ -371,17 +371,49 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 				item["contact_status"] = contact.GetString("status")
 				item["contact_email"] = utils.DecryptField(contact.GetString("email"))
 				// Update denormalized fields with latest live data
-				item["contact_name"] = contact.GetString("name")
-				item["contact_job_title"] = contact.GetString("job_title")
-				item["contact_linkedin"] = contact.GetString("linkedin")
-				item["contact_location"] = utils.DecryptField(contact.GetString("location"))
-				item["contact_degrees"] = contact.GetString("degrees")
-				item["contact_relationship"] = contact.GetInt("relationship")
+				liveName := contact.GetString("name")
+				liveJobTitle := contact.GetString("job_title")
+				liveLinkedin := contact.GetString("linkedin")
+				liveLocation := utils.DecryptField(contact.GetString("location"))
+				liveDegrees := contact.GetString("degrees")
+				liveRelationship := contact.GetInt("relationship")
+				liveOrgName := ""
 				if orgID := contact.GetString("organisation"); orgID != "" {
 					if org, err := app.FindRecordById(utils.CollectionOrganisations, orgID); err == nil {
-						item["contact_organisation_name"] = org.GetString("name")
+						liveOrgName = org.GetString("name")
 					}
 				}
+
+				item["contact_name"] = liveName
+				item["contact_job_title"] = liveJobTitle
+				item["contact_linkedin"] = liveLinkedin
+				item["contact_location"] = liveLocation
+				item["contact_degrees"] = liveDegrees
+				item["contact_relationship"] = liveRelationship
+				item["contact_organisation_name"] = liveOrgName
+
+				// Persist updated denormalized fields back to the record
+				// so shared views and exports stay current
+				needsUpdate := r.GetString("contact_name") != liveName ||
+					r.GetString("contact_job_title") != liveJobTitle ||
+					r.GetString("contact_linkedin") != liveLinkedin ||
+					r.GetString("contact_organisation_name") != liveOrgName ||
+					r.GetString("contact_degrees") != liveDegrees ||
+					r.GetInt("contact_relationship") != liveRelationship
+				if needsUpdate {
+					r.Set("contact_name", liveName)
+					r.Set("contact_job_title", liveJobTitle)
+					r.Set("contact_linkedin", liveLinkedin)
+					r.Set("contact_organisation_name", liveOrgName)
+					r.Set("contact_degrees", liveDegrees)
+					r.Set("contact_relationship", liveRelationship)
+					go func(record *core.Record) {
+						if err := app.Save(record); err != nil {
+							log.Printf("[GuestListItems] Failed to sync denormalized fields for item %s: %v", record.Id, err)
+						}
+					}(r)
+				}
+
 				// Avatar URLs
 				if avatarURL := contact.GetString("avatar_url"); avatarURL != "" {
 					item["contact_avatar_url"] = avatarURL
