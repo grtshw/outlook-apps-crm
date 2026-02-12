@@ -31,6 +31,7 @@ import { ContactSearchDrawer } from '@/components/contact-search-dialog'
 import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { Switch } from '@/components/ui/switch'
 import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -770,13 +771,10 @@ export function GuestListDetailPage() {
                 <div className="space-y-0.5">
                   <span className="text-sm">{guestList.rsvp_enabled ? 'Links are active' : 'Links are paused'}</span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleRSVPMutation.mutate(!guestList.rsvp_enabled)}
-                >
-                  {guestList.rsvp_enabled ? 'Pause' : 'Enable'}
-                </Button>
+                <Switch
+                  checked={guestList.rsvp_enabled}
+                  onCheckedChange={(checked: boolean) => toggleRSVPMutation.mutate(checked)}
+                />
               </div>
 
               {(rsvpCounts.accepted > 0 || rsvpCounts.declined > 0) && (
