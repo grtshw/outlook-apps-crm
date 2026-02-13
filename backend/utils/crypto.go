@@ -9,33 +9,47 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 )
 
+// currentKeyVersion is the version tag written by Encrypt().
+// Bump this each time you rotate keys.
+const currentKeyVersion = 2
+
 var (
-	encryptionKey    []byte
-	keyOnce          sync.Once
-	keyInitialized   bool
-	ErrNoKey         = errors.New("ENCRYPTION_KEY environment variable not set")
+	currentKey     []byte // derived from ENCRYPTION_KEY — used for encrypt, blind index
+	previousKey    []byte // derived from ENCRYPTION_KEY_PREV — used for decrypting old data
+	keyOnce        sync.Once
+	keyInitialized bool
+	ErrNoKey       = errors.New("ENCRYPTION_KEY environment variable not set")
 	ErrDecryptFailed = errors.New("decryption failed")
 )
 
-// initKey derives a 32-byte key from the environment variable
+// initKey derives 32-byte keys from environment variables
 func initKey() {
 	keyStr := os.Getenv("ENCRYPTION_KEY")
 	if keyStr == "" {
 		log.Printf("[Crypto] Warning: ENCRYPTION_KEY not set, encryption disabled")
 		return
 	}
-	// Derive 32-byte key using SHA-256
 	hash := sha256.Sum256([]byte(keyStr))
-	encryptionKey = hash[:]
+	currentKey = hash[:]
 	keyInitialized = true
-	log.Printf("[Crypto] Encryption key initialized")
+
+	prevStr := os.Getenv("ENCRYPTION_KEY_PREV")
+	if prevStr != "" {
+		prevHash := sha256.Sum256([]byte(prevStr))
+		previousKey = prevHash[:]
+		log.Printf("[Crypto] Encryption keys initialized (current v%d + previous)", currentKeyVersion)
+	} else {
+		log.Printf("[Crypto] Encryption key initialized (v%d)", currentKeyVersion)
+	}
 }
 
 // IsEncryptionEnabled returns true if encryption is configured
@@ -44,10 +58,15 @@ func IsEncryptionEnabled() bool {
 	return keyInitialized
 }
 
-// Encrypt encrypts plaintext using AES-256-GCM
-// Returns base64-encoded ciphertext with nonce prepended
-// Returns empty string for empty input
-// Returns original value if encryption is not configured
+// CurrentKeyVersion returns the current encryption key version.
+func CurrentKeyVersion() int {
+	return currentKeyVersion
+}
+
+// Encrypt encrypts plaintext using AES-256-GCM with the current key.
+// Returns versioned ciphertext: enc:v<N>:<base64>
+// Returns empty string for empty input.
+// Returns original value if encryption is not configured.
 func Encrypt(plaintext string) (string, error) {
 	if plaintext == "" {
 		return "", nil
@@ -55,11 +74,10 @@ func Encrypt(plaintext string) (string, error) {
 
 	keyOnce.Do(initKey)
 	if !keyInitialized {
-		// Return original if no key configured (allows gradual rollout)
 		return plaintext, nil
 	}
 
-	block, err := aes.NewCipher(encryptionKey)
+	block, err := aes.NewCipher(currentKey)
 	if err != nil {
 		return "", err
 	}
@@ -75,65 +93,101 @@ func Encrypt(plaintext string) (string, error) {
 	}
 
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	// Prefix with "enc:" to identify encrypted values
-	return "enc:" + base64.StdEncoding.EncodeToString(ciphertext), nil
+	return fmt.Sprintf("enc:v%d:%s", currentKeyVersion, base64.StdEncoding.EncodeToString(ciphertext)), nil
 }
 
-// Decrypt decrypts base64-encoded AES-256-GCM ciphertext
-// Returns original value if decryption fails (handles legacy unencrypted data)
+// Decrypt decrypts versioned AES-256-GCM ciphertext.
+// Supports: enc:v<N>:<base64> (versioned) and enc:<base64> (legacy v1).
+// Returns original value for non-encrypted data or on failure.
 func Decrypt(ciphertext string) (string, error) {
 	if ciphertext == "" {
 		return "", nil
 	}
 
-	// Check if this is an encrypted value (prefixed with "enc:")
 	if !strings.HasPrefix(ciphertext, "enc:") {
-		// Return as-is - this is likely unencrypted legacy data
 		return ciphertext, nil
 	}
 
 	keyOnce.Do(initKey)
 	if !keyInitialized {
-		// Can't decrypt without key, return original
 		return ciphertext, ErrNoKey
 	}
 
-	// Remove "enc:" prefix
-	encoded := strings.TrimPrefix(ciphertext, "enc:")
-
-	data, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		// Not valid base64, return original
-		return ciphertext, err
+	key, encoded := parseEncryptedValue(ciphertext)
+	if key == nil {
+		return ciphertext, ErrDecryptFailed
 	}
 
-	block, err := aes.NewCipher(encryptionKey)
+	return decryptWithKey(key, encoded, ciphertext)
+}
+
+// parseEncryptedValue extracts the decryption key and base64 payload.
+// Supports versioned (enc:v2:<base64>) and legacy (enc:<base64>) formats.
+func parseEncryptedValue(value string) ([]byte, string) {
+	after := strings.TrimPrefix(value, "enc:")
+
+	// Versioned format: v<N>:<base64>
+	if strings.HasPrefix(after, "v") {
+		colonIdx := strings.Index(after, ":")
+		if colonIdx == -1 {
+			return nil, ""
+		}
+		version, err := strconv.Atoi(after[1:colonIdx])
+		if err != nil {
+			return nil, ""
+		}
+		return keyForVersion(version), after[colonIdx+1:]
+	}
+
+	// Legacy unversioned format: enc:<base64> — treated as v1
+	return keyForVersion(1), after
+}
+
+// keyForVersion returns the decryption key for a given ciphertext version.
+func keyForVersion(version int) []byte {
+	if version == currentKeyVersion {
+		return currentKey
+	}
+	// Older version — use previous key if available, fall back to current
+	if previousKey != nil {
+		return previousKey
+	}
+	return currentKey
+}
+
+// decryptWithKey performs AES-256-GCM decryption with the given key.
+func decryptWithKey(key []byte, encoded string, originalValue string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return ciphertext, err
+		return originalValue, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return originalValue, err
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return ciphertext, err
+		return originalValue, err
 	}
 
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
-		return ciphertext, ErrDecryptFailed
+		return originalValue, ErrDecryptFailed
 	}
 
 	nonce, ciphertextBytes := data[:nonceSize], data[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertextBytes, nil)
 	if err != nil {
-		return ciphertext, err
+		return originalValue, err
 	}
 
 	return string(plaintext), nil
 }
 
-// BlindIndex creates a deterministic hash for searchable encrypted fields
-// Used for email lookups without decrypting all records
-// Returns lowercase, trimmed input hashed with HMAC-SHA256
+// BlindIndex creates a deterministic hash for searchable encrypted fields.
+// Uses the current key — blind indexes must be recomputed after key rotation.
 func BlindIndex(value string) string {
 	if value == "" {
 		return ""
@@ -141,29 +195,24 @@ func BlindIndex(value string) string {
 
 	keyOnce.Do(initKey)
 	if !keyInitialized {
-		// Without key, return empty (can't create consistent index)
 		return ""
 	}
 
-	// Normalize: lowercase and trim whitespace
 	normalized := strings.ToLower(strings.TrimSpace(value))
 
-	// HMAC-SHA256 with encryption key as secret
-	mac := hmac.New(sha256.New, encryptionKey)
+	mac := hmac.New(sha256.New, currentKey)
 	mac.Write([]byte(normalized))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// DecryptField is a helper that decrypts and returns the value
-// Handles errors gracefully by returning original value on failure
+// DecryptField is a helper that decrypts and returns the value.
+// Handles errors gracefully by returning original value on failure.
 func DecryptField(value string) string {
 	if value == "" {
 		return ""
 	}
 	decrypted, err := Decrypt(value)
 	if err != nil {
-		// Log but don't fail - return original value
-		// This handles legacy unencrypted data gracefully
 		return value
 	}
 	return decrypted
@@ -195,10 +244,8 @@ func EncryptPIIFields(collectionName string, data map[string]any) map[string]any
 	// Generate blind index for email if present
 	if email, exists := data["email"]; exists {
 		if strVal, ok := email.(string); ok && strVal != "" {
-			// Get original email for blind index (before encryption)
 			originalEmail := strVal
 			if strings.HasPrefix(strVal, "enc:") {
-				// Already encrypted, decrypt first
 				originalEmail = DecryptField(strVal)
 			}
 			data["email_index"] = BlindIndex(originalEmail)

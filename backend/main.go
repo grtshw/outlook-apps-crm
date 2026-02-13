@@ -38,6 +38,20 @@ func main() {
 		},
 	})
 
+	// Register rotate-keys command for re-encrypting PII with a new key
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "rotate-keys",
+		Short: "Re-encrypt all PII fields with the current key and recompute blind indexes",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			if err := runKeyRotation(app); err != nil {
+				log.Fatalf("Key rotation failed: %v", err)
+			}
+		},
+	})
+
 	// Register import-presenters command for syncing presenters from Presentations + DAM avatars
 	app.RootCmd.AddCommand(&cobra.Command{
 		Use:   "import-presenters",
@@ -648,5 +662,105 @@ func runPIIEncryptionMigration(app *pocketbase.PocketBase) error {
 	}
 
 	log.Printf("[EncryptPII] Migration complete: %d encrypted, %d already encrypted/empty", migrated, skipped)
+	return nil
+}
+
+// runKeyRotation re-encrypts all PII fields with the current key and recomputes blind indexes.
+// Used after rotating ENCRYPTION_KEY to migrate data from the previous key version.
+func runKeyRotation(app *pocketbase.PocketBase) error {
+	if !utils.IsEncryptionEnabled() {
+		return fmt.Errorf("ENCRYPTION_KEY not set - cannot rotate keys")
+	}
+
+	log.Println("[RotateKeys] Starting key rotation for contacts...")
+
+	records, err := app.FindAllRecords("contacts")
+	if err != nil {
+		return fmt.Errorf("failed to fetch contacts: %w", err)
+	}
+
+	log.Printf("[RotateKeys] Found %d contacts to process", len(records))
+
+	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
+	currentPrefix := fmt.Sprintf("enc:v%d:", utils.CurrentKeyVersion())
+	rotated := 0
+	skipped := 0
+	errCount := 0
+
+	for _, record := range records {
+		needsUpdate := false
+
+		for _, field := range piiFields {
+			val := record.GetString(field)
+			if val == "" {
+				continue
+			}
+
+			// Already using current key version — skip
+			if strings.HasPrefix(val, currentPrefix) {
+				continue
+			}
+
+			if !strings.HasPrefix(val, "enc:") {
+				// Unencrypted legacy data — encrypt it
+				encrypted, err := utils.Encrypt(val)
+				if err != nil {
+					log.Printf("[RotateKeys] Warning: failed to encrypt %s for %s: %v", field, record.Id, err)
+					continue
+				}
+				record.Set(field, encrypted)
+				needsUpdate = true
+				continue
+			}
+
+			// Decrypt with old key, re-encrypt with current key
+			plaintext, err := utils.Decrypt(val)
+			if err != nil {
+				log.Printf("[RotateKeys] Warning: failed to decrypt %s for %s: %v", field, record.Id, err)
+				continue
+			}
+			encrypted, err := utils.Encrypt(plaintext)
+			if err != nil {
+				log.Printf("[RotateKeys] Warning: failed to re-encrypt %s for %s: %v", field, record.Id, err)
+				continue
+			}
+			record.Set(field, encrypted)
+			needsUpdate = true
+		}
+
+		// Recompute blind indexes with the current key
+		if email := record.GetString("email"); email != "" {
+			originalEmail := utils.DecryptField(email)
+			newIndex := utils.BlindIndex(originalEmail)
+			if record.GetString("email_index") != newIndex {
+				record.Set("email_index", newIndex)
+				needsUpdate = true
+			}
+		}
+		if personalEmail := record.GetString("personal_email"); personalEmail != "" {
+			originalEmail := utils.DecryptField(personalEmail)
+			newIndex := utils.BlindIndex(originalEmail)
+			if record.GetString("personal_email_index") != newIndex {
+				record.Set("personal_email_index", newIndex)
+				needsUpdate = true
+			}
+		}
+
+		if needsUpdate {
+			if err := app.SaveNoValidate(record); err != nil {
+				log.Printf("[RotateKeys] Error: failed to save contact %s: %v", record.Id, err)
+				errCount++
+				continue
+			}
+			rotated++
+		} else {
+			skipped++
+		}
+	}
+
+	log.Printf("[RotateKeys] Complete: %d rotated, %d already current, %d errors", rotated, skipped, errCount)
+	if errCount > 0 {
+		return fmt.Errorf("%d records failed to rotate", errCount)
+	}
 	return nil
 }

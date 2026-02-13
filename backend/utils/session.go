@@ -49,10 +49,13 @@ func ValidateShareSession(sessionToken string) (*ShareSessionClaims, error) {
 
 	encoded, sig := parts[0], parts[1]
 
-	// Verify signature
-	expected := signSession(encoded)
+	// Verify signature — try current key first, then previous key during rotation
+	expected := signSessionWithKey(encoded, os.Getenv("ENCRYPTION_KEY"))
 	if !hmac.Equal([]byte(sig), []byte(expected)) {
-		return nil, errors.New("invalid signature")
+		prevKey := os.Getenv("ENCRYPTION_KEY_PREV")
+		if prevKey == "" || !hmac.Equal([]byte(sig), []byte(signSessionWithKey(encoded, prevKey))) {
+			return nil, errors.New("invalid signature")
+		}
 	}
 
 	// Decode payload
@@ -74,14 +77,17 @@ func ValidateShareSession(sessionToken string) (*ShareSessionClaims, error) {
 	return &claims, nil
 }
 
-// signSession creates an HMAC-SHA256 signature for a session payload.
-// Uses ENCRYPTION_KEY with a domain separator to avoid key reuse.
+// signSession creates an HMAC-SHA256 signature using the current key.
 func signSession(payload string) string {
-	key := os.Getenv("ENCRYPTION_KEY")
+	return signSessionWithKey(payload, os.Getenv("ENCRYPTION_KEY"))
+}
+
+// signSessionWithKey creates an HMAC-SHA256 signature with the given key.
+// Uses a domain separator to avoid key reuse with encryption.
+func signSessionWithKey(payload, key string) string {
 	if key == "" {
 		key = "dev-session-key"
 	}
-
 	mac := hmac.New(sha256.New, []byte("guest-list-session:"+key))
 	mac.Write([]byte(payload))
 	return fmt.Sprintf("%x", mac.Sum(nil))
