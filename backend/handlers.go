@@ -165,7 +165,7 @@ func handleExternalContactCreate(re *core.RequestEvent, app *pocketbase.PocketBa
 
 	if err := app.Save(record); err != nil {
 		log.Printf("[ExternalContactCreate] Failed to save: %v", err)
-		return utils.InternalErrorResponse(re, "Failed to create contact")
+		return utils.BadRequestResponse(re, err.Error())
 	}
 
 	fullName := strings.TrimSpace(firstName + " " + lastName)
