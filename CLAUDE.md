@@ -88,7 +88,7 @@ The CRM implements defense-in-depth security:
 | **Authentication** | Microsoft OAuth, session tokens | PocketBase built-in |
 | **Authorization** | Role-based (admin/viewer), middleware guards | `utils/auth.go` |
 | **Webhook Security** | HMAC-SHA256 signatures | `handlers.go`, `webhooks.go` |
-| **Data at Rest** | AES-256-GCM field-level encryption | `utils/crypto.go` |
+| **Data at Rest** | AES-256-GCM field-level encryption, versioned rotatable keys | `utils/crypto.go` |
 | **Audit Trail** | All CRUD operations logged | `utils/audit.go` |
 
 ### PII Field Encryption
@@ -102,11 +102,13 @@ The CRM implements defense-in-depth security:
 **How it works:**
 1. Data enters via API with plaintext values
 2. `OnRecordCreateExecute` / `OnRecordUpdateExecute` hooks encrypt before DB write
-3. Database stores `enc:` prefixed base64-encoded ciphertext
+3. Database stores versioned ciphertext: `enc:v2:<base64>` (legacy data may use `enc:<base64>`, treated as v1)
 4. Response builders (`buildContactResponse`, `buildContactProjection`, etc.) decrypt before returning
 5. Blind index (`email_index`) enables email lookups without decrypting all records
 
-**Environment variable:** `ENCRYPTION_KEY` (required in production)
+**Key rotation:** Encryption keys are versioned. `Encrypt()` always writes with the current version. `Decrypt()` parses the version tag and selects the correct key. See "Rotating Encryption Keys" below.
+
+**Environment variables:** `ENCRYPTION_KEY` (required in production), `ENCRYPTION_KEY_PREV` (optional, set during key rotation)
 
 ### MANDATORY Security Rules
 
@@ -247,9 +249,8 @@ piiFields := []string{"email", "phone", "bio", "location", "NEW_FIELD"}
 | Variable | Purpose | Required |
 |----------|---------|----------|
 | `ENCRYPTION_KEY` | AES-256 key derivation (32+ chars) | **YES** in prod |
+| `ENCRYPTION_KEY_PREV` | Previous encryption key for decrypting old data during rotation | Only during rotation |
 | `PROJECTION_WEBHOOK_SECRET` | HMAC signing for outbound projections (shared with all apps) | YES |
-
-See `/SECRETS.md` in the parent directory for full secrets management and rotation documentation.
 
 ### Migrating Legacy Unencrypted Data
 
@@ -263,7 +264,7 @@ curl https://outlook-apps-crm.fly.dev/
 fly ssh console -a outlook-apps-crm
 
 # Inside the container:
-./crm migrate-encryption
+./crm encrypt-pii
 ```
 
 The migration script:
@@ -272,6 +273,35 @@ The migration script:
 - Sets `email_index` blind index
 - Reports progress and results
 
+### Rotating Encryption Keys
+
+Key rotation re-encrypts all PII with a new key. No downtime required — the app can decrypt both old and new ciphertext during the transition.
+
+```bash
+# 1. Generate a new key
+NEW_KEY=$(openssl rand -base64 32)
+
+# 2. Set both keys (app restarts, new writes use the new key immediately)
+fly secrets set ENCRYPTION_KEY="$NEW_KEY" ENCRYPTION_KEY_PREV="<current-key>" -a outlook-apps-crm
+
+# 3. Re-encrypt all existing data
+fly ssh console -a outlook-apps-crm
+./crm rotate-keys
+
+# 4. Verify
+fly logs -a outlook-apps-crm | grep RotateKeys
+
+# 5. Remove the previous key once all data is rotated
+fly secrets unset ENCRYPTION_KEY_PREV -a outlook-apps-crm
+```
+
+**How it works:**
+- Ciphertext is versioned: `enc:v2:<base64>`. Legacy `enc:<base64>` is treated as v1.
+- `Encrypt()` always writes with the current version (`v2`). `Decrypt()` parses the version and picks the correct key.
+- `rotate-keys` decrypts each field with the old key, re-encrypts with the new key, and recomputes blind indexes.
+- Session tokens (guest list shares) also validate against both keys during the transition window.
+- For future rotations, bump `currentKeyVersion` in `utils/crypto.go`, deploy, and repeat the procedure.
+
 ### Security Incident Response
 
 If you suspect a security issue:
@@ -279,7 +309,7 @@ If you suspect a security issue:
 1. **Do NOT** push changes that disable security features
 2. **Do** check audit logs: `sqlite3 pb_data/data.db "SELECT * FROM audit_logs ORDER BY created DESC LIMIT 50"`
 3. **Do** check rate limit logs: `fly logs -a outlook-apps-crm | grep RateLimit`
-4. **Do** rotate secrets if compromised: `fly secrets set ENCRYPTION_KEY="$(openssl rand -base64 32)"`
+4. **Do** rotate the encryption key if compromised — see "Rotating Encryption Keys" above
 
 ### Security Review Checklist
 
