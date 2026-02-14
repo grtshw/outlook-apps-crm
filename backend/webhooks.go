@@ -458,9 +458,9 @@ func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL,
 		"updated":        r.GetString("updated"),
 	}
 
-	// Avatar URL - DAM will download from this URL and generate variants
-	if avatar := r.GetString("avatar"); avatar != "" {
-		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
+	// Avatar URL (stored by DAM, not local file)
+	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
+		data["avatar_url"] = avatarURL
 	}
 
 	// Organisation relation
@@ -494,15 +494,7 @@ func buildDAMOrganisationPayload(r *core.Record, baseURL, action string) DAMOrga
 		"contacts":           r.Get("contacts"),
 	}
 
-	// Logo URL - pick first available typed logo for projection
-	collectionId := r.Collection().Id
-	if logo := r.GetString("logo_square"); logo != "" {
-		projection["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	} else if logo := r.GetString("logo_standard"); logo != "" {
-		projection["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	} else if logo := r.GetString("logo_inverted"); logo != "" {
-		projection["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
+	// Logo URLs are managed by DAM — CRM does not project logo files
 
 	return DAMOrganisationPayload{
 		Action:     action,
@@ -642,9 +634,9 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		"updated":        r.GetString("updated"),
 	}
 
-	// Avatar URL (CRM local file)
-	if avatar := r.GetString("avatar"); avatar != "" {
-		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
+	// Avatar URL (stored by DAM, not local file)
+	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
+		data["avatar_url"] = avatarURL
 	}
 
 	// DAM avatar variant URLs (from DAM sync)
@@ -689,24 +681,7 @@ func buildOrganisationWebhookPayload(r *core.Record, baseURL string) map[string]
 		"updated":            r.GetString("updated"),
 	}
 
-	// Logo URLs - pick first available typed logo
-	collectionId := r.Collection().Id
-	if logo := r.GetString("logo_square"); logo != "" {
-		data["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-		data["logo_square_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
-	if logo := r.GetString("logo_standard"); logo != "" {
-		data["logo_standard_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-		if data["logo_url"] == nil {
-			data["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-		}
-	}
-	if logo := r.GetString("logo_inverted"); logo != "" {
-		data["logo_inverted_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-		if data["logo_url"] == nil {
-			data["logo_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-		}
-	}
+	// Logo URLs are managed by DAM — CRM does not project logo files
 
 	return data
 }

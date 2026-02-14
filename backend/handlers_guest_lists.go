@@ -335,7 +335,6 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 		return re.JSON(http.StatusOK, map[string]any{"items": []any{}})
 	}
 
-	baseURL := getBaseURL()
 	items := make([]map[string]any, len(records))
 	for i, r := range records {
 		item := map[string]any{
@@ -414,11 +413,9 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 					}(r)
 				}
 
-				// Avatar URLs
+				// Avatar URL (stored by DAM)
 				if avatarURL := contact.GetString("avatar_url"); avatarURL != "" {
 					item["contact_avatar_url"] = avatarURL
-				} else if avatar := contact.GetString("avatar"); avatar != "" {
-					item["contact_avatar_url"] = getFileURL(baseURL, contact.Collection().Id, contact.Id, avatar)
 				}
 				thumbURL := contact.GetString("avatar_thumb_url")
 				smallURL := contact.GetString("avatar_small_url")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -17,7 +19,6 @@ import (
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/filesystem"
 )
 
 // --- Public API Handlers (for COPE projections) ---
@@ -782,7 +783,8 @@ func handleContactDelete(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	return utils.SuccessResponse(re, "Contact deleted successfully")
 }
 
-// handleContactAvatarUpload handles avatar file upload for a contact
+// handleContactAvatarUpload handles avatar file upload for a contact.
+// The file is proxied to DAM via HMAC-authenticated endpoint. CRM does not store files locally.
 func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	id := re.Request.PathValue("id")
 	if id == "" {
@@ -812,32 +814,84 @@ func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase
 	}
 
 	// Read file content
-	fileBytes := make([]byte, header.Size)
-	if _, err := file.Read(fileBytes); err != nil {
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
 		return utils.InternalErrorResponse(re, "Failed to read file")
 	}
 
-	// Create file from bytes
-	fsFile, err := filesystem.NewFileFromBytes(fileBytes, header.Filename)
-	if err != nil {
-		return utils.InternalErrorResponse(re, "Failed to process file")
+	// Proxy upload to DAM
+	damURL := os.Getenv("DAM_PUBLIC_URL")
+	if damURL == "" {
+		damURL = "https://outlook-apps-dam.fly.dev"
 	}
 
-	record.Set("avatar", fsFile)
+	secret := os.Getenv("PROJECTION_WEBHOOK_SECRET")
+	if secret == "" {
+		return utils.InternalErrorResponse(re, "Projection webhook secret not configured")
+	}
 
-	// Decrypt PII fields before saving so PocketBase validation passes
-	// (the encryption hook will re-encrypt them before DB write)
-	piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
-	for _, field := range piiFields {
-		if v := record.GetString(field); v != "" {
-			record.Set(field, utils.DecryptField(v))
+	// Generate HMAC signature: crm_id:avatar:timestamp:upload
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	tokenData := fmt.Sprintf("%s:avatar:%s:upload", id, timestamp)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(tokenData))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	// Build multipart request to DAM
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("avatar", header.Filename)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to build upload request")
+	}
+	if _, err := part.Write(fileBytes); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to build upload request")
+	}
+	writer.Close()
+
+	damReq, err := http.NewRequest("POST", damURL+"/api/avatar/"+id, &buf)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to create DAM request")
+	}
+	damReq.Header.Set("Content-Type", writer.FormDataContentType())
+	damReq.Header.Set("X-Upload-Signature", signature)
+	damReq.Header.Set("X-Upload-Timestamp", timestamp)
+
+	resp, err := http.DefaultClient.Do(damReq)
+	if err != nil {
+		log.Printf("[ContactAvatarUpload] Failed to proxy to DAM: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to upload avatar to DAM")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[ContactAvatarUpload] DAM returned %d: %s", resp.StatusCode, string(respBody))
+		return utils.InternalErrorResponse(re, "DAM rejected avatar upload")
+	}
+
+	// Parse DAM response to get avatar URLs
+	var damResp map[string]any
+	json.NewDecoder(resp.Body).Decode(&damResp)
+
+	// Update avatar_url on the contact record with the DAM URL
+	if avatarURL, ok := damResp["avatar_url"].(string); ok && avatarURL != "" {
+		record.Set("avatar_url", avatarURL)
+
+		// Decrypt PII fields before saving so PocketBase validation passes
+		piiFields := []string{"email", "personal_email", "phone", "bio", "location"}
+		for _, field := range piiFields {
+			if v := record.GetString(field); v != "" {
+				record.Set(field, utils.DecryptField(v))
+			}
+		}
+
+		if err := app.Save(record); err != nil {
+			log.Printf("[ContactAvatarUpload] Failed to save avatar_url: %v", err)
 		}
 	}
 
-	if err := app.Save(record); err != nil {
-		log.Printf("[ContactAvatarUpload] Failed to save: %v", err)
-		return utils.InternalErrorResponse(re, "Failed to save avatar")
-	}
+	log.Printf("[ContactAvatarUpload] Proxied avatar to DAM for contact %s", id)
 
 	baseURL := getBaseURL()
 	return utils.DataResponse(re, buildContactResponse(record, app, baseURL))
@@ -1689,11 +1743,9 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		"updated":        r.GetString("updated"),
 	}
 
-	// Avatar: prefer DAM URL field, fall back to local file
+	// Avatar URL (stored by DAM)
 	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
 		data["avatar_url"] = avatarURL
-	} else if avatar := r.GetString("avatar"); avatar != "" {
-		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
 	// DAM avatar variant URLs — prefer stored values, fall back to cached DAM lookup
@@ -1765,11 +1817,9 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		"updated":        r.GetString("updated"),
 	}
 
-	// Avatar: prefer DAM URL field, fall back to local file
+	// Avatar URL (stored by DAM)
 	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
 		data["avatar_url"] = avatarURL
-	} else if avatar := r.GetString("avatar"); avatar != "" {
-		data["avatar_url"] = getFileURL(baseURL, r.Collection().Id, r.Id, avatar)
 	}
 
 	// DAM avatar variant URLs (from DAM sync)
@@ -1818,17 +1868,7 @@ func buildOrganisationResponse(r *core.Record, baseURL string) map[string]any {
 		"updated":            r.GetString("updated"),
 	}
 
-	// Logo URLs
-	collectionId := r.Collection().Id
-	if logo := r.GetString("logo_square"); logo != "" {
-		data["logo_square_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
-	if logo := r.GetString("logo_standard"); logo != "" {
-		data["logo_standard_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
-	if logo := r.GetString("logo_inverted"); logo != "" {
-		data["logo_inverted_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
+	// Logo URLs are managed by DAM — CRM does not store logo files
 
 	return data
 }
@@ -1848,17 +1888,7 @@ func buildOrganisationProjection(r *core.Record, baseURL string) map[string]any 
 		"updated":            r.GetString("updated"),
 	}
 
-	// Logo URLs
-	collectionId := r.Collection().Id
-	if logo := r.GetString("logo_square"); logo != "" {
-		data["logo_square_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
-	if logo := r.GetString("logo_standard"); logo != "" {
-		data["logo_standard_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
-	if logo := r.GetString("logo_inverted"); logo != "" {
-		data["logo_inverted_url"] = getFileURL(baseURL, collectionId, r.Id, logo)
-	}
+	// Logo URLs are managed by DAM — CRM does not store logo files
 
 	return data
 }
@@ -1882,11 +1912,6 @@ func buildActivityResponse(r *core.Record) map[string]any {
 
 // --- Utility Functions ---
 
-// getFileURL constructs a URL to a file stored in PocketBase
-func getFileURL(baseURL, collectionID, recordID, filename string) string {
-	return baseURL + "/api/files/" + collectionID + "/" + recordID + "/" + filename
-}
-
 // getBaseURL returns the public base URL for the app
 func getBaseURL() string {
 	baseURL := os.Getenv("PUBLIC_BASE_URL")
@@ -1895,6 +1920,3 @@ func getBaseURL() string {
 	}
 	return baseURL
 }
-
-// Placeholder to ensure filesystem import is used
-var _ = filesystem.NewFileFromBytes
