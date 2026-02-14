@@ -380,7 +380,13 @@ e.Router.POST("/api/contacts", handler).BindFunc(utils.RequireAdmin)
 
 ## COPE Provider Pattern
 
-CRM is the **canonical source** for contacts and organisations. It projects data to consumers:
+CRM is the **canonical source** for contacts and organisations. It projects data to consumers.
+
+**CRM does NOT store files locally.** All file storage (avatars, logos) is managed by DAM:
+- Avatar uploads via `POST /api/contacts/{id}/avatar` are proxied to DAM's HMAC endpoint
+- Logo uploads use HMAC tokens — CRM frontend uploads directly to DAM
+- CRM only stores URL references (`avatar_url`, `avatar_thumb_url`, etc.)
+- `contacts.avatar` and `organisations.logo_*` FileFields have been removed
 
 ### Projection Flow
 
@@ -405,6 +411,9 @@ CRM is the **canonical source** for contacts and organisations. It projects data
 PRESENTATIONS_WEBHOOK_URL=https://outlook-apps-presentations.fly.dev/api/webhooks/contact-projection
 DAM_WEBHOOK_URL=https://outlook-apps-dam.fly.dev/api/webhooks/contact-projection
 WEBSITE_WEBHOOK_URL=https://outlook-apps-website.fly.dev/api/webhooks/contact-projection
+
+# DAM integration (for avatar/logo proxy uploads)
+DAM_PUBLIC_URL=https://outlook-apps-dam.fly.dev
 
 # Shared HMAC secret
 PROJECTION_WEBHOOK_SECRET=<shared-secret>
@@ -522,11 +531,8 @@ go run ./backend/import/organisations contacts \
 ```
 
 **Drupal field mappings (logos):**
-| Drupal field | CRM field |
-|--------------|-----------|
-| `field_organisation_logo` (image) | `logo_square` |
-| `field_organisation_logo_svg` (media ref) | `logo_standard` |
-| `field_partner_logo` (image) | `logo_inverted` |
+Note: Logo FileFields have been removed from CRM. Logos are managed in DAM.
+This import tool is legacy and would need updating to upload to DAM instead.
 
 **Drupal field mappings (org contacts):**
 | Drupal field | CRM field |
