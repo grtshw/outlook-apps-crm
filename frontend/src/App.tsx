@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/use-pocketbase'
 import { LoginPage } from '@/pages/login'
 import { DashboardPage } from '@/pages/dashboard'
 import { ContactsPage } from '@/pages/contacts'
+import { ContactsSanitisePage } from '@/pages/contacts-sanitise'
 import { OrganisationsPage } from '@/pages/organisations'
 import CRMProjectionsPage from '@/pages/projections'
 import { GuestListsPage } from '@/pages/guest-lists'
@@ -33,6 +34,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/contacts" element={<ContactsPage />} />
+                <Route path="/contacts/sanitise" element={<ContactsSanitisePage />} />
                 <Route path="/contacts/:id" element={<ContactsPage />} />
                 <Route path="/organisations" element={<OrganisationsPage />} />
                 <Route path="/organisations/:id" element={<OrganisationsPage />} />
