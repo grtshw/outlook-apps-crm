@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/grtshw/outlook-apps-crm/utils"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -404,31 +405,32 @@ func handleExternalOrganisationUpdate(re *core.RequestEvent, app *pocketbase.Poc
 
 // handleDashboardStats returns dashboard statistics
 func handleDashboardStats(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	// Count contacts by status
-	activeContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'active'", "", 0, 0)
-	inactiveContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'inactive'", "", 0, 0)
-	archivedContacts, _ := app.FindRecordsByFilter(utils.CollectionContacts, "status = 'archived'", "", 0, 0)
+	// Count contacts by status using CountRecords (avoids loading all records into memory)
+	activeContacts, _ := app.CountRecords(utils.CollectionContacts, dbx.NewExp("status = 'active'"))
+	inactiveContacts, _ := app.CountRecords(utils.CollectionContacts, dbx.NewExp("status = 'inactive'"))
+	archivedContacts, _ := app.CountRecords(utils.CollectionContacts, dbx.NewExp("status = 'archived'"))
 
 	// Count organisations by status
-	activeOrgs, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "status = 'active'", "", 0, 0)
-	archivedOrgs, _ := app.FindRecordsByFilter(utils.CollectionOrganisations, "status = 'archived'", "", 0, 0)
+	activeOrgs, _ := app.CountRecords(utils.CollectionOrganisations, dbx.NewExp("status = 'active'"))
+	archivedOrgs, _ := app.CountRecords(utils.CollectionOrganisations, dbx.NewExp("status = 'archived'"))
 
 	// Count recent activities (last 30 days)
-	recentActivities, _ := app.FindRecordsByFilter(utils.CollectionActivities, "created >= @todayStart - 2592000", "-created", 100, 0)
+	thirtyDaysAgo := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02 15:04:05.000Z")
+	recentActivities, _ := app.CountRecords(utils.CollectionActivities, dbx.NewExp("created >= {:since}", dbx.Params{"since": thirtyDaysAgo}))
 
 	return utils.DataResponse(re, map[string]any{
-		"contacts": map[string]int{
-			"active":   len(activeContacts),
-			"inactive": len(inactiveContacts),
-			"archived": len(archivedContacts),
-			"total":    len(activeContacts) + len(inactiveContacts) + len(archivedContacts),
+		"contacts": map[string]int64{
+			"active":   activeContacts,
+			"inactive": inactiveContacts,
+			"archived": archivedContacts,
+			"total":    activeContacts + inactiveContacts + archivedContacts,
 		},
-		"organisations": map[string]int{
-			"active":   len(activeOrgs),
-			"archived": len(archivedOrgs),
-			"total":    len(activeOrgs) + len(archivedOrgs),
+		"organisations": map[string]int64{
+			"active":   activeOrgs,
+			"archived": archivedOrgs,
+			"total":    activeOrgs + archivedOrgs,
 		},
-		"recent_activities": len(recentActivities),
+		"recent_activities": recentActivities,
 	})
 }
 
@@ -458,7 +460,14 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		filter = "status = {:status}"
 	}
 	if search != "" {
-		searchFilter := "(name ~ {:search} || first_name ~ {:search} || last_name ~ {:search} || email ~ {:search})"
+		// Search by name fields with LIKE, and by email using blind index (exact match)
+		searchFilter := "(name ~ {:search} || first_name ~ {:search} || last_name ~ {:search}"
+		if utils.IsEncryptionEnabled() {
+			searchFilter += " || email_index = {:emailIdx}"
+		} else {
+			searchFilter += " || email ~ {:search}"
+		}
+		searchFilter += ")"
 		if filter != "" {
 			filter = filter + " && " + searchFilter
 		} else {
@@ -467,8 +476,9 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 	}
 
 	params := map[string]any{
-		"status": status,
-		"search": search,
+		"status":   status,
+		"search":   search,
+		"emailIdx": utils.BlindIndex(strings.ToLower(strings.TrimSpace(search))),
 	}
 
 	// Get total count
@@ -546,8 +556,15 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 	lastName, _ := input["last_name"].(string)
 
-	// Check for duplicate email
-	existing, _ := app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": strings.ToLower(strings.TrimSpace(email))})
+	// Check for duplicate email using blind index
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	var existing []*core.Record
+	if utils.IsEncryptionEnabled() {
+		blindIndex := utils.BlindIndex(normalizedEmail)
+		existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email_index = {:idx}", "", 1, 0, map[string]any{"idx": blindIndex})
+	} else {
+		existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email}", "", 1, 0, map[string]any{"email": normalizedEmail})
+	}
 	if len(existing) > 0 {
 		return utils.BadRequestResponse(re, "A contact with this email already exists")
 	}
@@ -674,9 +691,15 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	record.Set("name", strings.TrimSpace(fn+" "+ln))
 
 	if v, ok := input["email"].(string); ok && v != "" {
-		// Check for duplicate email (excluding current record)
+		// Check for duplicate email using blind index (excluding current record)
 		email := strings.ToLower(strings.TrimSpace(v))
-		existing, _ := app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email} && id != {:id}", "", 1, 0, map[string]any{"email": email, "id": id})
+		var existing []*core.Record
+		if utils.IsEncryptionEnabled() {
+			blindIndex := utils.BlindIndex(email)
+			existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email_index = {:idx} && id != {:id}", "", 1, 0, map[string]any{"idx": blindIndex, "id": id})
+		} else {
+			existing, _ = app.FindRecordsByFilter(utils.CollectionContacts, "email = {:email} && id != {:id}", "", 1, 0, map[string]any{"email": email, "id": id})
+		}
 		if len(existing) > 0 {
 			return utils.BadRequestResponse(re, "A contact with this email already exists")
 		}
@@ -814,10 +837,10 @@ func handleContactAvatarUpload(re *core.RequestEvent, app *pocketbase.PocketBase
 	}
 	defer file.Close()
 
-	// Validate file type
+	// Validate file type (reject SVG which can contain JavaScript)
 	contentType := header.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") {
-		return utils.BadRequestResponse(re, "File must be an image")
+	if !strings.HasPrefix(contentType, "image/") || contentType == "image/svg+xml" {
+		return utils.BadRequestResponse(re, "File must be a raster image (JPEG, PNG, WebP)")
 	}
 
 	// Read file content

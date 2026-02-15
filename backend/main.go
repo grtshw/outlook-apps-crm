@@ -152,7 +152,7 @@ func securityHeadersMiddleware(e *core.RequestEvent) error {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
 	// Content Security Policy - restrict sources
-	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
 
 	// Referrer Policy - don't leak URLs to external sites
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")

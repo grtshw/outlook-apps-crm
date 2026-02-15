@@ -206,14 +206,15 @@ func BlindIndex(value string) string {
 }
 
 // DecryptField is a helper that decrypts and returns the value.
-// Handles errors gracefully by returning original value on failure.
+// Returns empty string on failure to avoid leaking ciphertext.
 func DecryptField(value string) string {
 	if value == "" {
 		return ""
 	}
 	decrypted, err := Decrypt(value)
 	if err != nil {
-		return value
+		log.Printf("[Crypto] DecryptField failed: %v", err)
+		return ""
 	}
 	return decrypted
 }
