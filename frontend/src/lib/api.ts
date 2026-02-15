@@ -81,6 +81,7 @@ export async function getContacts(params: {
   search?: string
   status?: string
   sort?: string
+  humanitix_event?: string
 } = {}): Promise<PaginatedResult<Contact>> {
   const queryParams = new URLSearchParams()
   queryParams.set('page', String(params.page || 1))
@@ -91,6 +92,9 @@ export async function getContacts(params: {
   }
   if (params.search) {
     queryParams.set('search', params.search)
+  }
+  if (params.humanitix_event) {
+    queryParams.set('humanitix_event', params.humanitix_event)
   }
 
   return fetchJSON<PaginatedResult<Contact>>(`/api/contacts?${queryParams}`)

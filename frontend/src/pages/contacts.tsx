@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router'
-import { getContacts, getContact } from '@/lib/api'
+import { getContacts, getContact, fetchJSON } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import type { Contact, ContactRole } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
@@ -49,6 +49,7 @@ export function ContactsPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('active')
+  const [humanitixEvent, setHumanitixEvent] = useState<string>('')
   const [layout, setLayoutState] = useState<'list' | 'cards'>(getStoredLayout)
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
@@ -63,9 +64,15 @@ export function ContactsPage() {
     try { localStorage.setItem('crm-contacts-layout', v) } catch { /* ignore */ }
   }
 
+  const { data: humanitixEvents } = useQuery({
+    queryKey: ['humanitix-events'],
+    queryFn: () => fetchJSON<{ id: string; name: string }[]>('/api/admin/humanitix/events'),
+    staleTime: 5 * 60 * 1000,
+  })
+
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', page, search, status],
-    queryFn: () => getContacts({ page, perPage: 25, search, status }),
+    queryKey: ['contacts', page, search, status, humanitixEvent],
+    queryFn: () => getContacts({ page, perPage: 25, search, status, humanitix_event: humanitixEvent || undefined }),
   })
 
   const { data: deepLinkedContact } = useQuery({
@@ -205,6 +212,27 @@ export function ContactsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
+        {humanitixEvents && humanitixEvents.length > 0 && (
+          <Select
+            value={humanitixEvent || 'all'}
+            onValueChange={(v) => {
+              setHumanitixEvent(v === 'all' ? '' : v)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Humanitix event" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All events</SelectItem>
+              {humanitixEvents.map((event) => (
+                <SelectItem key={event.id} value={event.id}>
+                  {event.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex items-center gap-1 border rounded-md p-0.5">
           <Button
             variant="ghost"

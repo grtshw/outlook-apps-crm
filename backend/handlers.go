@@ -449,9 +449,42 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 	}
 	search := re.Request.URL.Query().Get("search")
 	status := re.Request.URL.Query().Get("status")
+	humanitixEvent := re.Request.URL.Query().Get("humanitix_event")
 	sort := re.Request.URL.Query().Get("sort")
 	if sort == "" {
 		sort = "name"
+	}
+
+	// If filtering by Humanitix event, find contact IDs from activities first
+	var humanitixContactIDs []string
+	if humanitixEvent != "" {
+		activities, _ := app.FindRecordsByFilter(
+			utils.CollectionActivities,
+			"source_app = 'humanitix' && type = 'ticket_purchased'",
+			"", 0, 0, nil,
+		)
+		seen := map[string]bool{}
+		for _, a := range activities {
+			meta := a.Get("metadata")
+			if metaMap, ok := meta.(map[string]any); ok {
+				if eid, ok := metaMap["event_id"].(string); ok && eid == humanitixEvent {
+					cid := a.GetString("contact")
+					if cid != "" && !seen[cid] {
+						humanitixContactIDs = append(humanitixContactIDs, cid)
+						seen[cid] = true
+					}
+				}
+			}
+		}
+		if len(humanitixContactIDs) == 0 {
+			return utils.DataResponse(re, map[string]any{
+				"items":      []any{},
+				"page":       page,
+				"perPage":    perPage,
+				"totalItems": 0,
+				"totalPages": 0,
+			})
+		}
 	}
 
 	// Build filter
@@ -474,11 +507,27 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 			filter = searchFilter
 		}
 	}
+	if len(humanitixContactIDs) > 0 {
+		// Build an IN clause with parameterized IDs
+		idPlaceholders := make([]string, len(humanitixContactIDs))
+		for i := range humanitixContactIDs {
+			idPlaceholders[i] = fmt.Sprintf("{:hid%d}", i)
+		}
+		idFilter := fmt.Sprintf("id IN (%s)", strings.Join(idPlaceholders, ", "))
+		if filter != "" {
+			filter = filter + " && " + idFilter
+		} else {
+			filter = idFilter
+		}
+	}
 
 	params := map[string]any{
 		"status":   status,
 		"search":   search,
 		"emailIdx": utils.BlindIndex(strings.ToLower(strings.TrimSpace(search))),
+	}
+	for i, cid := range humanitixContactIDs {
+		params[fmt.Sprintf("hid%d", i)] = cid
 	}
 
 	// Get total count
