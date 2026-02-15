@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { Contact, Activity, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
-import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations, createOrganisation } from '@/lib/api'
+import type { Contact, ContactLink, Activity, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
+import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations, createOrganisation, getContacts, createContactLink, deleteContactLink } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import {
   Sheet,
@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { OrganisationCombobox } from '@/components/organisation-combobox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -30,7 +31,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star, Plus } from 'lucide-react'
+import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star, Plus, Link2, X, Search, Loader2, Ticket } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DIETARY_OPTIONS: { value: DietaryRequirement; label: string }[] = [
@@ -134,6 +135,8 @@ function getActivityIcon(sourceApp: string) {
       return Image
     case 'hubspot':
       return Mail
+    case 'humanitix':
+      return Ticket
     default:
       return Clock
   }
@@ -142,6 +145,146 @@ function getActivityIcon(sourceApp: string) {
 function getAvatarSrc(contact: Contact | null) {
   if (!contact) return undefined
   return contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url || undefined
+}
+
+function LinkedContactsSection({ contact, isAdmin }: { contact: Contact; isAdmin: boolean }) {
+  const queryClient = useQueryClient()
+  const [showSearch, setShowSearch] = useState(false)
+  const [linkSearch, setLinkSearch] = useState('')
+
+  const linkedContacts = contact.linked_contacts ?? []
+
+  const { data: searchResults, isFetching: isSearching } = useQuery({
+    queryKey: ['contacts', 'link-search', linkSearch],
+    queryFn: () => getContacts({ search: linkSearch, perPage: 5 }),
+    enabled: showSearch && linkSearch.length >= 2,
+  })
+
+  const linkMutation = useMutation({
+    mutationFn: (targetId: string) => createContactLink(contact.id, targetId),
+    onSuccess: () => {
+      toast.success('Contact linked')
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] })
+      setShowSearch(false)
+      setLinkSearch('')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const unlinkMutation = useMutation({
+    mutationFn: (linkId: string) => deleteContactLink(linkId),
+    onSuccess: () => {
+      toast.success('Link removed')
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  // Filter out already-linked contacts and self from search results
+  const linkedIds = new Set(linkedContacts.map((l: ContactLink) => l.contact_id))
+  linkedIds.add(contact.id)
+  const filteredResults = (searchResults?.items ?? []).filter((c) => !linkedIds.has(c.id))
+
+  return (
+    <CollapsibleSection title="Linked contacts" defaultOpen={linkedContacts.length > 0} badge={linkedContacts.length}>
+      {linkedContacts.length === 0 && !showSearch && (
+        <p className="text-sm text-muted-foreground">No linked contacts.</p>
+      )}
+
+      {linkedContacts.map((link: ContactLink) => (
+        <div key={link.link_id} className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={link.avatar_thumb_url || undefined} />
+            <AvatarFallback className="text-xs">
+              {link.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm truncate">{link.name}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {[link.email, link.organisation].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <Badge variant="outline" className="text-xs shrink-0">{link.source}</Badge>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Remove this link?')) unlinkMutation.mutate(link.link_id)
+              }}
+              className="p-1 text-muted-foreground hover:text-destructive"
+              disabled={unlinkMutation.isPending}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+
+      {isAdmin && !showSearch && (
+        <button
+          type="button"
+          onClick={() => setShowSearch(true)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <Link2 className="w-3.5 h-3.5" /> Link contact
+        </button>
+      )}
+
+      {showSearch && (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts to link..."
+              className="pl-9"
+              value={linkSearch}
+              onChange={(e) => setLinkSearch(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setShowSearch(false); setLinkSearch('') }
+              }}
+            />
+          </div>
+          {isSearching && (
+            <div className="flex justify-center py-2">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {linkSearch.length >= 2 && !isSearching && filteredResults.length === 0 && (
+            <p className="text-xs text-muted-foreground py-1">No matching contacts</p>
+          )}
+          {filteredResults.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => linkMutation.mutate(c.id)}
+              disabled={linkMutation.isPending}
+              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 text-left"
+            >
+              <Avatar className="h-7 w-7">
+                <AvatarImage src={c.avatar_thumb_url || c.avatar_small_url || undefined} />
+                <AvatarFallback className="text-xs">
+                  {(c.first_name?.[0] || '') + (c.last_name?.[0] || '')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm truncate">{c.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+              </div>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => { setShowSearch(false); setLinkSearch('') }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </CollapsibleSection>
+  )
 }
 
 export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
@@ -724,6 +867,14 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               />
             </div>
           </CollapsibleSection>
+
+          {/* Linked contacts section - only for existing contacts */}
+          {!isNew && contact && (
+            <LinkedContactsSection
+              contact={contact}
+              isAdmin={isAdmin}
+            />
+          )}
 
           {/* Activity section - only for existing contacts */}
           {!isNew && (

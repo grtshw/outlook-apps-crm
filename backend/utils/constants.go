@@ -12,6 +12,9 @@ const (
 	CollectionGuestListItems     = "guest_list_items"
 	CollectionGuestListShares    = "guest_list_shares"
 	CollectionGuestListOTPCodes  = "guest_list_otp_codes"
+	CollectionContactLinks       = "contact_links"
+	CollectionHumanitixSyncLog   = "humanitix_sync_log"
+	CollectionAttendeeOTPCodes   = "attendee_otp_codes"
 )
 
 // Field names
@@ -33,7 +36,7 @@ var (
 
 // Source values (where the record originated from)
 var (
-	SourceValues = []string{"presentations", "awards", "events", "hubspot", "manual"}
+	SourceValues = []string{"presentations", "awards", "events", "hubspot", "humanitix", "mailchimp", "manual"}
 )
 
 // Activity types
@@ -60,6 +63,8 @@ var (
 		"email_opened",
 		"meeting_scheduled",
 		"note_added",
+		// Mailchimp
+		"email_clicked",
 	}
 )
 

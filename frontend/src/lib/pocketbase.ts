@@ -50,6 +50,20 @@ export interface Contact extends RecordModel {
   dietary_requirements_other?: string
   accessibility_requirements?: AccessibilityRequirement[]
   accessibility_requirements_other?: string
+  linked_contacts?: ContactLink[]
+}
+
+export interface ContactLink {
+  link_id: string
+  contact_id: string
+  name: string
+  email: string
+  avatar_thumb_url?: string
+  organisation?: string
+  verified: boolean
+  source: 'manual' | 'attendee' | 'system'
+  notes?: string
+  created: string
 }
 
 export interface Organisation extends RecordModel {

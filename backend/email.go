@@ -181,6 +181,41 @@ func sendShareNotificationEmail(app *pocketbase.PocketBase, recipientEmail, reci
 	return nil
 }
 
+// sendAttendeeOTPEmail sends a 6-digit OTP code for attendee login.
+func sendAttendeeOTPEmail(app *pocketbase.PocketBase, email, recipientName, code string) error {
+	name := recipientName
+	if name == "" {
+		name = "there"
+	}
+
+	subject := "Your login code"
+	content := fmt.Sprintf(`
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                Your login code is:
+            </p>
+            <div style="font-size: 32px; letter-spacing: 8px; text-align: center; padding: 24px; background: #f5f5f5; border-radius: 8px; margin: 24px 0; color: #202020;">
+                %s
+            </div>
+            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">This code expires in 10 minutes.</p>
+`, name, code)
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      []mail.Address{{Address: email, Name: recipientName}},
+		Subject: subject,
+		HTML:    wrapEmailHTML(content),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send attendee OTP to %s: %v", email, err)
+		return err
+	}
+
+	log.Printf("[Email] Attendee OTP sent to %s", email)
+	return nil
+}
+
 // sendRSVPInviteEmail sends an RSVP invitation to a guest with their personal RSVP link.
 func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, eventName string) error {
 	name := recipientName

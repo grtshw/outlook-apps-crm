@@ -1,6 +1,7 @@
 import {
   pb,
   type Contact,
+  type ContactLink,
   type Organisation,
   type Activity,
   type DashboardStats,
@@ -152,6 +153,25 @@ export async function mergeContacts(data: MergeContactsRequest): Promise<MergeCo
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
+  })
+}
+
+// Contact links
+export async function getContactLinks(contactId: string): Promise<ContactLink[]> {
+  return fetchJSON<ContactLink[]>(`/api/contacts/${contactId}/links`)
+}
+
+export async function createContactLink(contactId: string, targetContactId: string, notes?: string): Promise<{ id: string }> {
+  return fetchJSON<{ id: string }>(`/api/contacts/${contactId}/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_contact_id: targetContactId, notes }),
+  })
+}
+
+export async function deleteContactLink(linkId: string): Promise<void> {
+  await fetchJSON<{ message: string }>(`/api/contact-links/${linkId}`, {
+    method: 'DELETE',
   })
 }
 

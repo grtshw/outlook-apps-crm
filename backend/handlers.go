@@ -518,7 +518,14 @@ func handleContactGet(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	}
 
 	baseURL := getBaseURL()
-	return utils.DataResponse(re, buildContactResponse(record, app, baseURL))
+	data := buildContactResponse(record, app, baseURL)
+
+	// Include linked contacts for single-contact detail view
+	if links, err := getContactLinks(app, id); err == nil {
+		data["linked_contacts"] = links
+	}
+
+	return utils.DataResponse(re, data)
 }
 
 // handleContactCreate creates a new contact

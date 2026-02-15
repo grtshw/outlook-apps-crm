@@ -234,6 +234,75 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleContactActivities(re, app)
 	}).BindFunc(utils.RequireAuth)
 
+	// Contact links
+	e.Router.GET("/api/contacts/{id}/links", func(re *core.RequestEvent) error {
+		return handleContactLinksList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	e.Router.POST("/api/contacts/{id}/links", func(re *core.RequestEvent) error {
+		return handleContactLinkCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.DELETE("/api/contact-links/{linkId}", func(re *core.RequestEvent) error {
+		return handleContactLinkDelete(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Humanitix integration (admin only)
+	e.Router.GET("/api/admin/humanitix/events", func(re *core.RequestEvent) error {
+		return handleHumanitixEventsList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/admin/humanitix/sync", func(re *core.RequestEvent) error {
+		return handleHumanitixSync(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/admin/humanitix/sync-logs", func(re *core.RequestEvent) error {
+		return handleHumanitixSyncLogs(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	// Mailchimp integration (admin only + webhook)
+	e.Router.POST("/api/admin/mailchimp/sync", func(re *core.RequestEvent) error {
+		return handleMailchimpSync(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/admin/mailchimp/sync/{id}", func(re *core.RequestEvent) error {
+		return handleMailchimpSyncContact(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/webhooks/mailchimp", func(re *core.RequestEvent) error {
+		return handleMailchimpWebhook(re, app)
+	}).BindFunc(utils.RateLimitExternalAPI)
+
+	// Also handle Mailchimp webhook validation GET
+	e.Router.GET("/api/webhooks/mailchimp", func(re *core.RequestEvent) error {
+		return handleMailchimpWebhook(re, app)
+	}).BindFunc(utils.RateLimitExternalAPI)
+
+	// Attendee API (public, OTP-authenticated)
+	e.Router.POST("/api/attendee/send-otp", func(re *core.RequestEvent) error {
+		return handleAttendeeSendOTP(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.POST("/api/attendee/verify", func(re *core.RequestEvent) error {
+		return handleAttendeeVerifyOTP(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.GET("/api/attendee/profile", func(re *core.RequestEvent) error {
+		return handleAttendeeProfile(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.PATCH("/api/attendee/profile", func(re *core.RequestEvent) error {
+		return handleAttendeeProfileUpdate(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.GET("/api/attendee/activities", func(re *core.RequestEvent) error {
+		return handleAttendeeActivities(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.POST("/api/attendee/link-email", func(re *core.RequestEvent) error {
+		return handleAttendeeEmailLink(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
 	// Organisations CRUD
 	e.Router.GET("/api/organisations", func(re *core.RequestEvent) error {
 		return handleOrganisationsList(re, app)
@@ -543,7 +612,7 @@ func registerEncryptionHooks(app *pocketbase.PocketBase) {
 // registerAuditHooks sets up audit logging for CRUD operations and auth events
 func registerAuditHooks(app *pocketbase.PocketBase) {
 	// Collections to audit
-	collections := []string{"contacts", "organisations", "activities", "guest_lists", "guest_list_items", "guest_list_shares"}
+	collections := []string{"contacts", "organisations", "activities", "guest_lists", "guest_list_items", "guest_list_shares", "contact_links", "humanitix_sync_log", "attendee_otp_codes"}
 
 	for _, coll := range collections {
 		collName := coll // capture for closure
