@@ -261,6 +261,26 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
 
 	// Mailchimp integration (admin only + webhook)
+	e.Router.GET("/api/admin/mailchimp/status", func(re *core.RequestEvent) error {
+		return handleMailchimpStatus(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/admin/mailchimp/lists", func(re *core.RequestEvent) error {
+		return handleMailchimpLists(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/admin/mailchimp/lists/{id}/merge-fields", func(re *core.RequestEvent) error {
+		return handleMailchimpMergeFields(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/admin/mailchimp/settings", func(re *core.RequestEvent) error {
+		return handleMailchimpSettingsGet(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.PUT("/api/admin/mailchimp/settings", func(re *core.RequestEvent) error {
+		return handleMailchimpSettingsSave(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	e.Router.POST("/api/admin/mailchimp/sync", func(re *core.RequestEvent) error {
 		return handleMailchimpSync(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)

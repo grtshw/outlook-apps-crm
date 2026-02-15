@@ -10,7 +10,7 @@ import { GuestListsPage } from '@/pages/guest-lists'
 import { GuestListDetailPage } from '@/pages/guest-list-detail'
 import { SharedGuestListPage } from '@/pages/shared-guest-list'
 import { RSVPPage } from '@/pages/rsvp'
-import { IntegrationsPage } from '@/pages/integrations'
+import SettingsPage from '@/pages/settings'
 import { AppLayout } from '@/components/app-layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -42,7 +42,7 @@ function App() {
                 <Route path="/projections" element={<CRMProjectionsPage />} />
                 <Route path="/guest-lists" element={<GuestListsPage />} />
                 <Route path="/guest-lists/:id" element={<GuestListDetailPage />} />
-                <Route path="/integrations" element={<IntegrationsPage />} />
+                <Route path="/settings/:tab?" element={<SettingsPage />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>

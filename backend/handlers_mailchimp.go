@@ -71,19 +71,212 @@ func mailchimpSubscriberHash(email string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(strings.ToLower(strings.TrimSpace(email)))))
 }
 
-// --- Handlers ---
+// --- Settings helpers ---
+
+type mergeFieldMapping struct {
+	MailchimpTag string `json:"mailchimp_tag"`
+	CRMField     string `json:"crm_field"`
+}
+
+// getMailchimpSyncConfig returns the list ID and merge field mappings in a single DB query
+func getMailchimpSyncConfig(app *pocketbase.PocketBase) (string, []mergeFieldMapping) {
+	records, err := app.FindRecordsByFilter("mailchimp_settings", "list_id != ''", "", 1, 0, nil)
+	if err == nil && len(records) > 0 {
+		record := records[0]
+		listID := record.GetString("list_id")
+
+		// Parse merge field mappings
+		raw := record.Get("merge_field_mappings")
+		if raw != nil {
+			b, err := json.Marshal(raw)
+			if err == nil {
+				var mappings []mergeFieldMapping
+				if json.Unmarshal(b, &mappings) == nil && len(mappings) > 0 {
+					return listID, mappings
+				}
+			}
+		}
+
+		// Settings record exists but no mappings configured — use defaults
+		if listID != "" {
+			return listID, defaultMergeFieldMappings()
+		}
+	}
+
+	// Fall back to env var with default mappings
+	return os.Getenv("MAILCHIMP_LIST_ID"), defaultMergeFieldMappings()
+}
+
+func defaultMergeFieldMappings() []mergeFieldMapping {
+	return []mergeFieldMapping{
+		{MailchimpTag: "FNAME", CRMField: "first_name"},
+		{MailchimpTag: "LNAME", CRMField: "last_name"},
+	}
+}
+
+// --- Settings & config handlers ---
+
+// handleMailchimpStatus returns whether Mailchimp is configured
+func handleMailchimpStatus(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	apiKey := os.Getenv("MAILCHIMP_API_KEY")
+	listID, _ := getMailchimpSyncConfig(app)
+
+	return re.JSON(http.StatusOK, map[string]any{
+		"configured": apiKey != "",
+		"has_list":   listID != "",
+		"list_id":    listID,
+	})
+}
+
+// handleMailchimpLists fetches all audiences/lists from Mailchimp
+func handleMailchimpLists(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	body, statusCode, err := mailchimpRequest("GET", "/lists?count=100&fields=lists.id,lists.name,lists.stats.member_count", nil)
+	if err != nil {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("Failed to fetch lists: %v", err))
+	}
+	if statusCode >= 400 {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("Mailchimp returned %d", statusCode))
+	}
+
+	var result struct {
+		Lists []struct {
+			ID    string `json:"id"`
+			Name  string `json:"name"`
+			Stats struct {
+				MemberCount int `json:"member_count"`
+			} `json:"stats"`
+		} `json:"lists"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to parse Mailchimp response")
+	}
+
+	lists := make([]map[string]any, len(result.Lists))
+	for i, l := range result.Lists {
+		lists[i] = map[string]any{
+			"id":           l.ID,
+			"name":         l.Name,
+			"member_count": l.Stats.MemberCount,
+		}
+	}
+
+	return re.JSON(http.StatusOK, map[string]any{"lists": lists})
+}
+
+// handleMailchimpMergeFields fetches merge fields for a specific list
+func handleMailchimpMergeFields(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	listID := re.Request.PathValue("id")
+	if listID == "" {
+		return utils.BadRequestResponse(re, "List ID required")
+	}
+
+	body, statusCode, err := mailchimpRequest("GET", fmt.Sprintf("/lists/%s/merge-fields?count=100", listID), nil)
+	if err != nil {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("Failed to fetch merge fields: %v", err))
+	}
+	if statusCode >= 400 {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("Mailchimp returned %d", statusCode))
+	}
+
+	var result struct {
+		MergeFields []struct {
+			Tag  string `json:"tag"`
+			Name string `json:"name"`
+			Type string `json:"type"`
+		} `json:"merge_fields"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to parse Mailchimp response")
+	}
+
+	fields := make([]map[string]any, len(result.MergeFields))
+	for i, f := range result.MergeFields {
+		fields[i] = map[string]any{
+			"tag":  f.Tag,
+			"name": f.Name,
+			"type": f.Type,
+		}
+	}
+
+	return re.JSON(http.StatusOK, map[string]any{"merge_fields": fields})
+}
+
+// handleMailchimpSettingsGet returns current Mailchimp settings
+func handleMailchimpSettingsGet(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	records, err := app.FindRecordsByFilter("mailchimp_settings", "", "", 1, 0, nil)
+	if err != nil || len(records) == 0 {
+		return re.JSON(http.StatusOK, map[string]any{
+			"list_id":              "",
+			"list_name":            "",
+			"merge_field_mappings": []any{},
+		})
+	}
+
+	record := records[0]
+	return re.JSON(http.StatusOK, map[string]any{
+		"id":                   record.Id,
+		"list_id":              record.GetString("list_id"),
+		"list_name":            record.GetString("list_name"),
+		"merge_field_mappings": record.Get("merge_field_mappings"),
+	})
+}
+
+// handleMailchimpSettingsSave creates or updates Mailchimp settings
+func handleMailchimpSettingsSave(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	var input struct {
+		ListID             string             `json:"list_id"`
+		ListName           string             `json:"list_name"`
+		MergeFieldMappings []mergeFieldMapping `json:"merge_field_mappings"`
+	}
+
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid JSON")
+	}
+
+	// Find existing or create new
+	records, _ := app.FindRecordsByFilter("mailchimp_settings", "", "", 1, 0, nil)
+
+	var record *core.Record
+	if len(records) > 0 {
+		record = records[0]
+	} else {
+		collection, err := app.FindCollectionByNameOrId("mailchimp_settings")
+		if err != nil {
+			return utils.InternalErrorResponse(re, "mailchimp_settings collection not found")
+		}
+		record = core.NewRecord(collection)
+	}
+
+	record.Set("list_id", input.ListID)
+	record.Set("list_name", input.ListName)
+	record.Set("merge_field_mappings", input.MergeFieldMappings)
+
+	if err := app.Save(record); err != nil {
+		return utils.InternalErrorResponse(re, fmt.Sprintf("Failed to save settings: %v", err))
+	}
+
+	utils.LogFromRequest(app, re, "mailchimp_settings_update", "mailchimp", record.Id, "success", nil, "")
+
+	return re.JSON(http.StatusOK, map[string]any{
+		"id":                   record.Id,
+		"list_id":              record.GetString("list_id"),
+		"list_name":            record.GetString("list_name"),
+		"merge_field_mappings": record.Get("merge_field_mappings"),
+	})
+}
+
+// --- Sync handlers ---
 
 // handleMailchimpSync pushes all active contacts to Mailchimp
 func handleMailchimpSync(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	listID := os.Getenv("MAILCHIMP_LIST_ID")
+	listID, mappings := getMailchimpSyncConfig(app)
 	if listID == "" {
-		return utils.BadRequestResponse(re, "MAILCHIMP_LIST_ID not configured")
+		return utils.BadRequestResponse(re, "Mailchimp list not configured")
 	}
 
 	utils.LogFromRequest(app, re, "mailchimp_sync", "mailchimp", "", "success", nil, "")
 
-	// Run in background
-	go runMailchimpSync(app, listID)
+	go runMailchimpSync(app, listID, mappings)
 
 	return re.JSON(http.StatusAccepted, map[string]string{"message": "Sync started"})
 }
@@ -95,9 +288,9 @@ func handleMailchimpSyncContact(re *core.RequestEvent, app *pocketbase.PocketBas
 		return utils.BadRequestResponse(re, "Contact ID required")
 	}
 
-	listID := os.Getenv("MAILCHIMP_LIST_ID")
+	listID, mappings := getMailchimpSyncConfig(app)
 	if listID == "" {
-		return utils.BadRequestResponse(re, "MAILCHIMP_LIST_ID not configured")
+		return utils.BadRequestResponse(re, "Mailchimp list not configured")
 	}
 
 	record, err := app.FindRecordById(utils.CollectionContacts, contactID)
@@ -109,8 +302,7 @@ func handleMailchimpSyncContact(re *core.RequestEvent, app *pocketbase.PocketBas
 	if email == "" {
 		return utils.BadRequestResponse(re, "Contact has no email")
 	}
-
-	result, err := upsertMailchimpSubscriber(listID, record, email)
+	result, err := upsertMailchimpSubscriber(listID, record, email, mappings)
 	if err != nil {
 		return utils.InternalErrorResponse(re, fmt.Sprintf("Mailchimp sync failed: %v", err))
 	}
@@ -239,7 +431,7 @@ func handleMailchimpWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) e
 
 // --- Internal helpers ---
 
-func runMailchimpSync(app *pocketbase.PocketBase, listID string) {
+func runMailchimpSync(app *pocketbase.PocketBase, listID string, mappings []mergeFieldMapping) {
 	records, err := app.FindRecordsByFilter(
 		utils.CollectionContacts,
 		"status = 'active'",
@@ -259,7 +451,7 @@ func runMailchimpSync(app *pocketbase.PocketBase, listID string) {
 			continue
 		}
 
-		result, err := upsertMailchimpSubscriber(listID, record, email)
+		result, err := upsertMailchimpSubscriber(listID, record, email, mappings)
 		if err != nil {
 			log.Printf("[Mailchimp] Failed to sync contact %s: %v", record.Id, err)
 			errors++
@@ -281,19 +473,42 @@ func runMailchimpSync(app *pocketbase.PocketBase, listID string) {
 	log.Printf("[Mailchimp] Sync complete: %d synced, %d errors", synced, errors)
 }
 
-func upsertMailchimpSubscriber(listID string, record *core.Record, email string) (map[string]any, error) {
+// contactFieldValue extracts a CRM field value from a contact record, decrypting PII fields
+func contactFieldValue(record *core.Record, field string) string {
+	switch field {
+	case "email":
+		return utils.DecryptField(record.GetString("email"))
+	case "phone":
+		return utils.DecryptField(record.GetString("phone"))
+	case "bio":
+		return utils.DecryptField(record.GetString("bio"))
+	case "location":
+		return utils.DecryptField(record.GetString("location"))
+	default:
+		return record.GetString(field)
+	}
+}
+
+func upsertMailchimpSubscriber(listID string, record *core.Record, email string, mappings []mergeFieldMapping) (map[string]any, error) {
 	subscriberHash := mailchimpSubscriberHash(email)
 
-	firstName := record.GetString("first_name")
-	lastName := record.GetString("last_name")
+	// Build merge fields from mappings
+	mergeFields := make(map[string]string)
+	for _, m := range mappings {
+		if m.CRMField != "" && m.MailchimpTag != "" {
+			value := contactFieldValue(record, m.CRMField)
+			if value != "" {
+				mergeFields[m.MailchimpTag] = value
+			}
+		}
+	}
 
 	payload := map[string]any{
 		"email_address": email,
 		"status_if_new": "subscribed",
-		"merge_fields": map[string]string{
-			"FNAME": firstName,
-			"LNAME": lastName,
-		},
+	}
+	if len(mergeFields) > 0 {
+		payload["merge_fields"] = mergeFields
 	}
 
 	body, statusCode, err := mailchimpRequest(

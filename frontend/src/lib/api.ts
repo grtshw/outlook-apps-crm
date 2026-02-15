@@ -523,6 +523,66 @@ export async function sendRSVPInvites(
   })
 }
 
+// ── Mailchimp Settings ──
+
+export interface MailchimpStatus {
+  configured: boolean
+  has_list: boolean
+  list_id: string
+}
+
+export interface MailchimpList {
+  id: string
+  name: string
+  member_count: number
+}
+
+export interface MailchimpMergeField {
+  tag: string
+  name: string
+  type: string
+}
+
+export interface MergeFieldMapping {
+  mailchimp_tag: string
+  crm_field: string
+}
+
+export interface MailchimpSettings {
+  id?: string
+  list_id: string
+  list_name: string
+  merge_field_mappings: MergeFieldMapping[]
+}
+
+export async function getMailchimpStatus(): Promise<MailchimpStatus> {
+  return fetchJSON('/api/admin/mailchimp/status')
+}
+
+export async function getMailchimpLists(): Promise<{ lists: MailchimpList[] }> {
+  return fetchJSON('/api/admin/mailchimp/lists')
+}
+
+export async function getMailchimpMergeFields(listId: string): Promise<{ merge_fields: MailchimpMergeField[] }> {
+  return fetchJSON(`/api/admin/mailchimp/lists/${listId}/merge-fields`)
+}
+
+export async function getMailchimpSettings(): Promise<MailchimpSettings> {
+  return fetchJSON('/api/admin/mailchimp/settings')
+}
+
+export async function saveMailchimpSettings(data: {
+  list_id: string
+  list_name: string
+  merge_field_mappings: MergeFieldMapping[]
+}): Promise<MailchimpSettings> {
+  return fetchJSON('/api/admin/mailchimp/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
 // File URLs
 export function getFileUrl(collectionId: string, recordId: string, filename: string): string {
   return `${pb.baseURL}/api/files/${collectionId}/${recordId}/${filename}`
