@@ -29,7 +29,6 @@ const navigation: NavGroup[] = [
       { name: 'Sanitise', href: '/contacts/sanitise', icon: ClipboardCheck },
       { name: 'Organisations', href: '/organisations', icon: Building2 },
       { name: 'Guest lists', href: '/guest-lists', icon: ListChecks },
-      { name: 'Settings', href: '/settings', icon: Settings },
     ],
   },
 ]
@@ -102,6 +101,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   const profileMenuItems: ProfileMenuItem[] = [
+    { label: 'Settings', icon: Settings, href: '/settings' },
     { label: 'Projections', icon: Radio, href: '/projections' },
   ]
 
