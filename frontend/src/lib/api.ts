@@ -423,6 +423,7 @@ export async function updateGuestList(
     landing_content: string;
     event_date: string; event_time: string; event_location: string; event_location_address: string;
     organisation: string;
+    rsvp_bcc_contacts: string[];
   }>
 ): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}`, {

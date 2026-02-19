@@ -9,6 +9,7 @@ import {
   getGuestListShares, revokeGuestListShare,
   getEventProjections,
   getContact,
+  getContacts,
   getOrganisations,
   toggleGuestListRSVP,
   sendRSVPInvites,
@@ -36,6 +37,7 @@ import { Switch } from '@/components/ui/switch'
 import { RichTextEditor } from '@/components/rich-text-editor'
 import { ProgramEditor } from '@/components/program-editor'
 import { OrganisationCombobox } from '@/components/organisation-combobox'
+import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
@@ -87,6 +89,7 @@ export function GuestListDetailPage() {
     landing_program: [] as ProgramItem[],
     landing_content: '',
     organisation: '',
+    rsvp_bcc_contacts: [] as string[],
   })
 
   // Clone form state
@@ -127,6 +130,13 @@ export function GuestListDetailPage() {
   const { data: orgsData } = useQuery({
     queryKey: ['organisations-all'],
     queryFn: () => getOrganisations({ perPage: 200, status: 'active' }),
+    enabled: editOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: bccContactsData } = useQuery({
+    queryKey: ['contacts-bcc'],
+    queryFn: () => getContacts({ perPage: 200, status: 'active', sort: 'name' }),
     enabled: editOpen,
     staleTime: 5 * 60 * 1000,
   })
@@ -276,6 +286,7 @@ export function GuestListDetailPage() {
       landing_program: guestList.landing_program || [],
       landing_content: guestList.landing_content || '',
       organisation: guestList.organisation || '',
+      rsvp_bcc_contacts: (guestList.rsvp_bcc_contacts || []).map((c: { id: string }) => c.id),
     })
     setEditOpen(true)
   }
@@ -1044,6 +1055,15 @@ export function GuestListDetailPage() {
                     onChange={(html) => setEditForm({ ...editForm, landing_content: html })}
                     placeholder="Additional content below the program..."
                   />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">BCC on confirmation emails</label>
+                  <ContactCombobox
+                    value={editForm.rsvp_bcc_contacts}
+                    contacts={bccContactsData?.items ?? []}
+                    onChange={(ids) => setEditForm({ ...editForm, rsvp_bcc_contacts: ids })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">These contacts will be BCC'd when someone accepts an RSVP.</p>
                 </div>
               </div>
             </SheetSection>

@@ -422,6 +422,55 @@ func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
 	}
 }
 
+// extractBCCEmails reads the denormalized rsvp_bcc_contacts JSON field and returns a slice of email addresses.
+func extractBCCEmails(guestList *core.Record) []string {
+	raw := guestList.Get("rsvp_bcc_contacts")
+	entries, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	var emails []string
+	for _, entry := range entries {
+		m, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if email, ok := m["email"].(string); ok && email != "" {
+			emails = append(emails, email)
+		}
+	}
+	return emails
+}
+
+// sendRSVPConfirmationAsync sends a confirmation email in the background if the response is "accepted".
+func sendRSVPConfirmationAsync(app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName string) {
+	if input.Response != "accepted" {
+		return
+	}
+	gl := result.GuestList
+
+	// Resolve event name from projection or fall back to list name
+	eventName := gl.GetString("name")
+	if epID := gl.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			if n := ep.GetString("name"); n != "" {
+				eventName = n
+			}
+		}
+	}
+
+	eventDate := gl.GetString("event_date")
+	eventTime := gl.GetString("event_time")
+	eventLocation := gl.GetString("event_location")
+	bccEmails := extractBCCEmails(gl)
+
+	go func() {
+		if err := sendRSVPConfirmationEmail(app, input.Email, fullName, eventName, eventDate, eventTime, eventLocation, bccEmails); err != nil {
+			log.Printf("[RSVP] Failed to send confirmation email to %s: %v", input.Email, err)
+		}
+	}()
+}
+
 func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName, now string) error {
 	item := result.Item
 
@@ -456,6 +505,8 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 		Status:       "success",
 		Metadata:     map[string]any{"type": "personal", "response": input.Response},
 	})
+
+	sendRSVPConfirmationAsync(app, result, input, fullName)
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 }
@@ -513,11 +564,13 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 				Metadata:     map[string]any{"type": "generic", "response": input.Response, "matched_existing_item": true},
 			})
 
+			sendRSVPConfirmationAsync(app, result, input, fullName)
+
 			return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 		}
 
 		// Contact exists but not on this list — create new item linking to existing contact
-		return createGuestListItemFromRSVP(re, app, listID, existingContact, input, fullName, now)
+		return createGuestListItemFromRSVP(re, app, result, existingContact, input, fullName, now)
 	}
 
 	// No matching contact — create new pending contact
@@ -556,10 +609,11 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 		return utils.InternalErrorResponse(re, "Failed to create contact")
 	}
 
-	return createGuestListItemFromRSVP(re, app, listID, newContact, input, fullName, now)
+	return createGuestListItemFromRSVP(re, app, result, newContact, input, fullName, now)
 }
 
-func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, listID string, contact *core.Record, input *rsvpInput, fullName, now string) error {
+func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result *rsvpLookupResult, contact *core.Record, input *rsvpInput, fullName, now string) error {
+	listID := result.GuestList.Id
 	collection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
 	if err != nil {
 		return utils.InternalErrorResponse(re, "Collection not found")
@@ -614,6 +668,8 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 		Status:       "success",
 		Metadata:     map[string]any{"type": "generic", "response": input.Response, "contact_id": contact.Id, "new_contact": contact.GetString("status") == "pending"},
 	})
+
+	sendRSVPConfirmationAsync(app, result, input, fullName)
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 }

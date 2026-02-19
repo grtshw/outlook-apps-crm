@@ -267,3 +267,67 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	log.Printf("[Email] RSVP invite sent to %s for %s", recipientEmail, eventContext)
 	return nil
 }
+
+// sendRSVPConfirmationEmail sends a confirmation email when someone accepts an RSVP.
+// Always BCCs hello@wearetheoutlook.com.au plus any additional BCC emails from the guest list config.
+func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, eventName, eventDate, eventTime, eventLocation string, bccEmails []string) error {
+	name := recipientName
+	if name == "" {
+		name = "there"
+	}
+
+	firstName := strings.Fields(name)[0]
+
+	subject := fmt.Sprintf("You're confirmed — %s", eventName)
+
+	// Build event details block
+	detailsHTML := ""
+	if eventDate != "" || eventTime != "" || eventLocation != "" {
+		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		if eventDate != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+		}
+		if eventTime != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+		}
+		if eventLocation != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+		}
+		detailsHTML += `</div>`
+	}
+
+	content := fmt.Sprintf(`
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                You're confirmed for <strong>%s</strong>. We look forward to seeing you there.
+            </p>
+            %s
+            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
+                If your plans change, please let us know by replying to this email.
+            </p>
+`, firstName, eventName, detailsHTML)
+
+	// Build BCC list: always include hello@ + any configured contacts
+	bccList := []mail.Address{{Address: "hello@wearetheoutlook.com.au"}}
+	for _, addr := range bccEmails {
+		if addr != "" {
+			bccList = append(bccList, mail.Address{Address: addr})
+		}
+	}
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
+		Bcc:     bccList,
+		Subject: subject,
+		HTML:    wrapEmailHTML(content),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send RSVP confirmation to %s: %v", recipientEmail, err)
+		return err
+	}
+
+	log.Printf("[Email] RSVP confirmation sent to %s for %s", recipientEmail, eventName)
+	return nil
+}

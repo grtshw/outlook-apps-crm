@@ -124,6 +124,7 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"organisation":             record.GetString("organisation"),
 		"organisation_name":        record.GetString("organisation_name"),
 		"organisation_logo_url":    record.GetString("organisation_logo_url"),
+		"rsvp_bcc_contacts":        record.Get("rsvp_bcc_contacts"),
 		"created":                  record.GetString("created"),
 		"updated":             record.GetString("updated"),
 	})
@@ -259,6 +260,33 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 				logoURL := fetchDAMOrgLogo(damURL, v)
 				record.Set("organisation_logo_url", logoURL)
 			}
+		}
+	}
+
+	// Handle BCC contacts: receive array of contact IDs, denormalize to [{id, name, email}]
+	if v, ok := input["rsvp_bcc_contacts"]; ok {
+		contactIDs, _ := v.([]any)
+		if len(contactIDs) == 0 {
+			record.Set("rsvp_bcc_contacts", nil)
+		} else {
+			var bccEntries []map[string]string
+			for _, raw := range contactIDs {
+				cid, ok := raw.(string)
+				if !ok || cid == "" {
+					continue
+				}
+				contact, err := app.FindRecordById(utils.CollectionContacts, cid)
+				if err != nil {
+					continue // skip invalid IDs silently
+				}
+				email := utils.DecryptField(contact.GetString("email"))
+				bccEntries = append(bccEntries, map[string]string{
+					"id":    cid,
+					"name":  contact.GetString("name"),
+					"email": email,
+				})
+			}
+			record.Set("rsvp_bcc_contacts", bccEntries)
 		}
 	}
 

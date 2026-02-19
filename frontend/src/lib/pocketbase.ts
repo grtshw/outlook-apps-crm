@@ -149,6 +149,7 @@ export interface GuestList extends RecordModel {
   organisation: string
   organisation_name: string
   organisation_logo_url: string
+  rsvp_bcc_contacts: Array<{ id: string; name: string; email: string }>
 }
 
 export interface GuestListItem extends RecordModel {
