@@ -229,6 +229,15 @@ export function RSVPPage() {
     return () => observer.disconnect()
   }, [])
 
+  // Debug: log program avatar data
+  if (info?.landing_program) {
+    console.log('[AvatarDebug] landing_program', info.landing_program.map((item: any) => ({
+      title: item.title,
+      speaker_contact_id: item.speaker_contact_id,
+      speaker_image_url: item.speaker_image_url,
+    })))
+  }
+
   // Pre-fill form when info loads
   if (info && !prefilled) {
     if (info.prefilled_first_name) setFirstName(info.prefilled_first_name)
