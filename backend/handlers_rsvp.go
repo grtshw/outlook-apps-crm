@@ -736,7 +736,7 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 			}
 		}
 	}
-	return raw
+	return items
 }
 
 // ============================================================================

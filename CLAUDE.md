@@ -388,6 +388,27 @@ CRM is the **canonical source** for contacts and organisations. It projects data
 - CRM only stores URL references (`avatar_url`, `avatar_thumb_url`, etc.)
 - `contacts.avatar` and `organisations.logo_*` FileFields have been removed
 
+### Resolving Avatar URLs from DAM
+
+Contact avatar URLs come from two sources, checked in order:
+
+1. **Contact record fields**: `avatar_small_url` → `avatar_thumb_url` → `avatar_url` (stored on the contact by DAM webhook updates)
+2. **DAM avatar cache**: In-memory cache populated on startup from `DAM_PUBLIC_URL/api/public/people`, keyed by CRM contact ID. Refreshed periodically and after projections. See `dam_avatars.go`.
+
+Use `resolveProgramAvatars()` in `handlers_rsvp.go` to enrich JSON arrays (like `landing_program`) with avatar URLs at response time. This function handles `types.JSONRaw` from PocketBase — it unmarshals the raw JSON before iterating.
+
+**IMPORTANT**: PocketBase's `record.Get()` returns `types.JSONRaw` for JSON fields, NOT native Go types. Always unmarshal before type-asserting:
+```go
+// ❌ WRONG — types.JSONRaw is not []any
+items, ok := record.Get("json_field").([]any)
+
+// ✅ CORRECT — unmarshal first
+var items []any
+raw := record.Get("json_field")
+b, _ := json.Marshal(raw)
+json.Unmarshal(b, &items)
+```
+
 ### Projection Flow
 
 1. Contact/Organisation created/updated in CRM
