@@ -91,7 +91,9 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	// Landing page fields — resolve speaker avatars from contacts
-	landingProgram := resolveProgramAvatars(app, result.GuestList.Get("landing_program"))
+	rawProgram := result.GuestList.Get("landing_program")
+	log.Printf("[AvatarDebug] RSVP info handler called, rawProgram type=%T value=%v", rawProgram, rawProgram)
+	landingProgram := resolveProgramAvatars(app, rawProgram)
 
 	response := map[string]any{
 		"type":        result.Type,
@@ -680,13 +682,16 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 
 // resolveProgramAvatars enriches landing_program items with current avatar URLs from contacts.
 func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
+	log.Printf("[AvatarDebug] resolveProgramAvatars called, raw type=%T nil=%v", raw, raw == nil)
 	if raw == nil {
 		return nil
 	}
 	items, ok := raw.([]any)
 	if !ok {
+		log.Printf("[AvatarDebug] raw is not []any, returning as-is")
 		return raw
 	}
+	log.Printf("[AvatarDebug] processing %d items", len(items))
 	for _, entry := range items {
 		item, ok := entry.(map[string]any)
 		if !ok {
