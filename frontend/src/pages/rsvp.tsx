@@ -667,9 +667,6 @@ export function RSVPPage() {
                   privacy policy
                 </a>
               </span>
-              <p className="text-[#A8A9B1] mt-1">
-                Your details may only be shared with the event partner and no one else. All personal information is encrypted and access is strictly limited.
-              </p>
             </div>
           </div>
 
