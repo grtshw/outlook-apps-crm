@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -130,6 +131,12 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 	if v := result.GuestList.GetString("organisation_logo_url"); v != "" {
 		response["organisation_logo_url"] = v
+	} else if orgID := result.GuestList.GetString("organisation"); orgID != "" {
+		if damURL := os.Getenv("DAM_PUBLIC_URL"); damURL != "" {
+			if logoURL := fetchDAMOrgLogo(damURL, orgID); logoURL != "" {
+				response["organisation_logo_url"] = logoURL
+			}
+		}
 	}
 
 	if result.Type == "personal" && result.Item != nil {
