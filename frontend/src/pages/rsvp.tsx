@@ -891,7 +891,7 @@ export function RSVPPage() {
                   {info.event_name || info.list_name}
                 </h2>
                 {info.description && (
-                  <p className="text-white/80 text-2xl leading-relaxed mb-6">{info.description}</p>
+                  <p className="text-white/80 text-lg leading-relaxed mb-6">{info.description}</p>
                 )}
 
                 {(info.event_date || info.event_time || info.event_location) && (
