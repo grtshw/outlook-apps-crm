@@ -81,7 +81,6 @@ export function RSVPPage() {
   const heroContentRef = useRef<HTMLDivElement>(null)
   const formInnerRef = useRef<HTMLDivElement>(null)
   const heroAnimated = useRef(false)
-  const noiseRef = useRef<SVGFETurbulenceElement>(null)
 
   // Detect scroll: swap buttons + transition hero bg from terracotta to black
   useEffect(() => {
@@ -150,7 +149,7 @@ export function RSVPPage() {
     if (!info || heroAnimated.current) return
     heroAnimated.current = true
 
-    // Hero image: subtle scale + fade
+    // Hero image container: subtle scale + fade
     if (heroImageRef.current) {
       gsap.fromTo(heroImageRef.current,
         { opacity: 0, scale: 1.04 },
@@ -167,6 +166,34 @@ export function RSVPPage() {
       )
     }
   }, [info])
+
+  // Carousel crossfade + noise animation
+  useEffect(() => {
+    if (!heroImageRef.current) return
+
+    const images = heroImageRef.current.querySelectorAll('img[data-carousel-index]') as NodeListOf<HTMLImageElement>
+    if (images.length < 2) return
+
+    const hold = 5      // seconds each image is fully visible
+    const fade = 1.5    // crossfade duration
+
+    const tl = gsap.timeline({ repeat: -1 })
+
+    images.forEach((img, i) => {
+      const next = images[(i + 1) % images.length]
+
+      // Hold current image, then crossfade: fade in next while fading out current
+      // Also apply subtle Ken Burns scale on incoming image
+      tl.to({}, { duration: hold })
+        .set(next, { scale: 1.05 })
+        .to(next, { opacity: 1, scale: 1, duration: fade, ease: 'power1.inOut' }, `>`)
+        .to(img, { opacity: 0, duration: fade, ease: 'power1.inOut' }, `<`)
+    })
+
+    return () => {
+      tl.kill()
+    }
+  }, [])
 
   // Form pane entrance — fade up when scrolled into view
   useEffect(() => {
@@ -707,13 +734,6 @@ export function RSVPPage() {
                 style={{ opacity: i === 0 ? 1 : 0 }}
               />
             ))}
-            {/* Film grain overlay */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none mix-blend-overlay opacity-40" aria-hidden="true">
-              <filter id="hero-noise">
-                <feTurbulence ref={noiseRef} type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-              </filter>
-              <rect width="100%" height="100%" filter="url(#hero-noise)" />
-            </svg>
           </div>
           <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center">
             <div className="pt-6 lg:pt-4">
