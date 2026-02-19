@@ -416,7 +416,14 @@ export async function createGuestList(data: {
 
 export async function updateGuestList(
   id: string,
-  data: Partial<{ name: string; description: string; event_projection: string; status: string }>
+  data: Partial<{
+    name: string; description: string; event_projection: string; status: string;
+    landing_enabled: boolean; landing_headline: string; landing_description: string;
+    landing_image_url: string; landing_program: import('./pocketbase').ProgramItem[];
+    landing_content: string;
+    event_date: string; event_time: string; event_location: string; event_location_address: string;
+    organisation: string;
+  }>
 ): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}`, {
     method: 'PATCH',

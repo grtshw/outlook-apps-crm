@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -109,7 +111,20 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"rsvp_enabled":        record.GetBool("rsvp_enabled"),
 		"rsvp_generic_token":  record.GetString("rsvp_generic_token"),
 		"rsvp_generic_url":    rsvpGenericURL,
-		"created":             record.GetString("created"),
+		"landing_enabled":     record.GetBool("landing_enabled"),
+		"landing_headline":    record.GetString("landing_headline"),
+		"landing_description": record.GetString("landing_description"),
+		"landing_image_url":   record.GetString("landing_image_url"),
+		"landing_program":     record.Get("landing_program"),
+		"landing_content":     record.GetString("landing_content"),
+		"event_date":          record.GetString("event_date"),
+		"event_time":          record.GetString("event_time"),
+		"event_location":           record.GetString("event_location"),
+		"event_location_address":   record.GetString("event_location_address"),
+		"organisation":             record.GetString("organisation"),
+		"organisation_name":        record.GetString("organisation_name"),
+		"organisation_logo_url":    record.GetString("organisation_logo_url"),
+		"created":                  record.GetString("created"),
 		"updated":             record.GetString("updated"),
 	})
 }
@@ -176,6 +191,76 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	if v, ok := input["rsvp_enabled"].(bool); ok {
 		record.Set("rsvp_enabled", v)
 	}
+	if v, ok := input["landing_enabled"].(bool); ok {
+		record.Set("landing_enabled", v)
+	}
+	if v, ok := input["landing_headline"].(string); ok {
+		if len(v) > 300 {
+			return utils.BadRequestResponse(re, "Headline too long (max 300)")
+		}
+		record.Set("landing_headline", v)
+	}
+	if v, ok := input["landing_description"].(string); ok {
+		if len(v) > 10000 {
+			return utils.BadRequestResponse(re, "Description too long (max 10000)")
+		}
+		record.Set("landing_description", v)
+	}
+	if v, ok := input["landing_image_url"].(string); ok {
+		if len(v) > 2000 {
+			return utils.BadRequestResponse(re, "Image URL too long (max 2000)")
+		}
+		record.Set("landing_image_url", v)
+	}
+	if v, ok := input["landing_program"]; ok {
+		record.Set("landing_program", v)
+	}
+	if v, ok := input["landing_content"].(string); ok {
+		if len(v) > 10000 {
+			return utils.BadRequestResponse(re, "Content too long (max 10000)")
+		}
+		record.Set("landing_content", v)
+	}
+	if v, ok := input["event_date"].(string); ok {
+		record.Set("event_date", v)
+	}
+	if v, ok := input["event_time"].(string); ok {
+		record.Set("event_time", v)
+	}
+	if v, ok := input["event_location"].(string); ok {
+		if len(v) > 500 {
+			return utils.BadRequestResponse(re, "Location too long (max 500)")
+		}
+		record.Set("event_location", v)
+	}
+	if v, ok := input["event_location_address"].(string); ok {
+		if len(v) > 500 {
+			return utils.BadRequestResponse(re, "Location address too long (max 500)")
+		}
+		record.Set("event_location_address", v)
+	}
+
+	if v, ok := input["organisation"].(string); ok {
+		record.Set("organisation", v)
+		if v == "" {
+			record.Set("organisation_name", "")
+			record.Set("organisation_logo_url", "")
+		} else {
+			// Look up org name from CRM
+			org, err := app.FindRecordById("organisations", v)
+			if err != nil {
+				return utils.BadRequestResponse(re, "Organisation not found")
+			}
+			record.Set("organisation_name", org.GetString("name"))
+
+			// Fetch inverted logo URL from DAM
+			damURL := os.Getenv("DAM_PUBLIC_URL")
+			if damURL != "" {
+				logoURL := fetchDAMOrgLogo(damURL, v)
+				record.Set("organisation_logo_url", logoURL)
+			}
+		}
+	}
 
 	if err := app.Save(record); err != nil {
 		return utils.InternalErrorResponse(re, "Failed to update guest list")
@@ -183,6 +268,36 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 
 	utils.LogFromRequest(app, re, "update", utils.CollectionGuestLists, record.Id, "success", nil, "")
 	return utils.SuccessResponse(re, "Guest list updated")
+}
+
+// fetchDAMOrgLogo calls DAM's public org-lookup endpoint and returns the inverted logo URL.
+func fetchDAMOrgLogo(damBaseURL, orgID string) string {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("%s/api/org-lookup/%s", damBaseURL, orgID))
+	if err != nil {
+		log.Printf("[GuestList] Failed to fetch DAM org logo for %s: %v", orgID, err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(body, &data); err != nil {
+		return ""
+	}
+
+	if url, ok := data["logo_inverted_url"].(string); ok {
+		return url
+	}
+	return ""
 }
 
 func handleGuestListDelete(re *core.RequestEvent, app *pocketbase.PocketBase) error {
@@ -265,6 +380,12 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	newList.Set("event_projection", getName("event_projection", source.GetString("event_projection")))
 	newList.Set("created_by", re.Auth.Id)
 	newList.Set("status", getName("status", "draft"))
+	newList.Set("landing_enabled", source.GetBool("landing_enabled"))
+	newList.Set("landing_headline", source.GetString("landing_headline"))
+	newList.Set("landing_description", source.GetString("landing_description"))
+	newList.Set("landing_image_url", source.GetString("landing_image_url"))
+	newList.Set("landing_program", source.Get("landing_program"))
+	newList.Set("landing_content", source.GetString("landing_content"))
 
 	if err := app.Save(newList); err != nil {
 		return utils.InternalErrorResponse(re, "Failed to create cloned list")
@@ -995,9 +1116,20 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 	}
 
 	eventName := ""
+	eventDetails := map[string]any{}
 	if epID := guestList.GetString("event_projection"); epID != "" {
 		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
 			eventName = ep.GetString("name")
+			eventDetails["event_date"] = ep.GetString("date")
+			eventDetails["event_start_time"] = ep.GetString("start_time")
+			eventDetails["event_end_time"] = ep.GetString("end_time")
+			eventDetails["event_start_date"] = ep.GetString("start_date")
+			eventDetails["event_end_date"] = ep.GetString("end_date")
+			eventDetails["event_venue"] = ep.GetString("venue")
+			eventDetails["event_venue_city"] = ep.GetString("venue_city")
+			eventDetails["event_venue_country"] = ep.GetString("venue_country")
+			eventDetails["event_timezone"] = ep.GetString("timezone")
+			eventDetails["event_description"] = ep.GetString("description")
 		}
 	}
 
@@ -1046,14 +1178,27 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 		Metadata:     map[string]any{"event": "list_viewed"},
 	})
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"list_name":    guestList.GetString("name"),
-		"event_name":   eventName,
-		"items":        items,
-		"total_guests": len(items),
-		"shared_by":    "The Outlook",
-		"shared_at":    share.GetString("created"),
-	})
+	result := map[string]any{
+		"list_name":            guestList.GetString("name"),
+		"event_name":           eventName,
+		"items":                items,
+		"total_guests":         len(items),
+		"shared_by":            "The Outlook",
+		"shared_at":            share.GetString("created"),
+		"landing_enabled":      guestList.GetBool("landing_enabled"),
+		"landing_headline":     guestList.GetString("landing_headline"),
+		"landing_description":  guestList.GetString("landing_description"),
+		"landing_image_url":    guestList.GetString("landing_image_url"),
+		"landing_program":      guestList.Get("landing_program"),
+		"landing_content":      guestList.GetString("landing_content"),
+	}
+
+	// Merge event projection details
+	for k, v := range eventDetails {
+		result[k] = v
+	}
+
+	return re.JSON(http.StatusOK, result)
 }
 
 func handlePublicGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
@@ -1116,6 +1261,92 @@ func handlePublicGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.Pock
 	}
 
 	return utils.SuccessResponse(re, "Updated")
+}
+
+// ============================================================================
+// Public — Landing Page Update (OTP-verified clients)
+// ============================================================================
+
+func handlePublicGuestListLandingUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	token := re.Request.PathValue("token")
+
+	// Validate session
+	claims, err := validatePublicSession(re, token)
+	if err != nil {
+		return re.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
+	}
+
+	share, err := findShareByToken(app, token)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Share link not found")
+	}
+	if share.GetBool("revoked") || isExpired(share.GetString("expires_at")) {
+		return re.JSON(http.StatusGone, map[string]string{"error": "Share link is no longer active"})
+	}
+
+	guestList, err := app.FindRecordById(utils.CollectionGuestLists, share.GetString("guest_list"))
+	if err != nil {
+		return utils.NotFoundResponse(re, "Guest list not found")
+	}
+
+	var input map[string]any
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid JSON")
+	}
+
+	updated := false
+	if v, ok := input["landing_headline"].(string); ok {
+		if len(v) > 300 {
+			return utils.BadRequestResponse(re, "Headline too long (max 300)")
+		}
+		guestList.Set("landing_headline", v)
+		updated = true
+	}
+	if v, ok := input["landing_description"].(string); ok {
+		if len(v) > 10000 {
+			return utils.BadRequestResponse(re, "Description too long (max 10000)")
+		}
+		guestList.Set("landing_description", v)
+		updated = true
+	}
+	if v, ok := input["landing_image_url"].(string); ok {
+		if len(v) > 2000 {
+			return utils.BadRequestResponse(re, "Image URL too long (max 2000)")
+		}
+		guestList.Set("landing_image_url", v)
+		updated = true
+	}
+	if v, ok := input["landing_program"]; ok {
+		guestList.Set("landing_program", v)
+		updated = true
+	}
+	if v, ok := input["landing_content"].(string); ok {
+		if len(v) > 10000 {
+			return utils.BadRequestResponse(re, "Content too long (max 10000)")
+		}
+		guestList.Set("landing_content", v)
+		updated = true
+	}
+
+	if !updated {
+		return utils.BadRequestResponse(re, "No valid fields to update")
+	}
+
+	if err := app.Save(guestList); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to update landing page")
+	}
+
+	utils.LogAudit(app, utils.AuditEntry{
+		Action:       "update",
+		ResourceType: utils.CollectionGuestLists,
+		ResourceID:   guestList.Id,
+		IPAddress:    re.RealIP(),
+		UserAgent:    re.Request.UserAgent(),
+		Status:       "success",
+		Metadata:     map[string]any{"event": "landing_update_by_client", "share_id": claims.ShareID},
+	})
+
+	return utils.SuccessResponse(re, "Landing page updated")
 }
 
 // ============================================================================

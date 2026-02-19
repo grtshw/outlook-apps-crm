@@ -8,8 +8,11 @@ import {
   verifyOTP,
   getSharedGuestList,
   updateSharedGuestListItem,
+  updateSharedGuestListLanding,
 } from '@/lib/api-public'
+import type { ProgramItem } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -28,7 +31,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { OTPInput } from '@/components/otp-input'
+import { RichTextEditor } from '@/components/rich-text-editor'
+import { ProgramEditor } from '@/components/program-editor'
 import { Loader2, ExternalLink, CircleCheck, XCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+type Tab = 'guests' | 'landing'
 
 export function SharedGuestListPage() {
   const { token } = useParams<{ token: string }>()
@@ -39,6 +47,16 @@ export function SharedGuestListPage() {
   const [policyAccepted, setPolicyAccepted] = useState(false)
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
   const [editingNotesValue, setEditingNotesValue] = useState('')
+  const [activeTab, setActiveTab] = useState<Tab>('guests')
+
+  // Landing page form state
+  const [landingForm, setLandingForm] = useState<{
+    landing_headline: string
+    landing_description: string
+    landing_image_url: string
+    landing_program: ProgramItem[]
+    landing_content: string
+  } | null>(null)
 
   // Session token stored in sessionStorage (cleared on tab close)
   const sessionKey = `gl-session-${token}`
@@ -114,6 +132,35 @@ export function SharedGuestListPage() {
       toast.error(error.message)
     },
   })
+
+  // Update landing page
+  const updateLandingMutation = useMutation({
+    mutationFn: () => {
+      if (!landingForm) throw new Error('No changes')
+      return updateSharedGuestListLanding(token!, landingForm, getSession()!)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shared-guest-list', token] })
+      toast.success('Landing page updated')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  // Initialize landing form from data
+  const initLandingForm = () => {
+    if (!listData) return
+    if (!landingForm) {
+      setLandingForm({
+        landing_headline: listData.landing_headline || '',
+        landing_description: listData.landing_description || '',
+        landing_image_url: listData.landing_image_url || '',
+        landing_program: listData.landing_program || [],
+        landing_content: listData.landing_content || '',
+      })
+    }
+  }
 
   // Error state
   if (effectiveState === 'error') {
@@ -247,6 +294,8 @@ export function SharedGuestListPage() {
     )
   }
 
+  const showLandingTab = listData.landing_enabled
+
   return (
     <div className="min-h-screen bg-background">
       <div className="px-4 py-8 sm:px-8">
@@ -261,118 +310,220 @@ export function SharedGuestListPage() {
           </p>
         </div>
 
+        {/* Tabs */}
+        {showLandingTab && (
+          <div className="flex gap-1 mb-6 border-b">
+            <button
+              type="button"
+              onClick={() => setActiveTab('guests')}
+              className={cn(
+                'px-4 py-2 text-sm border-b-2 -mb-px cursor-pointer',
+                activeTab === 'guests'
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Guests
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab('landing'); initLandingForm() }}
+              className={cn(
+                'px-4 py-2 text-sm border-b-2 -mb-px cursor-pointer',
+                activeTab === 'landing'
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Landing page
+            </button>
+          </div>
+        )}
+
         {/* Guest table */}
-        {listData.items.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12">No guests in this list yet.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>LinkedIn</TableHead>
-                <TableHead className="w-32">Invite round</TableHead>
-                <TableHead className="w-24">RSVP</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead>Your notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {listData.items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.role}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.company}</TableCell>
-                  <TableCell>
-                    {item.linkedin && (
-                      <a
-                        href={item.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        <span className="text-sm">LinkedIn</span>
-                      </a>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={item.invite_round || ''}
-                      onValueChange={(v) =>
-                        updateItemMutation.mutate({ itemId: item.id, data: { invite_round: v } })
-                      }
-                    >
-                      <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1st">1st</SelectItem>
-                        <SelectItem value="2nd">2nd</SelectItem>
-                        <SelectItem value="maybe">Maybe</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    {item.rsvp_status === 'accepted' ? (
-                      <span className="inline-flex items-center gap-1 text-green-600">
-                        <CircleCheck className="h-4 w-4" />
-                        <span className="text-sm">Accepted</span>
-                      </span>
-                    ) : item.rsvp_status === 'declined' ? (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        <XCircle className="h-4 w-4" />
-                        <span className="text-sm">Declined</span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{item.city}</TableCell>
-                  <TableCell className="text-muted-foreground max-w-xs truncate">
-                    {item.notes}
-                  </TableCell>
-                  <TableCell>
-                    {editingNotesId === item.id ? (
-                      <Textarea
-                        value={editingNotesValue}
-                        onChange={(e) => setEditingNotesValue(e.target.value)}
-                        onBlur={() => {
-                          if (editingNotesValue !== (item.client_notes || '')) {
-                            updateItemMutation.mutate({
-                              itemId: item.id,
-                              data: { client_notes: editingNotesValue },
-                            })
-                          }
-                          setEditingNotesId(null)
-                        }}
-                        autoFocus
-                        rows={2}
-                        className="min-w-[200px]"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingNotesId(item.id)
-                          setEditingNotesValue(item.client_notes || '')
-                        }}
-                        className="text-left text-sm cursor-pointer min-w-[100px] min-h-[24px] rounded px-1 -mx-1 hover:bg-muted/50"
-                      >
-                        {item.client_notes ? (
-                          <span className="line-clamp-2">{item.client_notes}</span>
-                        ) : (
-                          <span className="text-muted-foreground">Add note...</span>
+        {activeTab === 'guests' && (
+          <>
+            {listData.items.length === 0 ? (
+              <p className="text-center text-muted-foreground py-12">No guests in this list yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>LinkedIn</TableHead>
+                    <TableHead className="w-32">Invite round</TableHead>
+                    <TableHead className="w-24">RSVP</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Your notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {listData.items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.role}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.company}</TableCell>
+                      <TableCell>
+                        {item.linkedin && (
+                          <a
+                            href={item.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span className="text-sm">LinkedIn</span>
+                          </a>
                         )}
-                      </button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={item.invite_round || ''}
+                          onValueChange={(v) =>
+                            updateItemMutation.mutate({ itemId: item.id, data: { invite_round: v } })
+                          }
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1st">1st</SelectItem>
+                            <SelectItem value="2nd">2nd</SelectItem>
+                            <SelectItem value="maybe">Maybe</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {item.rsvp_status === 'accepted' ? (
+                          <span className="inline-flex items-center gap-1 text-green-600">
+                            <CircleCheck className="h-4 w-4" />
+                            <span className="text-sm">Accepted</span>
+                          </span>
+                        ) : item.rsvp_status === 'declined' ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <XCircle className="h-4 w-4" />
+                            <span className="text-sm">Declined</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{item.city}</TableCell>
+                      <TableCell className="text-muted-foreground max-w-xs truncate">
+                        {item.notes}
+                      </TableCell>
+                      <TableCell>
+                        {editingNotesId === item.id ? (
+                          <Textarea
+                            value={editingNotesValue}
+                            onChange={(e) => setEditingNotesValue(e.target.value)}
+                            onBlur={() => {
+                              if (editingNotesValue !== (item.client_notes || '')) {
+                                updateItemMutation.mutate({
+                                  itemId: item.id,
+                                  data: { client_notes: editingNotesValue },
+                                })
+                              }
+                              setEditingNotesId(null)
+                            }}
+                            autoFocus
+                            rows={2}
+                            className="min-w-[200px]"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingNotesId(item.id)
+                              setEditingNotesValue(item.client_notes || '')
+                            }}
+                            className="text-left text-sm cursor-pointer min-w-[100px] min-h-[24px] rounded px-1 -mx-1 hover:bg-muted/50"
+                          >
+                            {item.client_notes ? (
+                              <span className="line-clamp-2">{item.client_notes}</span>
+                            ) : (
+                              <span className="text-muted-foreground">Add note...</span>
+                            )}
+                          </button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
+        )}
+
+        {/* Landing page editor */}
+        {activeTab === 'landing' && landingForm && (
+          <div className="max-w-2xl space-y-6">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Headline</label>
+              <Input
+                value={landingForm.landing_headline}
+                onChange={(e) =>
+                  setLandingForm({ ...landingForm, landing_headline: e.target.value })
+                }
+                placeholder="Defaults to event name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Hero image URL</label>
+              <Input
+                value={landingForm.landing_image_url}
+                onChange={(e) =>
+                  setLandingForm({ ...landingForm, landing_image_url: e.target.value })
+                }
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Description</label>
+              <RichTextEditor
+                content={landingForm.landing_description}
+                onChange={(html) =>
+                  setLandingForm({ ...landingForm, landing_description: html })
+                }
+                placeholder="Event description..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Program</label>
+              <ProgramEditor
+                items={landingForm.landing_program}
+                onChange={(items) =>
+                  setLandingForm({ ...landingForm, landing_program: items })
+                }
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">
+                Additional content
+              </label>
+              <RichTextEditor
+                content={landingForm.landing_content}
+                onChange={(html) =>
+                  setLandingForm({ ...landingForm, landing_content: html })
+                }
+                placeholder="Additional content below the program..."
+              />
+            </div>
+
+            <Button
+              onClick={() => updateLandingMutation.mutate()}
+              disabled={updateLandingMutation.isPending}
+            >
+              {updateLandingMutation.isPending ? 'Saving...' : 'Save landing page'}
+            </Button>
+          </div>
         )}
 
         {/* Footer */}

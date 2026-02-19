@@ -3,3 +3,42 @@
 @import "./components/ui/theme.css";
 
 @custom-variant dark (&:is(.dark *));
+
+/* ── PP Museum — display font for RSVP pages ── */
+
+@font-face {
+  font-family: 'PP Museum';
+  src:
+    url('/fonts/PPMuseum-Medium.woff2') format('woff2'),
+    url('/fonts/PPMuseum-Medium.woff') format('woff');
+  font-display: swap;
+}
+
+/* ── RSVP Theme ── */
+
+.rsvp-theme {
+  --rsvp-black: #020202;
+  --rsvp-slate: #A8A9B1;
+  --rsvp-stone: #645C49;
+  --rsvp-graphite: #1A1917;
+  --rsvp-terracotta: #E95139;
+  --font-display: 'PP Museum', Georgia, serif;
+
+  /* Override shadcn primary for checkboxes/buttons within RSVP */
+  --primary: #E95139;
+  --primary-foreground: #ffffff;
+}
+
+/* Override theme.css label styles (which force black + uppercase mono) for dark RSVP forms.
+   theme.css uses @layer base with !important — we need to be in the same layer but later,
+   OR use a higher-specificity selector. Using attribute selector for extra specificity. */
+@layer base {
+  .rsvp-theme label[class],
+  .rsvp-theme label:not(#_) {
+    font-family: 'Monument Grotesk', sans-serif !important;
+    text-transform: none !important;
+    font-size: 0.875rem !important;
+    letter-spacing: 0 !important;
+    color: #A8A9B1 !important;
+  }
+}

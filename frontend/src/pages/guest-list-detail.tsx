@@ -9,10 +9,11 @@ import {
   getGuestListShares, revokeGuestListShare,
   getEventProjections,
   getContact,
+  getOrganisations,
   toggleGuestListRSVP,
   sendRSVPInvites,
 } from '@/lib/api'
-import type { Contact, GuestListItem, GuestListShare } from '@/lib/pocketbase'
+import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,9 @@ import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
+import { RichTextEditor } from '@/components/rich-text-editor'
+import { ProgramEditor } from '@/components/program-editor'
+import { OrganisationCombobox } from '@/components/organisation-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
@@ -76,6 +80,13 @@ export function GuestListDetailPage() {
     description: '',
     event_projection: '',
     status: '',
+    event_date: '',
+    event_time: '',
+    event_location: '',
+    event_location_address: '',
+    landing_program: [] as ProgramItem[],
+    landing_content: '',
+    organisation: '',
   })
 
   // Clone form state
@@ -110,11 +121,20 @@ export function GuestListDetailPage() {
     queryKey: ['event-projections'],
     queryFn: () => getEventProjections(),
     enabled: editOpen || cloneOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: orgsData } = useQuery({
+    queryKey: ['organisations-all'],
+    queryFn: () => getOrganisations({ perPage: 200, status: 'active' }),
+    enabled: editOpen,
+    staleTime: 5 * 60 * 1000,
   })
 
   const items = itemsData?.items ?? []
   const shares = sharesData?.items ?? []
   const events = eventsData?.items ?? []
+  const organisations = orgsData?.items ?? []
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -249,6 +269,13 @@ export function GuestListDetailPage() {
       description: guestList.description || '',
       event_projection: guestList.event_projection || '',
       status: guestList.status || 'draft',
+      event_date: guestList.event_date || '',
+      event_time: guestList.event_time || '',
+      event_location: guestList.event_location || '',
+      event_location_address: guestList.event_location_address || '',
+      landing_program: guestList.landing_program || [],
+      landing_content: guestList.landing_content || '',
+      organisation: guestList.organisation || '',
     })
     setEditOpen(true)
   }
@@ -899,59 +926,128 @@ export function GuestListDetailPage() {
             <SheetTitle>Edit guest list</SheetTitle>
           </SheetHeader>
 
-          <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1.5">Name</label>
-              <Input
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1.5">Description</label>
-              <Textarea
-                value={editForm.description}
-                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1.5">Event</label>
-              <Select
-                value={editForm.event_projection || 'none'}
-                onValueChange={(v) => setEditForm({ ...editForm, event_projection: v === 'none' ? '' : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select event" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1.5">Status</label>
-              <Select
-                value={editForm.status}
-                onValueChange={(v) => setEditForm({ ...editForm, status: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </form>
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <SheetSection title="Details">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Name</label>
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Description</label>
+                  <Textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Event</label>
+                  <Select
+                    value={editForm.event_projection || 'none'}
+                    onValueChange={(v) => setEditForm({ ...editForm, event_projection: v === 'none' ? '' : v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select event" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {events.map((event) => (
+                        <SelectItem key={event.id} value={event.id}>
+                          {event.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Status</label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(v) => setEditForm({ ...editForm, status: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Organisation</label>
+                  <OrganisationCombobox
+                    value={editForm.organisation}
+                    organisations={organisations}
+                    onChange={(orgId) => setEditForm({ ...editForm, organisation: orgId })}
+                  />
+                </div>
+              </div>
+            </SheetSection>
+
+            <SheetSection title="Event details">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Date</label>
+                  <Input
+                    value={editForm.event_date}
+                    onChange={(e) => setEditForm({ ...editForm, event_date: e.target.value })}
+                    placeholder="e.g. Thursday 20 March 2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Time</label>
+                  <Input
+                    value={editForm.event_time}
+                    onChange={(e) => setEditForm({ ...editForm, event_time: e.target.value })}
+                    placeholder="e.g. 5:30PM – 9:00PM"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Location name</label>
+                  <Input
+                    value={editForm.event_location}
+                    onChange={(e) => setEditForm({ ...editForm, event_location: e.target.value })}
+                    placeholder="e.g. The Establishment"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Location address</label>
+                  <Input
+                    value={editForm.event_location_address}
+                    onChange={(e) => setEditForm({ ...editForm, event_location_address: e.target.value })}
+                    placeholder="e.g. 252 George St, Sydney NSW 2000"
+                  />
+                </div>
+              </div>
+            </SheetSection>
+
+            <SheetSection title="RSVP content">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Program</label>
+                  <ProgramEditor
+                    items={editForm.landing_program}
+                    onChange={(items) => setEditForm({ ...editForm, landing_program: items })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Additional content</label>
+                  <RichTextEditor
+                    content={editForm.landing_content}
+                    onChange={(html) => setEditForm({ ...editForm, landing_content: html })}
+                    placeholder="Additional content below the program..."
+                  />
+                </div>
+              </div>
+            </SheetSection>
+          </div>
 
           <SheetFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>

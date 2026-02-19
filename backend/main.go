@@ -495,6 +495,10 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handlePublicGuestListItemUpdate(re, app)
 	}).BindFunc(utils.RateLimitPublic)
 
+	e.Router.PATCH("/api/public/guest-lists/{token}/landing", func(re *core.RequestEvent) error {
+		return handlePublicGuestListLandingUpdate(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
 	// Public RSVP endpoints (no CRM auth, rate limited)
 	e.Router.GET("/api/public/rsvp/{token}", func(re *core.RequestEvent) error {
 		return handlePublicRSVPInfo(re, app)

@@ -114,6 +114,16 @@ export interface EventProjection extends RecordModel {
   description: string
 }
 
+export interface ProgramItem {
+  time: string
+  title: string
+  description?: string
+  speaker_contact_id?: string
+  speaker_name?: string
+  speaker_org?: string
+  speaker_image_url?: string
+}
+
 export interface GuestList extends RecordModel {
   name: string
   description: string
@@ -126,6 +136,19 @@ export interface GuestList extends RecordModel {
   rsvp_enabled: boolean
   rsvp_generic_token: string
   rsvp_generic_url: string
+  landing_enabled: boolean
+  landing_headline: string
+  landing_description: string
+  landing_image_url: string
+  landing_program: ProgramItem[]
+  landing_content: string
+  event_date: string
+  event_time: string
+  event_location: string
+  event_location_address: string
+  organisation: string
+  organisation_name: string
+  organisation_logo_url: string
 }
 
 export interface GuestListItem extends RecordModel {

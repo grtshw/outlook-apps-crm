@@ -21,9 +21,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+const isRSVPDomain = window.location.hostname === 'rsvp.theoutlook.io'
+
 function App() {
   return (
     <Routes>
+      {isRSVPDomain && <Route path="/:token" element={<RSVPPage />} />}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/shared/:token" element={<SharedGuestListPage />} />
       <Route path="/rsvp/:token" element={<RSVPPage />} />

@@ -1,5 +1,7 @@
 // Public (unauthenticated) API functions for shared guest list access
 
+import type { ProgramItem } from './pocketbase'
+
 async function publicFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
   if (!res.ok) {
@@ -63,6 +65,24 @@ export interface SharedGuestListView {
   total_guests: number
   shared_by: string
   shared_at: string
+  // Landing page fields
+  landing_enabled: boolean
+  landing_headline: string
+  landing_description: string
+  landing_image_url: string
+  landing_program: ProgramItem[]
+  landing_content: string
+  // Event projection details
+  event_date: string
+  event_start_time: string
+  event_end_time: string
+  event_start_date: string
+  event_end_date: string
+  event_venue: string
+  event_venue_city: string
+  event_venue_country: string
+  event_timezone: string
+  event_description: string
 }
 
 export async function getSharedGuestList(token: string, sessionToken: string): Promise<SharedGuestListView> {
@@ -93,6 +113,30 @@ export interface RSVPInfo {
   rsvp_plus_one_email: string
   rsvp_plus_one_dietary: string
   rsvp_comments: string
+  // Landing page fields
+  landing_enabled: boolean
+  landing_headline: string
+  landing_description: string
+  landing_image_url: string
+  landing_program: ProgramItem[]
+  landing_content: string
+  // Event details (from guest list, with fallback to event projection)
+  event_date: string
+  event_time: string
+  event_location: string
+  event_location_address: string
+  event_start_time: string
+  event_end_time: string
+  event_start_date: string
+  event_end_date: string
+  event_venue: string
+  event_venue_city: string
+  event_venue_country: string
+  event_timezone: string
+  event_description: string
+  // Organisation
+  organisation_name: string
+  organisation_logo_url: string
 }
 
 export async function getRSVPInfo(token: string): Promise<RSVPInfo> {
@@ -135,6 +179,26 @@ export async function updateSharedGuestListItem(
   sessionToken: string
 ): Promise<{ message: string }> {
   return sessionFetch(`/api/public/guest-lists/${token}/items/${itemId}`, sessionToken, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export interface LandingPageUpdate {
+  landing_headline?: string
+  landing_description?: string
+  landing_image_url?: string
+  landing_program?: ProgramItem[]
+  landing_content?: string
+}
+
+export async function updateSharedGuestListLanding(
+  token: string,
+  data: LandingPageUpdate,
+  sessionToken: string
+): Promise<{ message: string }> {
+  return sessionFetch(`/api/public/guest-lists/${token}/landing`, sessionToken, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

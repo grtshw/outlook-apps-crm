@@ -68,12 +68,31 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		return re.JSON(http.StatusGone, map[string]string{"error": "RSVP is no longer available for this event"})
 	}
 
-	// Get event name
+	// Get event details from projection
 	eventName := ""
+	var eventDetails map[string]any
 	if epID := result.GuestList.GetString("event_projection"); epID != "" {
 		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
 			eventName = ep.GetString("name")
+			eventDetails = map[string]any{
+				"event_date":          ep.GetString("date"),
+				"event_start_time":    ep.GetString("start_time"),
+				"event_end_time":      ep.GetString("end_time"),
+				"event_start_date":    ep.GetString("start_date"),
+				"event_end_date":      ep.GetString("end_date"),
+				"event_venue":         ep.GetString("venue"),
+				"event_venue_city":    ep.GetString("venue_city"),
+				"event_venue_country": ep.GetString("venue_country"),
+				"event_timezone":      ep.GetString("timezone"),
+				"event_description":   ep.GetString("description"),
+			}
 		}
+	}
+
+	// Landing page fields
+	var landingProgram any
+	if raw := result.GuestList.Get("landing_program"); raw != nil {
+		landingProgram = raw
 	}
 
 	response := map[string]any{
@@ -81,6 +100,39 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		"list_name":   result.GuestList.GetString("name"),
 		"event_name":  eventName,
 		"description": result.GuestList.GetString("description"),
+		// Landing page
+		"landing_enabled":     result.GuestList.GetBool("landing_enabled"),
+		"landing_headline":    result.GuestList.GetString("landing_headline"),
+		"landing_description": result.GuestList.GetString("landing_description"),
+		"landing_image_url":   result.GuestList.GetString("landing_image_url"),
+		"landing_program":     landingProgram,
+		"landing_content":     result.GuestList.GetString("landing_content"),
+	}
+
+	// Merge event projection details
+	for k, v := range eventDetails {
+		response[k] = v
+	}
+
+	// Guest list event details override event projection values
+	if v := result.GuestList.GetString("event_date"); v != "" {
+		response["event_date"] = v
+	}
+	if v := result.GuestList.GetString("event_time"); v != "" {
+		response["event_time"] = v
+	}
+	if v := result.GuestList.GetString("event_location"); v != "" {
+		response["event_location"] = v
+	}
+	if v := result.GuestList.GetString("event_location_address"); v != "" {
+		response["event_location_address"] = v
+	}
+
+	if v := result.GuestList.GetString("organisation_name"); v != "" {
+		response["organisation_name"] = v
+	}
+	if v := result.GuestList.GetString("organisation_logo_url"); v != "" {
+		response["organisation_logo_url"] = v
 	}
 
 	if result.Type == "personal" && result.Item != nil {
