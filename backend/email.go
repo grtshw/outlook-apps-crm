@@ -217,26 +217,48 @@ func sendAttendeeOTPEmail(app *pocketbase.PocketBase, email, recipientName, code
 }
 
 // sendRSVPInviteEmail sends an RSVP invitation to a guest with their personal RSVP link.
-func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, eventName string) error {
+func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, eventName, eventDate, eventTime, eventLocation string) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
 	}
+
+	firstName := strings.Fields(name)[0]
 
 	eventContext := listName
 	if eventName != "" {
 		eventContext = eventName
 	}
 
-	subject := fmt.Sprintf("%s, you're invited to %s", name, eventContext)
+	// Build event details block
+	detailsHTML := ""
+	if eventDate != "" || eventTime != "" || eventLocation != "" {
+		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		if eventDate != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+		}
+		if eventTime != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+		}
+		if eventLocation != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+		}
+		detailsHTML += `</div>`
+	}
+
+	subject := fmt.Sprintf("%s, you're invited to %s", firstName, eventContext)
 	content := fmt.Sprintf(`
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                You're invited to <strong>%s</strong>. Please let us know if you can make it.
+                We'd love for you to join us at <strong>%s</strong> — an evening of conversation, connection and great food.
+            </p>
+            %s
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Spaces are limited, so please let us know if you can make it.
             </p>
             <div style="text-align: center; margin: 32px 0;">
                 <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
-                    Respond now
+                    RSVP now
                 </a>
             </div>
             <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
@@ -248,9 +270,9 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
                 </p>
             </div>
             <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
-                This link is personal to you. Please do not share it.
+                This link is personal to you — please don't share it.
             </p>
-`, name, eventContext, rsvpURL, rsvpURL)
+`, firstName, eventContext, detailsHTML, rsvpURL, rsvpURL)
 
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
@@ -270,22 +292,43 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 
 // sendRSVPForwardEmail sends an invitation email when someone forwards their RSVP to another person.
 // To: recipient, CC: forwarder, BCC: hello@wearetheoutlook.com.au
-func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, forwarderName, forwarderEmail, rsvpURL, eventName string) error {
+func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, forwarderName, forwarderEmail, rsvpURL, eventName, eventDate, eventTime, eventLocation string) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
 	}
 	firstName := strings.Fields(name)[0]
+	forwarderFirst := strings.Fields(forwarderName)[0]
 
-	subject := fmt.Sprintf("%s has invited you to %s", forwarderName, eventName)
+	// Build event details block
+	detailsHTML := ""
+	if eventDate != "" || eventTime != "" || eventLocation != "" {
+		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		if eventDate != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+		}
+		if eventTime != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+		}
+		if eventLocation != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+		}
+		detailsHTML += `</div>`
+	}
+
+	subject := fmt.Sprintf("%s thinks you'd love %s", forwarderFirst, eventName)
 	content := fmt.Sprintf(`
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                %s has invited you to <strong>%s</strong>. Please let them know if you can make it.
+                %s thought you'd enjoy <strong>%s</strong> — an evening of conversation, connection and great food — and has passed along an invitation for you.
+            </p>
+            %s
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                Spaces are limited, so let us know if you can make it.
             </p>
             <div style="text-align: center; margin: 32px 0;">
                 <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
-                    Respond now
+                    RSVP now
                 </a>
             </div>
             <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
@@ -296,7 +339,7 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
                     %s
                 </p>
             </div>
-`, firstName, forwarderName, eventName, rsvpURL, rsvpURL)
+`, firstName, forwarderFirst, eventName, detailsHTML, rsvpURL, rsvpURL)
 
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},

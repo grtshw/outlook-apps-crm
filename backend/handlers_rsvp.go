@@ -939,7 +939,10 @@ func handlePublicRSVPForward(re *core.RequestEvent, app *pocketbase.PocketBase) 
 	}
 
 	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), rsvpToken)
-	go sendRSVPForwardEmail(app, input.RecipientEmail, input.RecipientName, input.ForwarderName, input.ForwarderEmail, rsvpURL, eventName)
+	eventDate := result.GuestList.GetString("event_date")
+	eventTime := result.GuestList.GetString("event_time")
+	eventLocation := result.GuestList.GetString("event_location")
+	go sendRSVPForwardEmail(app, input.RecipientEmail, input.RecipientName, input.ForwarderName, input.ForwarderEmail, rsvpURL, eventName, eventDate, eventTime, eventLocation)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_forward",
@@ -1034,6 +1037,9 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		}
 	}
 	listName := guestList.GetString("name")
+	eventDate := guestList.GetString("event_date")
+	eventTime := guestList.GetString("event_time")
+	eventLocation := guestList.GetString("event_location")
 
 	// Find items to send to
 	var items []*core.Record
@@ -1107,7 +1113,7 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), item.GetString("rsvp_token"))
 		recipientName := contact.GetString("name")
 
-		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, listName, eventName)
+		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, listName, eventName, eventDate, eventTime, eventLocation)
 		sent++
 	}
 

@@ -57,7 +57,7 @@ export function RSVPPage() {
   const [plusOneDietary, setPlusOneDietary] = useState('')
   const [invitedBy, setInvitedBy] = useState('')
   const [comments, setComments] = useState('')
-  const [response, setResponse] = useState<'accepted' | 'declined' | null>(null)
+  const [response, setResponse] = useState<'accepted' | 'declined' | null>('accepted')
   const [policyAccepted, setPolicyAccepted] = useState(false)
   const [prefilled, setPrefilled] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -808,11 +808,8 @@ export function RSVPPage() {
                 </button>
                 {mobileProgramOpen && (
                   <div className="space-y-6 pb-4">
-                    {info.description && (
-                      <p className="text-white/80 text-lg leading-relaxed">{info.description}</p>
-                    )}
                     {(info.event_date || info.event_time || info.event_location) && (
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-white pb-6 border-b border-[#645C49]/30">
+                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-white pb-6 border-b border-[#645C49]/30">
                         {info.event_date && <span>{info.event_date}</span>}
                         {info.event_time && <span>{info.event_time}</span>}
                         {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
@@ -890,12 +887,8 @@ export function RSVPPage() {
                 <h2 className="text-4xl lg:text-5xl text-white font-[family-name:var(--font-display)] leading-[1.1] mb-8">
                   {info.event_name || info.list_name}
                 </h2>
-                {info.description && (
-                  <p className="text-white/80 text-lg leading-relaxed mb-6">{info.description}</p>
-                )}
-
                 {(info.event_date || info.event_time || info.event_location) && (
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-white mb-8 pb-8 border-b border-[#645C49]/30">
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-white mb-8 pb-8 border-b border-[#645C49]/30">
                     {info.event_date && <span>{info.event_date}</span>}
                     {info.event_time && <span>{info.event_time}</span>}
                     {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
