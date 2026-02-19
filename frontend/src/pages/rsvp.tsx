@@ -781,7 +781,7 @@ export function RSVPPage() {
       </div>
 
       {/* Pane 2: Program + RSVP form — slides over sticky hero on mobile */}
-      <div ref={formPaneRef} className="min-h-screen relative z-10 rounded-t-2xl lg:rounded-none overflow-hidden lg:overflow-visible">
+      <div ref={formPaneRef} className="min-h-screen relative z-10 overflow-hidden lg:overflow-visible">
         {/* Flower bg visible as border */}
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
@@ -926,9 +926,9 @@ export function RSVPPage() {
                                 alt={item.speaker_name || ''}
                                 className="w-10 h-10 rounded-full object-cover shrink-0"
                               />
-                            ) : (
+                            ) : item.speaker_contact_id ? (
                               <div className="w-10 h-10 rounded-full shrink-0 bg-[#A8A9B1]/10" />
-                            )}
+                            ) : null}
                             {item.description && (
                               <ChevronDown className={`h-4 w-4 shrink-0 transition-transform text-[#A8A9B1]/40 ${expandedProgram === i ? 'rotate-180' : ''}`} />
                             )}
