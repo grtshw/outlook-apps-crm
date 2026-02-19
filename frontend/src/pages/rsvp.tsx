@@ -108,6 +108,13 @@ export function RSVPPage() {
         const g = Math.round(0x51 + (0x02 - 0x51) * progress)
         const b = Math.round(0x39 + (0x02 - 0x39) * progress)
         heroPaneRef.current.style.backgroundColor = `rgb(${r},${g},${b})`
+
+        // Mobile parallax: translate hero content upward as user scrolls
+        if (window.innerWidth < 1024) {
+          const parallaxY = window.scrollY * 0.15
+          if (heroContentRef.current) heroContentRef.current.style.transform = `translateY(-${parallaxY}px)`
+          if (heroImageRef.current) heroImageRef.current.style.transform = `translateY(-${parallaxY * 0.5}px)`
+        }
       })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -408,7 +415,7 @@ export function RSVPPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block mb-1.5">First name <span className="text-[#E95139]">*</span></label>
+                  <label className="block text-sm text-white mb-1.5">First name <span className="text-[#E95139]">*</span></label>
                   <Input
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -418,7 +425,7 @@ export function RSVPPage() {
                   />
                 </div>
                 <div>
-                  <label className="block mb-1.5">Last name</label>
+                  <label className="block text-sm text-white mb-1.5">Last name</label>
                   <Input
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
@@ -429,7 +436,7 @@ export function RSVPPage() {
               </div>
 
               <div>
-                <label className="block mb-1.5">Email <span className="text-[#E95139]">*</span></label>
+                <label className="block text-sm text-white mb-1.5">Email <span className="text-[#E95139]">*</span></label>
                 <Input
                   type="email"
                   value={email}
@@ -442,7 +449,7 @@ export function RSVPPage() {
 
               {response !== 'declined' && (
                 <div>
-                  <label className="block mb-1.5">Phone</label>
+                  <label className="block text-sm text-white mb-1.5">Phone</label>
                   <Input
                     type="tel"
                     value={phone}
@@ -544,7 +551,7 @@ export function RSVPPage() {
                   <div className="space-y-4 pl-4 border-l-2 border-[#645C49]/30">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block mb-1.5">First name</label>
+                        <label className="block text-sm text-white mb-1.5">First name</label>
                         <Input
                           value={plusOneName}
                           onChange={(e) => setPlusOneName(e.target.value)}
@@ -553,7 +560,7 @@ export function RSVPPage() {
                         />
                       </div>
                       <div>
-                        <label className="block mb-1.5">Last name</label>
+                        <label className="block text-sm text-white mb-1.5">Last name</label>
                         <Input
                           value={plusOneLastName}
                           onChange={(e) => setPlusOneLastName(e.target.value)}
@@ -563,7 +570,7 @@ export function RSVPPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block mb-1.5">Job title</label>
+                      <label className="block text-sm text-white mb-1.5">Job title</label>
                       <Input
                         value={plusOneJobTitle}
                         onChange={(e) => setPlusOneJobTitle(e.target.value)}
@@ -572,7 +579,7 @@ export function RSVPPage() {
                       />
                     </div>
                     <div>
-                      <label className="block mb-1.5">Company</label>
+                      <label className="block text-sm text-white mb-1.5">Company</label>
                       <Input
                         value={plusOneCompany}
                         onChange={(e) => setPlusOneCompany(e.target.value)}
@@ -581,7 +588,7 @@ export function RSVPPage() {
                       />
                     </div>
                     <div>
-                      <label className="block mb-1.5">Email</label>
+                      <label className="block text-sm text-white mb-1.5">Email</label>
                       <Input
                         type="email"
                         value={plusOneEmail}
@@ -591,7 +598,7 @@ export function RSVPPage() {
                       />
                     </div>
                     <div>
-                      <label className="block mb-1.5">Dietary requirements</label>
+                      <label className="block text-sm text-white mb-1.5">Dietary requirements</label>
                       <Textarea
                         value={plusOneDietary}
                         onChange={(e) => setPlusOneDietary(e.target.value)}
@@ -606,7 +613,7 @@ export function RSVPPage() {
                 {/* Who invited you — generic invites only */}
                 {info.type === 'generic' && (
                   <div>
-                    <label className="block mb-1.5">Who invited you?</label>
+                    <label className="block text-sm text-white mb-1.5">Who invited you?</label>
                     <Input
                       value={invitedBy}
                       onChange={(e) => setInvitedBy(e.target.value)}
@@ -625,7 +632,7 @@ export function RSVPPage() {
             <div className="space-y-4">
               {/* Comments */}
               <div>
-                <label className="block mb-1.5">Comments</label>
+                <label className="block text-sm text-white mb-1.5">Comments</label>
                 <Textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
@@ -712,8 +719,8 @@ export function RSVPPage() {
         </button>
       </div>
 
-      {/* Pane 1: Full-viewport magazine spread */}
-      <div ref={heroPaneRef} className="min-h-screen lg:h-screen bg-[#E95139] p-6 lg:p-10 flex flex-col">
+      {/* Pane 1: Full-viewport magazine spread — sticky on mobile for card-over effect */}
+      <div ref={heroPaneRef} className="h-screen sticky top-0 lg:relative bg-[#E95139] p-6 lg:p-10 flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-[#020202] text-sm font-[family-name:var(--font-display)] lg:hidden">The Outlook After Dark</span>
@@ -773,8 +780,8 @@ export function RSVPPage() {
         </div>
       </div>
 
-      {/* Pane 2: Program + RSVP form */}
-      <div ref={formPaneRef} className="min-h-screen relative -mt-16 lg:mt-0 rounded-t-2xl lg:rounded-none overflow-hidden">
+      {/* Pane 2: Program + RSVP form — slides over sticky hero on mobile */}
+      <div ref={formPaneRef} className="min-h-screen relative z-10 rounded-t-2xl lg:rounded-none overflow-hidden">
         {/* Flower bg visible as border */}
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
@@ -955,7 +962,7 @@ export function RSVPPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-[#0d0d0d] text-[#777] text-xs px-6 lg:px-10 py-8">
+      <footer className="relative z-10 bg-[#0d0d0d] text-[#777] text-xs px-6 lg:px-10 py-8">
         <p className="text-center text-[#999] leading-relaxed mb-6">
           The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
         </p>
