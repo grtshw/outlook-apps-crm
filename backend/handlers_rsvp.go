@@ -91,9 +91,7 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	// Landing page fields — resolve speaker avatars from contacts
-	rawProgram := result.GuestList.Get("landing_program")
-	log.Printf("[AvatarDebug] RSVP info handler called, rawProgram type=%T value=%v", rawProgram, rawProgram)
-	landingProgram := resolveProgramAvatars(app, rawProgram)
+	landingProgram := resolveProgramAvatars(app, result.GuestList.Get("landing_program"))
 
 	response := map[string]any{
 		"type":        result.Type,
@@ -682,16 +680,29 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 
 // resolveProgramAvatars enriches landing_program items with current avatar URLs from contacts.
 func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
-	log.Printf("[AvatarDebug] resolveProgramAvatars called, raw type=%T nil=%v", raw, raw == nil)
 	if raw == nil {
 		return nil
 	}
-	items, ok := raw.([]any)
-	if !ok {
-		log.Printf("[AvatarDebug] raw is not []any, returning as-is")
-		return raw
+
+	// Handle types.JSONRaw (raw JSON bytes) by unmarshalling first
+	var items []any
+	switch v := raw.(type) {
+	case []any:
+		items = v
+	case json.RawMessage:
+		if err := json.Unmarshal(v, &items); err != nil {
+			return raw
+		}
+	default:
+		// Try marshalling then unmarshalling as a fallback for types like types.JSONRaw
+		b, err := json.Marshal(v)
+		if err != nil {
+			return raw
+		}
+		if err := json.Unmarshal(b, &items); err != nil {
+			return raw
+		}
 	}
-	log.Printf("[AvatarDebug] processing %d items", len(items))
 	for _, entry := range items {
 		item, ok := entry.(map[string]any)
 		if !ok {
@@ -702,21 +713,15 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 			continue
 		}
 		if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
-			small := contact.GetString("avatar_small_url")
-			thumb := contact.GetString("avatar_thumb_url")
-			full := contact.GetString("avatar_url")
-			log.Printf("[AvatarDebug] contact=%s small=%q thumb=%q full=%q\n", contactID, small, thumb, full)
-
-			avatarURL := small
+			avatarURL := contact.GetString("avatar_small_url")
 			if avatarURL == "" {
-				avatarURL = thumb
+				avatarURL = contact.GetString("avatar_thumb_url")
 			}
 			if avatarURL == "" {
-				avatarURL = full
+				avatarURL = contact.GetString("avatar_url")
 			}
 			if avatarURL == "" {
 				if cached, ok := GetDAMAvatarURLs(contactID); ok {
-					log.Printf("[AvatarDebug] DAM cache hit for %s: small=%q thumb=%q orig=%q\n", contactID, cached.SmallURL, cached.ThumbURL, cached.OriginalURL)
 					avatarURL = cached.SmallURL
 					if avatarURL == "" {
 						avatarURL = cached.ThumbURL
@@ -724,18 +729,11 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 					if avatarURL == "" {
 						avatarURL = cached.OriginalURL
 					}
-				} else {
-					log.Printf("[AvatarDebug] DAM cache miss for %s\n", contactID)
 				}
 			}
 			if avatarURL != "" {
 				item["speaker_image_url"] = avatarURL
-				log.Printf("[AvatarDebug] RESOLVED %s → %s\n", contactID, avatarURL)
-			} else {
-				log.Printf("[AvatarDebug] NO AVATAR for %s\n", contactID)
 			}
-		} else {
-			log.Printf("[AvatarDebug] contact %s NOT FOUND: %v\n", contactID, err)
 		}
 	}
 	return raw
