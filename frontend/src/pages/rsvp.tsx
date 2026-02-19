@@ -803,7 +803,7 @@ export function RSVPPage() {
                 {mobileProgramOpen && (
                   <div className="space-y-6 pb-4">
                     {info.description && (
-                      <p className="text-white/80 text-lg font-[family-name:var(--font-display)] leading-relaxed">{info.description}</p>
+                      <p className="text-white/80 text-lg leading-relaxed">{info.description}</p>
                     )}
                     {(info.event_date || info.event_time || info.event_location) && (
                       <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-white pb-6 border-b border-[#645C49]/30">
@@ -885,7 +885,7 @@ export function RSVPPage() {
                   {info.event_name || info.list_name}
                 </h2>
                 {info.description && (
-                  <p className="text-white/80 text-2xl font-[family-name:var(--font-display)] leading-relaxed mb-6">{info.description}</p>
+                  <p className="text-white/80 text-2xl leading-relaxed mb-6">{info.description}</p>
                 )}
 
                 {(info.event_date || info.event_time || info.event_location) && (
