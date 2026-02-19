@@ -1540,8 +1540,16 @@ func handleAvatarURLWebhook(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	return utils.SuccessResponse(re, "Avatar URLs updated")
 }
 
-// handleSyncAvatarURLs pulls avatar URLs from DAM for all contacts
-func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+// syncAvatarURLsResult holds the result of a DAM avatar URL sync
+type syncAvatarURLsResult struct {
+	Updated int
+	Skipped int
+	Total   int
+}
+
+// syncAvatarURLsFromDAM pulls avatar URLs from DAM for all contacts.
+// Usable from both CLI and HTTP handler.
+func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, error) {
 	damURL := os.Getenv("DAM_PUBLIC_URL")
 	if damURL == "" {
 		damURL = "https://outlook-apps-dam.fly.dev"
@@ -1549,12 +1557,12 @@ func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) err
 
 	resp, err := http.Get(damURL + "/api/public/people")
 	if err != nil {
-		return utils.InternalErrorResponse(re, "Failed to fetch people from DAM")
+		return nil, fmt.Errorf("failed to fetch people from DAM: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return utils.InternalErrorResponse(re, fmt.Sprintf("DAM returned status %d", resp.StatusCode))
+		return nil, fmt.Errorf("DAM returned status %d", resp.StatusCode)
 	}
 
 	var damResp struct {
@@ -1567,7 +1575,7 @@ func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&damResp); err != nil {
-		return utils.InternalErrorResponse(re, "Failed to parse DAM response")
+		return nil, fmt.Errorf("failed to parse DAM response: %w", err)
 	}
 
 	updated := 0
@@ -1616,10 +1624,19 @@ func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	}
 
 	log.Printf("[SyncAvatarURLs] Updated %d contacts, skipped %d", updated, skipped)
+	return &syncAvatarURLsResult{Updated: updated, Skipped: skipped, Total: len(damResp.Items)}, nil
+}
+
+// handleSyncAvatarURLs is the HTTP handler wrapper for syncAvatarURLsFromDAM
+func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	result, err := syncAvatarURLsFromDAM(app)
+	if err != nil {
+		return utils.InternalErrorResponse(re, err.Error())
+	}
 	return utils.DataResponse(re, map[string]any{
-		"updated": updated,
-		"skipped": skipped,
-		"total":   len(damResp.Items),
+		"updated": result.Updated,
+		"skipped": result.Skipped,
+		"total":   result.Total,
 	})
 }
 

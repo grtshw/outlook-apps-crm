@@ -89,6 +89,57 @@ func main() {
 		},
 	})
 
+	// Register sync-avatar-urls command to pull avatar URLs from DAM
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "sync-avatar-urls",
+		Short: "Sync avatar URLs from DAM for all contacts",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			fmt.Println("Syncing avatar URLs from DAM...")
+			result, err := syncAvatarURLsFromDAM(app)
+			if err != nil {
+				log.Fatalf("Sync failed: %v", err)
+			}
+			fmt.Printf("Updated %d contacts, skipped %d (total: %d)\n", result.Updated, result.Skipped, result.Total)
+		},
+	})
+
+	// Register sync-humanitix command to sync attendees from Humanitix
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "sync-humanitix [event-id]",
+		Short: "Sync attendees from Humanitix for an event",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			eventID := args[0]
+			fmt.Printf("Syncing Humanitix attendees for event %s...\n", eventID)
+			runHumanitixSync(app, "", eventID, nil)
+			fmt.Println("Humanitix sync complete")
+		},
+	})
+
+	// Register sync-mailchimp command to bulk sync contacts to Mailchimp
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "sync-mailchimp",
+		Short: "Bulk sync all active contacts to Mailchimp",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			listID, mappings := getMailchimpSyncConfig(app)
+			if listID == "" {
+				log.Fatal("Mailchimp list ID not configured in app_settings")
+			}
+			fmt.Printf("Syncing contacts to Mailchimp list %s...\n", listID)
+			runMailchimpSync(app, listID, mappings)
+			fmt.Println("Mailchimp sync complete")
+		},
+	})
+
 	// OnServe hook - runs when the server starts
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Configure SendGrid SMTP
