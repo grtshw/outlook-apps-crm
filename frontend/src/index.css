@@ -31,14 +31,17 @@
 
 /* Override theme.css label styles (which force black + uppercase mono) for dark RSVP forms.
    theme.css uses @layer base with !important — we need to be in the same layer but later,
-   OR use a higher-specificity selector. Using attribute selector for extra specificity. */
+   OR use a higher-specificity selector. Using attribute selector for extra specificity.
+   Also covers Sheet portals (forward drawer) which render outside .rsvp-theme. */
 @layer base {
   .rsvp-theme label[class],
-  .rsvp-theme label:not(#_) {
+  .rsvp-theme label:not(#_),
+  .rsvp-forward-drawer label[class],
+  .rsvp-forward-drawer label:not(#_) {
     font-family: 'Monument Grotesk', sans-serif !important;
     text-transform: none !important;
     font-size: 0.875rem !important;
     letter-spacing: 0 !important;
-    color: #A8A9B1 !important;
+    color: #ffffff !important;
   }
 }

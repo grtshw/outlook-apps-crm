@@ -50,7 +50,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         showCloseButton={false}
-        className="bg-[#1A1917] border-[#645C49]/30 text-white [--sheet-width:28rem] p-0"
+        className="rsvp-forward-drawer bg-[#1A1917] border-[#645C49]/30 text-white [--sheet-width:28rem] p-0"
       >
         {submitted ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
@@ -80,7 +80,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* Your details */}
               <div>
-                <p className="eyebrow text-[#A8A9B1] mb-3">Your details</p>
+                <h3 className="text-2xl text-white font-[family-name:var(--font-display)] mb-4">Your details</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm text-white mb-1.5">Your name <span className="text-[#E95139]">*</span></label>
@@ -115,7 +115,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
 
               {/* Their details */}
               <div>
-                <p className="eyebrow text-[#A8A9B1] mb-3">Their details</p>
+                <h3 className="text-2xl text-white font-[family-name:var(--font-display)] mb-4">Their details</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm text-white mb-1.5">Their name <span className="text-[#E95139]">*</span></label>
