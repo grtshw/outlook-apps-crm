@@ -729,7 +729,7 @@ export function RSVPPage() {
       <div ref={heroPaneRef} className="h-screen sticky top-0 lg:relative bg-[#E95139] p-6 lg:p-10 flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[#020202] text-sm font-[family-name:var(--font-display)] lg:hidden">The Outlook After Dark</span>
+          <span className="text-white/80 text-sm font-[family-name:var(--font-display)] lg:hidden">The Outlook After Dark</span>
           <span className="text-white/60 text-xs font-mono tracking-wider uppercase max-lg:ml-auto">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
         </div>
 
@@ -758,11 +758,11 @@ export function RSVPPage() {
                   className="h-8 mb-4 object-contain mx-auto"
                 />
               )}
-              <h1 className="text-3xl lg:text-5xl xl:text-6xl text-[#020202] font-[family-name:var(--font-display)] leading-[1]">
+              <h1 className="text-3xl lg:text-5xl xl:text-6xl text-white font-[family-name:var(--font-display)] leading-[1]">
                 {info.list_name}
               </h1>
             </div>
-            <div className="text-[#020202]/70 text-lg lg:text-xl leading-relaxed">
+            <div className="text-white/80 text-lg lg:text-xl leading-relaxed">
               {info.description ? (
                 <p>{info.description}</p>
               ) : (
@@ -770,7 +770,7 @@ export function RSVPPage() {
               )}
             </div>
             {(info.event_date || info.event_time || info.event_location) && (
-              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-[#020202]/60 mt-auto mb-8">
+              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-white/70 mt-auto mb-8">
                 {info.event_date && <span>{info.event_date}</span>}
                 {info.event_time && <span>{info.event_time}</span>}
                 {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
@@ -781,8 +781,8 @@ export function RSVPPage() {
 
         {/* Bottom bar — desktop only */}
         <div className="hidden lg:flex items-end justify-between mt-4">
-          <span className="text-[#020202] text-sm font-[family-name:var(--font-display)]">The Outlook After Dark</span>
-          <span className="text-[#020202]/50 text-xs font-mono">{info.event_name}</span>
+          <span className="text-white/80 text-sm font-[family-name:var(--font-display)]">The Outlook After Dark</span>
+          <span className="text-white/50 text-xs font-mono">{info.event_name}</span>
         </div>
       </div>
 
