@@ -235,13 +235,13 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
 		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
@@ -250,7 +250,7 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	content := fmt.Sprintf(`
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                We'd love for you to join us at <strong>%s</strong> — an evening of conversation, connection and great food.
+                We'd love for you to join us at <strong>%s</strong>, an evening of conversation, connection and great food.
             </p>
             %s
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
@@ -270,7 +270,7 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
                 </p>
             </div>
             <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
-                This link is personal to you — please don't share it.
+                This link is personal to you. Please don't share it.
             </p>
 `, firstName, eventContext, detailsHTML, rsvpURL, rsvpURL)
 
@@ -305,13 +305,13 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
 		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
@@ -320,7 +320,7 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
 	content := fmt.Sprintf(`
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                %s thought you'd enjoy <strong>%s</strong> — an evening of conversation, connection and great food — and has passed along an invitation for you.
+                %s thought you'd enjoy <strong>%s</strong>, an evening of conversation, connection and great food, and has passed along an invitation for you.
             </p>
             %s
             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
@@ -369,20 +369,20 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 
 	firstName := strings.Fields(name)[0]
 
-	subject := fmt.Sprintf("You're confirmed — %s", eventName)
+	subject := fmt.Sprintf("You're confirmed for %s", eventName)
 
 	// Build event details block
 	detailsHTML := ""
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
 		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">📅 %s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">🕐 %s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">📍 %s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
