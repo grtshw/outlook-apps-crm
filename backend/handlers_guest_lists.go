@@ -1217,7 +1217,7 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 		"landing_headline":     guestList.GetString("landing_headline"),
 		"landing_description":  guestList.GetString("landing_description"),
 		"landing_image_url":    guestList.GetString("landing_image_url"),
-		"landing_program":      guestList.Get("landing_program"),
+		"landing_program":      resolveProgramAvatars(app, guestList.Get("landing_program")),
 		"landing_content":      guestList.GetString("landing_content"),
 	}
 

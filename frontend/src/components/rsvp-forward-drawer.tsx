@@ -70,7 +70,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
             <div className="p-6 pb-4 border-b border-[#645C49]/30">
               <h2 className="text-2xl font-[family-name:var(--font-display)]">Forward this invitation</h2>
               <p className="text-sm text-[#A8A9B1] mt-1">
-                Know someone who'd be a great fit for {eventName || listName}? Send them a personal invitation.
+                Know someone who'd be a great fit for {eventName || listName}? Feel free to forward this invitation.
               </p>
             </div>
 
@@ -81,7 +81,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                 <p className="eyebrow text-[#A8A9B1] mb-3">Your details</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm mb-1.5">Your name <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-white mb-1.5">Your name <span className="text-[#E95139]">*</span></label>
                     <Input
                       value={forwarderName}
                       onChange={(e) => setForwarderName(e.target.value)}
@@ -90,7 +90,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5">Your email <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-white mb-1.5">Your email <span className="text-[#E95139]">*</span></label>
                     <Input
                       type="email"
                       value={forwarderEmail}
@@ -100,7 +100,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5">Your company</label>
+                    <label className="block text-sm text-white mb-1.5">Your company</label>
                     <Input
                       value={forwarderCompany}
                       onChange={(e) => setForwarderCompany(e.target.value)}
@@ -116,7 +116,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                 <p className="eyebrow text-[#A8A9B1] mb-3">Their details</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm mb-1.5">Their name <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-white mb-1.5">Their name <span className="text-[#E95139]">*</span></label>
                     <Input
                       value={recipientName}
                       onChange={(e) => setRecipientName(e.target.value)}
@@ -125,7 +125,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5">Their email <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-white mb-1.5">Their email <span className="text-[#E95139]">*</span></label>
                     <Input
                       type="email"
                       value={recipientEmail}
@@ -135,7 +135,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm mb-1.5">Their company</label>
+                    <label className="block text-sm text-white mb-1.5">Their company</label>
                     <Input
                       value={recipientCompany}
                       onChange={(e) => setRecipientCompany(e.target.value)}
@@ -155,19 +155,19 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
             </div>
 
             {/* Footer */}
-            <div className="p-6 pt-4 border-t border-[#645C49]/30 flex items-center gap-3">
+            <div className="p-6 pt-4 border-t border-[#645C49]/30 flex items-center justify-between">
+              <button
+                onClick={() => onOpenChange(false)}
+                className="text-sm text-[#A8A9B1] hover:text-white cursor-pointer"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
                 className="bg-[#E95139] hover:bg-[#E95139]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 h-11 text-sm transition-colors cursor-pointer"
               >
                 {mutation.isPending ? 'Sending...' : 'Send invitation'}
-              </button>
-              <button
-                onClick={() => onOpenChange(false)}
-                className="text-sm text-[#A8A9B1] hover:text-white cursor-pointer"
-              >
-                Cancel
               </button>
             </div>
           </div>

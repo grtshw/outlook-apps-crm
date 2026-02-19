@@ -89,11 +89,8 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		}
 	}
 
-	// Landing page fields
-	var landingProgram any
-	if raw := result.GuestList.Get("landing_program"); raw != nil {
-		landingProgram = raw
-	}
+	// Landing page fields — resolve speaker avatars from contacts
+	landingProgram := resolveProgramAvatars(app, result.GuestList.Get("landing_program"))
 
 	response := map[string]any{
 		"type":        result.Type,
@@ -672,6 +669,40 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 	sendRSVPConfirmationAsync(app, result, input, fullName)
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
+}
+
+// resolveProgramAvatars enriches landing_program items with current avatar URLs from contacts.
+func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
+	if raw == nil {
+		return nil
+	}
+	items, ok := raw.([]any)
+	if !ok {
+		return raw
+	}
+	for _, entry := range items {
+		item, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		contactID, _ := item["speaker_contact_id"].(string)
+		if contactID == "" {
+			continue
+		}
+		if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
+			avatarURL := contact.GetString("avatar_small_url")
+			if avatarURL == "" {
+				avatarURL = contact.GetString("avatar_thumb_url")
+			}
+			if avatarURL == "" {
+				avatarURL = contact.GetString("avatar_url")
+			}
+			if avatarURL != "" {
+				item["speaker_image_url"] = avatarURL
+			}
+		}
+	}
+	return raw
 }
 
 // ============================================================================

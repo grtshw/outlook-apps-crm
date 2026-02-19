@@ -688,9 +688,9 @@ export function RSVPPage() {
 
   // Editorial hero + form layout
   return (
-    <div className="rsvp-theme">
-      {/* Fixed semicircle nav — always at bottom center of viewport */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center">
+    <div className="rsvp-theme bg-[#E95139]">
+      {/* Fixed semicircle nav — desktop only */}
+      <div className="hidden lg:flex fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex-col items-center">
         {/* Graphite semicircle — scroll down */}
         <button
           ref={downBtnRef}
@@ -774,7 +774,7 @@ export function RSVPPage() {
       </div>
 
       {/* Pane 2: Program + RSVP form */}
-      <div ref={formPaneRef} className="min-h-screen relative">
+      <div ref={formPaneRef} className="min-h-screen relative -mt-16 lg:mt-0 rounded-t-2xl lg:rounded-none overflow-hidden">
         {/* Flower bg visible as border */}
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
@@ -953,6 +953,21 @@ export function RSVPPage() {
             </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-[#0d0d0d] text-[#777] text-xs px-6 lg:px-10 py-8">
+        <p className="text-center text-[#999] leading-relaxed mb-6">
+          The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
+        </p>
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+          <span>&copy; 2021–2026 The Outlook Pty Ltd — ABN 72 655 333 403 <button onClick={() => setForwardOpen(true)} className="cursor-default">·</button></span>
+          <div className="flex gap-6">
+            <a href="https://theoutlook.io/contact-us" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Contact us</a>
+            <a href="https://theoutlook.io/about/about-the-outlook" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">About</a>
+            <a href="https://theoutlook.io/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Privacy policy</a>
+          </div>
+        </div>
+      </footer>
 
       <RSVPForwardDrawer
         open={forwardOpen}
