@@ -735,7 +735,7 @@ export function RSVPPage() {
 
         {/* Main spread */}
         <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-10 min-h-0">
-          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative">
+          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative saturate-[0.3]">
             {/* Carousel images — stacked, crossfade via GSAP */}
             {['/images/rsvp-hero-dinner.jpg', '/images/rsvp-hero-flowers.jpg', '/images/rsvp-hero-flowers-dark.jpg'].map((src, i) => (
               <img
