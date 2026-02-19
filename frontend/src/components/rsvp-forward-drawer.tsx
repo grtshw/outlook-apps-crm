@@ -4,6 +4,7 @@ import { forwardRSVP } from '@/lib/api-public'
 import type { RSVPForwardSubmission } from '@/lib/api-public'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { CircleCheck } from 'lucide-react'
 
 const inputClassName = 'bg-white/5 border-[#645C49]/30 text-white placeholder:text-[#A8A9B1]/50 focus-visible:ring-[#E95139]/40'
@@ -23,6 +24,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
   const [recipientName, setRecipientName] = useState('')
   const [recipientEmail, setRecipientEmail] = useState('')
   const [recipientCompany, setRecipientCompany] = useState('')
+  const [policyAccepted, setPolicyAccepted] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   const mutation = useMutation({
@@ -42,7 +44,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
     })
   }
 
-  const canSubmit = forwarderName.trim() && forwarderEmail.trim() && recipientName.trim() && recipientEmail.trim() && !mutation.isPending
+  const canSubmit = forwarderName.trim() && forwarderEmail.trim() && recipientName.trim() && recipientEmail.trim() && policyAccepted && !mutation.isPending
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -144,6 +146,30 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Privacy policy */}
+              <div
+                className="flex items-start gap-3 cursor-pointer"
+                onClick={() => setPolicyAccepted((v) => !v)}
+              >
+                <Checkbox
+                  checked={policyAccepted}
+                  onCheckedChange={(checked) => setPolicyAccepted(checked === true)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm text-[#A8A9B1] leading-relaxed">
+                  I agree to The Outlook&apos;s{' '}
+                  <a
+                    href="https://theoutlook.io/legal/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-white hover:text-[#E95139]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    privacy policy
+                  </a>
+                </span>
               </div>
 
               {/* Error */}
