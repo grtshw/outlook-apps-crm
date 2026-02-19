@@ -697,6 +697,17 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 			if avatarURL == "" {
 				avatarURL = contact.GetString("avatar_url")
 			}
+			if avatarURL == "" {
+				if cached, ok := GetDAMAvatarURLs(contactID); ok {
+					avatarURL = cached.SmallURL
+					if avatarURL == "" {
+						avatarURL = cached.ThumbURL
+					}
+					if avatarURL == "" {
+						avatarURL = cached.OriginalURL
+					}
+				}
+			}
 			if avatarURL != "" {
 				item["speaker_image_url"] = avatarURL
 			}

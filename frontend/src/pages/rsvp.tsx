@@ -781,7 +781,7 @@ export function RSVPPage() {
       </div>
 
       {/* Pane 2: Program + RSVP form — slides over sticky hero on mobile */}
-      <div ref={formPaneRef} className="min-h-screen relative z-10 rounded-t-2xl lg:rounded-none overflow-hidden">
+      <div ref={formPaneRef} className="min-h-screen relative z-10 rounded-t-2xl lg:rounded-none overflow-hidden lg:overflow-visible">
         {/* Flower bg visible as border */}
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
@@ -963,10 +963,10 @@ export function RSVPPage() {
 
       {/* Footer */}
       <footer className="relative z-10 bg-[#0d0d0d] text-[#777] text-xs px-6 lg:px-10 py-8">
-        <p className="text-center text-[#999] leading-relaxed mb-6">
+        <p className="text-left text-[#999] leading-relaxed mb-6">
           The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
         </p>
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 font-mono uppercase tracking-wider">
           <span>&copy; 2021–2026 The Outlook Pty Ltd — ABN 72 655 333 403 <button onClick={() => setForwardOpen(true)} className="cursor-default">·</button></span>
           <div className="flex gap-6">
             <a href="https://theoutlook.io/contact-us" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Contact us</a>
