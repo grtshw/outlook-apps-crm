@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useLocation } from 'react-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { getRSVPInfo, submitRSVP } from '@/lib/api-public'
 import type { RSVPSubmission } from '@/lib/api-public'
+import { RSVPForwardDrawer } from '@/components/rsvp-forward-drawer'
 import type { DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -36,6 +37,8 @@ const textareaClassName = inputClassName
 
 export function RSVPPage() {
   const { token } = useParams<{ token: string }>()
+  const location = useLocation()
+  const [forwardOpen, setForwardOpen] = useState(location.pathname.endsWith('/forward'))
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -78,6 +81,7 @@ export function RSVPPage() {
   const heroContentRef = useRef<HTMLDivElement>(null)
   const formInnerRef = useRef<HTMLDivElement>(null)
   const heroAnimated = useRef(false)
+  const noiseRef = useRef<SVGFETurbulenceElement>(null)
 
   // Detect scroll: swap buttons + transition hero bg from terracotta to black
   useEffect(() => {
@@ -304,6 +308,14 @@ export function RSVPPage() {
             : `Thanks for letting us know, ${displayName}.`}
         </p>
       </div>
+      {submittedResponse === 'accepted' && (
+        <button
+          onClick={() => setForwardOpen(true)}
+          className="text-sm text-[#A8A9B1] underline underline-offset-4 hover:text-white cursor-pointer"
+        >
+          Know someone who'd be interested? Forward this invitation
+        </button>
+      )}
     </div>
   )
 
@@ -683,8 +695,25 @@ export function RSVPPage() {
 
         {/* Main spread */}
         <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-10 min-h-0">
-          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0">
-            <img src="/images/rsvp-hero-dinner.jpg" alt="" className="w-full h-full object-cover" />
+          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative">
+            {/* Carousel images — stacked, crossfade via GSAP */}
+            {['/images/rsvp-hero-dinner.jpg', '/images/rsvp-hero-flowers.jpg', '/images/rsvp-hero-flowers-dark.jpg'].map((src, i) => (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                data-carousel-index={i}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ opacity: i === 0 ? 1 : 0 }}
+              />
+            ))}
+            {/* Film grain overlay */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none mix-blend-overlay opacity-40" aria-hidden="true">
+              <filter id="hero-noise">
+                <feTurbulence ref={noiseRef} type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+              </filter>
+              <rect width="100%" height="100%" filter="url(#hero-noise)" />
+            </svg>
           </div>
           <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center">
             <div className="pt-6 lg:pt-4">
@@ -904,8 +933,14 @@ export function RSVPPage() {
             </div>
         </div>
       </div>
+
+      <RSVPForwardDrawer
+        open={forwardOpen}
+        onOpenChange={setForwardOpen}
+        token={token!}
+        eventName={info.event_name}
+        listName={info.list_name}
+      />
     </div>
   )
 }
-
-

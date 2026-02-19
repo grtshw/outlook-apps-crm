@@ -27,9 +27,11 @@ function App() {
   return (
     <Routes>
       {isRSVPDomain && <Route path="/:token" element={<RSVPPage />} />}
+      {isRSVPDomain && <Route path="/:token/forward" element={<RSVPPage />} />}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/shared/:token" element={<SharedGuestListPage />} />
       <Route path="/rsvp/:token" element={<RSVPPage />} />
+      <Route path="/rsvp/:token/forward" element={<RSVPPage />} />
       <Route
         path="/*"
         element={

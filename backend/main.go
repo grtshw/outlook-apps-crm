@@ -508,6 +508,10 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handlePublicRSVPSubmit(re, app)
 	}).BindFunc(utils.RateLimitPublic)
 
+	e.Router.POST("/api/public/rsvp/{token}/forward", func(re *core.RequestEvent) error {
+		return handlePublicRSVPForward(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
 	// Admin RSVP management
 	e.Router.POST("/api/guest-lists/{id}/rsvp/enable", func(re *core.RequestEvent) error {
 		return handleGuestListRSVPToggle(re, app)

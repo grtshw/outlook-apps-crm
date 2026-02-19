@@ -268,6 +268,54 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	return nil
 }
 
+// sendRSVPForwardEmail sends an invitation email when someone forwards their RSVP to another person.
+// To: recipient, CC: forwarder, BCC: hello@wearetheoutlook.com.au
+func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, forwarderName, forwarderEmail, rsvpURL, eventName string) error {
+	name := recipientName
+	if name == "" {
+		name = "there"
+	}
+	firstName := strings.Fields(name)[0]
+
+	subject := fmt.Sprintf("%s has invited you to %s", forwarderName, eventName)
+	content := fmt.Sprintf(`
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                %s has invited you to <strong>%s</strong>. Please let them know if you can make it.
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+                <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
+                    Respond now
+                </a>
+            </div>
+            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
+                Copy and paste if the link doesn't work:
+            </p>
+            <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 6px; margin: 0;">
+                <p style="color: #666666; font-size: 13px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                    %s
+                </p>
+            </div>
+`, firstName, forwarderName, eventName, rsvpURL, rsvpURL)
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
+		Cc:      []mail.Address{{Address: forwarderEmail, Name: forwarderName}},
+		Bcc:     []mail.Address{{Address: "hello@wearetheoutlook.com.au"}},
+		Subject: subject,
+		HTML:    wrapEmailHTML(content),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send forward invite to %s: %v", recipientEmail, err)
+		return err
+	}
+
+	log.Printf("[Email] Forward invite sent to %s (forwarded by %s) for %s", recipientEmail, forwarderEmail, eventName)
+	return nil
+}
+
 // sendRSVPConfirmationEmail sends a confirmation email when someone accepts an RSVP.
 // Always BCCs hello@wearetheoutlook.com.au plus any additional BCC emails from the guest list config.
 func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, eventName, eventDate, eventTime, eventLocation string, bccEmails []string) error {

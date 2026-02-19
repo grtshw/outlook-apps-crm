@@ -172,6 +172,23 @@ export async function submitRSVP(token: string, data: RSVPSubmission): Promise<{
   })
 }
 
+export interface RSVPForwardSubmission {
+  forwarder_name: string
+  forwarder_email: string
+  forwarder_company?: string
+  recipient_name: string
+  recipient_email: string
+  recipient_company?: string
+}
+
+export async function forwardRSVP(token: string, data: RSVPForwardSubmission): Promise<{ message: string }> {
+  return publicFetch(`/api/public/rsvp/${token}/forward`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
 export async function updateSharedGuestListItem(
   token: string,
   itemId: string,

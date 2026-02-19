@@ -675,6 +675,230 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 }
 
 // ============================================================================
+// Public RSVP Forward
+// ============================================================================
+
+type rsvpForwardInput struct {
+	ForwarderName    string `json:"forwarder_name"`
+	ForwarderEmail   string `json:"forwarder_email"`
+	ForwarderCompany string `json:"forwarder_company"`
+	RecipientName    string `json:"recipient_name"`
+	RecipientEmail   string `json:"recipient_email"`
+	RecipientCompany string `json:"recipient_company"`
+}
+
+func handlePublicRSVPForward(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	token := re.Request.PathValue("token")
+
+	result, err := lookupRSVPToken(app, token)
+	if err != nil {
+		return utils.NotFoundResponse(re, "RSVP link not found")
+	}
+
+	if !result.GuestList.GetBool("rsvp_enabled") {
+		return re.JSON(http.StatusGone, map[string]string{"error": "RSVP is no longer available for this event"})
+	}
+
+	var input rsvpForwardInput
+	if err := json.NewDecoder(re.Request.Body).Decode(&input); err != nil {
+		return utils.BadRequestResponse(re, "Invalid JSON")
+	}
+
+	// Validate required fields
+	input.ForwarderName = strings.TrimSpace(input.ForwarderName)
+	input.ForwarderEmail = strings.TrimSpace(input.ForwarderEmail)
+	input.ForwarderCompany = strings.TrimSpace(input.ForwarderCompany)
+	input.RecipientName = strings.TrimSpace(input.RecipientName)
+	input.RecipientEmail = strings.TrimSpace(input.RecipientEmail)
+	input.RecipientCompany = strings.TrimSpace(input.RecipientCompany)
+
+	if input.ForwarderName == "" {
+		return utils.BadRequestResponse(re, "Your name is required")
+	}
+	if input.ForwarderEmail == "" || !strings.Contains(input.ForwarderEmail, "@") {
+		return utils.BadRequestResponse(re, "Valid email is required")
+	}
+	if input.RecipientName == "" {
+		return utils.BadRequestResponse(re, "Their name is required")
+	}
+	if input.RecipientEmail == "" || !strings.Contains(input.RecipientEmail, "@") {
+		return utils.BadRequestResponse(re, "Valid email is required for the recipient")
+	}
+	if strings.EqualFold(input.ForwarderEmail, input.RecipientEmail) {
+		return utils.BadRequestResponse(re, "You can't forward an invitation to yourself")
+	}
+
+	listID := result.GuestList.Id
+
+	// Check if recipient is already on this guest list
+	recipientBlindIdx := utils.BlindIndex(input.RecipientEmail)
+	var existingContact *core.Record
+
+	if recipientBlindIdx != "" {
+		contacts, err := app.FindRecordsByFilter(
+			utils.CollectionContacts,
+			"email_index = {:idx}",
+			"", 1, 0,
+			map[string]any{"idx": recipientBlindIdx},
+		)
+		if err == nil && len(contacts) > 0 {
+			existingContact = contacts[0]
+
+			// Check if already on this guest list
+			existingItems, err := app.FindRecordsByFilter(
+				utils.CollectionGuestListItems,
+				"guest_list = {:listId} && contact = {:contactId}",
+				"", 1, 0,
+				map[string]any{"listId": listID, "contactId": existingContact.Id},
+			)
+			if err == nil && len(existingItems) > 0 {
+				return re.JSON(http.StatusConflict, map[string]string{
+					"error": "This person is already on the guest list for this event",
+				})
+			}
+		}
+	}
+
+	// Parse recipient name into first/last
+	nameParts := strings.Fields(input.RecipientName)
+	recipientFirstName := nameParts[0]
+	recipientLastName := ""
+	if len(nameParts) > 1 {
+		recipientLastName = strings.Join(nameParts[1:], " ")
+	}
+
+	// Find or create recipient contact
+	var contact *core.Record
+	if existingContact != nil {
+		contact = existingContact
+		// Update name/company if provided
+		needsSave := false
+		if recipientFirstName != "" && recipientFirstName != contact.GetString("first_name") {
+			contact.Set("first_name", recipientFirstName)
+			needsSave = true
+		}
+		if recipientLastName != "" && recipientLastName != contact.GetString("last_name") {
+			contact.Set("last_name", recipientLastName)
+			needsSave = true
+		}
+		if input.RecipientName != contact.GetString("name") {
+			contact.Set("name", input.RecipientName)
+			needsSave = true
+		}
+		if needsSave {
+			if err := app.Save(contact); err != nil {
+				log.Printf("[Forward] Failed to update contact %s: %v", contact.Id, err)
+			}
+		}
+	} else {
+		// Create new pending contact
+		contactCollection, err := app.FindCollectionByNameOrId(utils.CollectionContacts)
+		if err != nil {
+			return utils.InternalErrorResponse(re, "Failed to find contacts collection")
+		}
+
+		contact = core.NewRecord(contactCollection)
+		contact.Set("name", input.RecipientName)
+		contact.Set("first_name", recipientFirstName)
+		contact.Set("last_name", recipientLastName)
+		contact.Set("email", input.RecipientEmail)
+		contact.Set("email_index", utils.BlindIndex(input.RecipientEmail))
+		contact.Set("status", "pending")
+		contact.Set("source", "rsvp_forward")
+
+		// Try to match organisation by name
+		if input.RecipientCompany != "" {
+			orgs, err := app.FindRecordsByFilter(
+				utils.CollectionOrganisations,
+				"name ~ {:name}",
+				"", 1, 0,
+				map[string]any{"name": input.RecipientCompany},
+			)
+			if err == nil && len(orgs) > 0 {
+				contact.Set("organisation", orgs[0].Id)
+			}
+		}
+
+		if err := app.Save(contact); err != nil {
+			log.Printf("[Forward] Failed to create contact: %v", err)
+			return utils.InternalErrorResponse(re, "Failed to create contact")
+		}
+	}
+
+	// Create guest list item with personal RSVP token
+	itemCollection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Collection not found")
+	}
+
+	rsvpToken, err := generateToken()
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to generate token")
+	}
+
+	nextSort := getNextSortOrder(app, listID)
+
+	// Get organisation name
+	orgName := input.RecipientCompany
+	if orgID := contact.GetString("organisation"); orgID != "" {
+		if org, err := app.FindRecordById(utils.CollectionOrganisations, orgID); err == nil {
+			orgName = org.GetString("name")
+		}
+	}
+
+	item := core.NewRecord(itemCollection)
+	item.Set("guest_list", listID)
+	item.Set("contact", contact.Id)
+	item.Set("rsvp_token", rsvpToken)
+	item.Set("invite_status", "invited")
+	item.Set("rsvp_invited_by", input.ForwarderName)
+	item.Set("sort_order", nextSort)
+
+	// Denormalize contact fields
+	item.Set("contact_name", input.RecipientName)
+	item.Set("contact_job_title", contact.GetString("job_title"))
+	item.Set("contact_organisation_name", orgName)
+	item.Set("contact_linkedin", contact.GetString("linkedin"))
+	item.Set("contact_location", utils.DecryptField(contact.GetString("location")))
+
+	if err := app.Save(item); err != nil {
+		log.Printf("[Forward] Failed to create guest list item: %v", err)
+		return utils.InternalErrorResponse(re, "Failed to forward invitation")
+	}
+
+	// Send email in background
+	eventName := result.GuestList.GetString("name")
+	if epID := result.GuestList.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			if n := ep.GetString("name"); n != "" {
+				eventName = n
+			}
+		}
+	}
+
+	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), rsvpToken)
+	go sendRSVPForwardEmail(app, input.RecipientEmail, input.RecipientName, input.ForwarderName, input.ForwarderEmail, rsvpURL, eventName)
+
+	utils.LogAudit(app, utils.AuditEntry{
+		Action:       "rsvp_forward",
+		ResourceType: utils.CollectionGuestListItems,
+		ResourceID:   item.Id,
+		IPAddress:    re.RealIP(),
+		UserAgent:    re.Request.UserAgent(),
+		Status:       "success",
+		Metadata: map[string]any{
+			"forwarder_name":  input.ForwarderName,
+			"recipient_name":  input.RecipientName,
+			"guest_list_id":   listID,
+			"contact_id":      contact.Id,
+			"new_contact":     existingContact == nil,
+		},
+	})
+
+	return re.JSON(http.StatusOK, map[string]string{"message": "Invitation sent"})
+}
+
+// ============================================================================
 // Admin RSVP Endpoints
 // ============================================================================
 
