@@ -700,7 +700,7 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 			small := contact.GetString("avatar_small_url")
 			thumb := contact.GetString("avatar_thumb_url")
 			full := contact.GetString("avatar_url")
-			fmt.Printf("[AvatarDebug] contact=%s small=%q thumb=%q full=%q\n", contactID, small, thumb, full)
+			log.Printf("[AvatarDebug] contact=%s small=%q thumb=%q full=%q\n", contactID, small, thumb, full)
 
 			avatarURL := small
 			if avatarURL == "" {
@@ -711,7 +711,7 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 			}
 			if avatarURL == "" {
 				if cached, ok := GetDAMAvatarURLs(contactID); ok {
-					fmt.Printf("[AvatarDebug] DAM cache hit for %s: small=%q thumb=%q orig=%q\n", contactID, cached.SmallURL, cached.ThumbURL, cached.OriginalURL)
+					log.Printf("[AvatarDebug] DAM cache hit for %s: small=%q thumb=%q orig=%q\n", contactID, cached.SmallURL, cached.ThumbURL, cached.OriginalURL)
 					avatarURL = cached.SmallURL
 					if avatarURL == "" {
 						avatarURL = cached.ThumbURL
@@ -720,17 +720,17 @@ func resolveProgramAvatars(app *pocketbase.PocketBase, raw any) any {
 						avatarURL = cached.OriginalURL
 					}
 				} else {
-					fmt.Printf("[AvatarDebug] DAM cache miss for %s\n", contactID)
+					log.Printf("[AvatarDebug] DAM cache miss for %s\n", contactID)
 				}
 			}
 			if avatarURL != "" {
 				item["speaker_image_url"] = avatarURL
-				fmt.Printf("[AvatarDebug] RESOLVED %s → %s\n", contactID, avatarURL)
+				log.Printf("[AvatarDebug] RESOLVED %s → %s\n", contactID, avatarURL)
 			} else {
-				fmt.Printf("[AvatarDebug] NO AVATAR for %s\n", contactID)
+				log.Printf("[AvatarDebug] NO AVATAR for %s\n", contactID)
 			}
 		} else {
-			fmt.Printf("[AvatarDebug] contact %s NOT FOUND: %v\n", contactID, err)
+			log.Printf("[AvatarDebug] contact %s NOT FOUND: %v\n", contactID, err)
 		}
 	}
 	return raw
