@@ -23,11 +23,17 @@ const FALLBACK_APPS: EcosystemApp[] = [
 
 const navigation: NavGroup[] = [
   {
+    label: 'CRM',
     items: [
       { name: 'Dashboard', href: '/', icon: LayoutDashboard },
       { name: 'Contacts', href: '/contacts', icon: Users },
       { name: 'Sanitise', href: '/contacts/sanitise', icon: ClipboardCheck },
       { name: 'Organisations', href: '/organisations', icon: Building2 },
+    ],
+  },
+  {
+    label: 'After Dark',
+    items: [
       { name: 'Guest lists', href: '/guest-lists', icon: ListChecks },
     ],
   },
