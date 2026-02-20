@@ -1567,6 +1567,7 @@ func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, e
 
 	var damResp struct {
 		Items []struct {
+			ID                string `json:"id"`
 			CrmID             string `json:"crm_id"`
 			AvatarThumbURL    string `json:"avatar_thumb_url"`
 			AvatarSmallURL    string `json:"avatar_small_url"`
@@ -1581,7 +1582,7 @@ func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, e
 	updated := 0
 	skipped := 0
 	for _, person := range damResp.Items {
-		if person.CrmID == "" || (person.AvatarSmallURL == "" && person.AvatarThumbURL == "" && person.AvatarOriginalURL == "") {
+		if person.CrmID == "" || person.ID == "" || (person.AvatarSmallURL == "" && person.AvatarThumbURL == "" && person.AvatarOriginalURL == "") {
 			skipped++
 			continue
 		}
@@ -1592,15 +1593,20 @@ func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, e
 			continue
 		}
 
+		// Build DAM proxy URLs (Tigris URLs 403 — must go through DAM's proxy handler)
+		thumbURL := damURL + "/api/people/" + person.ID + "/avatar/thumb"
+		smallURL := damURL + "/api/people/" + person.ID + "/avatar/small"
+		originalURL := damURL + "/api/people/" + person.ID + "/avatar/original"
+
 		// Check if URLs have changed
 		changed := false
-		if person.AvatarThumbURL != "" && record.GetString("avatar_thumb_url") != person.AvatarThumbURL {
+		if record.GetString("avatar_thumb_url") != thumbURL {
 			changed = true
 		}
-		if person.AvatarSmallURL != "" && record.GetString("avatar_small_url") != person.AvatarSmallURL {
+		if record.GetString("avatar_small_url") != smallURL {
 			changed = true
 		}
-		if person.AvatarOriginalURL != "" && record.GetString("avatar_original_url") != person.AvatarOriginalURL {
+		if record.GetString("avatar_original_url") != originalURL {
 			changed = true
 		}
 		if !changed {
@@ -1608,15 +1614,9 @@ func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, e
 			continue
 		}
 
-		if person.AvatarThumbURL != "" {
-			record.Set("avatar_thumb_url", person.AvatarThumbURL)
-		}
-		if person.AvatarSmallURL != "" {
-			record.Set("avatar_small_url", person.AvatarSmallURL)
-		}
-		if person.AvatarOriginalURL != "" {
-			record.Set("avatar_original_url", person.AvatarOriginalURL)
-		}
+		record.Set("avatar_thumb_url", thumbURL)
+		record.Set("avatar_small_url", smallURL)
+		record.Set("avatar_original_url", originalURL)
 
 		// Decrypt PII fields before save
 		piiFields := []string{"email", "personal_email", "phone", "bio", "location"}

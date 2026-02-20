@@ -53,6 +53,7 @@ func RefreshDAMAvatarCache() {
 
 	var damResp struct {
 		Items []struct {
+			ID          string `json:"id"`
 			CrmID       string `json:"crm_id"`
 			PresenterID string `json:"presenter_id"`
 			ThumbURL    string `json:"avatar_thumb_url"`
@@ -69,13 +70,14 @@ func RefreshDAMAvatarCache() {
 	newCache := make(map[string]DAMAvatarURLs, len(damResp.Items))
 	populated := 0
 	for _, item := range damResp.Items {
-		if item.SmallURL == "" && item.ThumbURL == "" {
+		if item.ID == "" || (item.SmallURL == "" && item.ThumbURL == "") {
 			continue
 		}
+		// Use DAM proxy URLs (Tigris URLs 403 — must go through DAM's proxy handler)
 		urls := DAMAvatarURLs{
-			ThumbURL:    item.ThumbURL,
-			SmallURL:    item.SmallURL,
-			OriginalURL: item.OriginalURL,
+			ThumbURL:    damURL + "/api/people/" + item.ID + "/avatar/thumb",
+			SmallURL:    damURL + "/api/people/" + item.ID + "/avatar/small",
+			OriginalURL: damURL + "/api/people/" + item.ID + "/avatar/original",
 		}
 		if item.CrmID != "" {
 			newCache[item.CrmID] = urls
