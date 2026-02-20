@@ -237,23 +237,27 @@ func main() {
 // securityHeadersMiddleware adds security headers to all responses
 func securityHeadersMiddleware(e *core.RequestEvent) error {
 	h := e.Response.Header()
+	path := e.Request.URL.Path
 
-	// Existing security headers
 	h.Set("X-Content-Type-Options", "nosniff")
-	h.Set("X-Frame-Options", "DENY")
 	h.Set("X-XSS-Protection", "1; mode=block")
-
-	// HSTS - enforce HTTPS for 1 year, include subdomains
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-
-	// Content Security Policy - restrict sources
-	h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
-
-	// Referrer Policy - don't leak URLs to external sites
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-	// Permissions Policy - disable unused browser features
 	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+
+	// Outlook Add-in routes need iframe embedding by Office hosts
+	if strings.HasPrefix(path, "/outlook-addin/") {
+		h.Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' https://appsforoffice.microsoft.com; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data: https:; "+
+				"connect-src 'self' https:; "+
+				"frame-ancestors https://*.office.com https://*.office365.com https://*.outlook.com https://*.microsoft.com")
+	} else {
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
+	}
 
 	return e.Next()
 }

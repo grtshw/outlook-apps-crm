@@ -517,6 +517,8 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 			"rsvp_responded_at":        r.GetString("rsvp_responded_at"),
 			"rsvp_invited_by":          r.GetString("rsvp_invited_by"),
 			"rsvp_comments":            r.GetString("rsvp_comments"),
+			"invite_opened":            r.GetBool("invite_opened"),
+			"invite_clicked":           r.GetBool("invite_clicked"),
 			"created":                   r.GetString("created"),
 		}
 

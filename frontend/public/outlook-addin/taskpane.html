@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Outlook CRM</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      color: #333;
+      background: #fafafa;
+      line-height: 1.4;
+    }
+    .container { padding: 16px; max-width: 100%; }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #0d0d0d;
+      color: #fff;
+    }
+    .header-title { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+    .header-btn {
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    .header-btn:hover { color: #fff; }
+
+    /* Login */
+    .login-form { max-width: 280px; margin: 40px auto; }
+    .login-form h2 { font-size: 16px; margin-bottom: 4px; }
+    .login-form p { color: #666; font-size: 12px; margin-bottom: 20px; }
+
+    /* Form elements */
+    label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500; }
+    input, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus { outline: none; border-color: #0078d4; }
+    textarea { resize: vertical; min-height: 60px; }
+    .field { margin-bottom: 12px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+    .btn-primary { background: #0078d4; color: #fff; }
+    .btn-primary:hover { background: #006cbe; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary { background: #f0f0f0; color: #333; }
+    .btn-secondary:hover { background: #e4e4e4; }
+    .btn-outline {
+      background: none;
+      border: 1px solid #ddd;
+      color: #333;
+    }
+    .btn-outline:hover { background: #f5f5f5; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
+
+    /* Contact card */
+    .contact-card { background: #fff; border-radius: 8px; border: 1px solid #e8e8e8; overflow: hidden; }
+    .contact-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #e8e8e8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: #666;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .contact-name { font-size: 15px; font-weight: 600; }
+    .contact-title { font-size: 12px; color: #666; margin-top: 2px; }
+    .contact-body { padding: 12px 16px; }
+    .contact-field {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 6px 0;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .contact-field:last-child { border-bottom: none; }
+    .contact-field-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; min-width: 70px; padding-top: 2px; }
+    .contact-field-value { font-size: 13px; text-align: right; word-break: break-word; flex: 1; margin-left: 8px; }
+    .contact-field-value a { color: #0078d4; text-decoration: none; }
+    .contact-field-value a:hover { text-decoration: underline; }
+
+    .contact-actions {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .status-active { background: #e6f4ea; color: #1e7e34; }
+    .status-pending { background: #fff3e0; color: #e65100; }
+    .status-inactive { background: #f5f5f5; color: #666; }
+
+    /* Edit form */
+    .edit-form { padding: 16px; }
+    .edit-form .field { margin-bottom: 10px; }
+    .edit-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .edit-actions .btn { flex: 1; }
+
+    /* States */
+    .loading { text-align: center; padding: 40px 16px; color: #666; }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #e8e8e8;
+      border-top-color: #0078d4;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      background: #fef2f2;
+      color: #dc2626;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .success-msg {
+      background: #f0fdf4;
+      color: #16a34a;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: #666;
+    }
+    .empty-state h3 { font-size: 14px; color: #333; margin-bottom: 4px; }
+    .empty-state p { font-size: 12px; margin-bottom: 16px; }
+
+    .sender-info {
+      background: #f5f5f5;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+    .sender-info strong { font-weight: 600; }
+
+    .crm-link {
+      display: block;
+      text-align: center;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    .crm-link a { color: #0078d4; text-decoration: none; }
+    .crm-link a:hover { text-decoration: underline; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">THE OUTLOOK CRM</span>
+  <button class="header-btn hidden" id="logoutBtn" onclick="logout()">Log out</button>
+</div>
+
+<!-- Login -->
+<div id="loginView" class="container">
+  <div class="login-form">
+    <h2>Sign in to CRM</h2>
+    <p>Use your CRM account credentials.</p>
+    <div id="loginError" class="error-msg hidden"></div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="loginBtn" onclick="login()">Sign in</button>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loadingView" class="container hidden">
+  <div class="loading">
+    <div class="spinner"></div>
+    <p>Looking up contact...</p>
+  </div>
+</div>
+
+<!-- Contact found -->
+<div id="contactView" class="container hidden">
+  <div class="contact-card">
+    <div class="contact-header">
+      <div class="avatar" id="contactAvatar"></div>
+      <div>
+        <div class="contact-name" id="contactName"></div>
+        <div class="contact-title" id="contactTitle"></div>
+      </div>
+    </div>
+    <div class="contact-body" id="contactFields"></div>
+    <div class="contact-actions">
+      <button class="btn btn-outline btn-sm" onclick="startEdit()">Edit</button>
+      <a class="btn btn-outline btn-sm" id="crmLink" href="#" target="_blank">Open in CRM</a>
+    </div>
+  </div>
+  <div class="crm-link" id="contactMeta"></div>
+</div>
+
+<!-- Edit contact -->
+<div id="editView" class="container hidden">
+  <h3 style="font-size:14px; margin-bottom:12px;">Edit contact</h3>
+  <div id="editError" class="error-msg hidden"></div>
+  <div id="editSuccess" class="success-msg hidden"></div>
+  <div class="edit-form" id="editForm"></div>
+  <div class="edit-actions">
+    <button class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveEdit()">Save</button>
+  </div>
+</div>
+
+<!-- Contact not found -->
+<div id="notFoundView" class="container hidden">
+  <div class="empty-state">
+    <h3>Not in CRM</h3>
+    <p id="notFoundEmail"></p>
+  </div>
+  <div class="sender-info" id="senderInfo"></div>
+  <div id="createError" class="error-msg hidden"></div>
+  <div id="createForm"></div>
+  <button class="btn btn-primary" id="createBtn" onclick="createContact()">Add to CRM</button>
+</div>
+
+<!-- No Office context (browser testing) -->
+<div id="noOfficeView" class="container hidden">
+  <div class="empty-state">
+    <h3>Outlook Add-in</h3>
+    <p>Open this in Outlook to look up email senders in the CRM.</p>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+const TOKEN_KEY = 'crm_pb_token';
+const USER_KEY = 'crm_pb_user';
+
+let currentContact = null;
+let senderEmail = '';
+let senderName = '';
+let isOfficeReady = false;
+
+// ── Office.js init ──────────────────────────────────────────────────────
+Office.onReady(function(info) {
+  if (info.host === Office.HostType.Outlook) {
+    isOfficeReady = true;
+    checkAuth();
+  }
+});
+
+// Fallback: if Office.js doesn't load (browser testing)
+setTimeout(function() {
+  if (!isOfficeReady) {
+    if (getToken()) {
+      show('noOfficeView');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+    } else {
+      show('loginView');
+    }
+  }
+}, 2000);
+
+// ── Auth ────────────────────────────────────────────────────────────────
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function getUser() { try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch(e) { return null; } }
+
+function checkAuth() {
+  var token = getToken();
+  if (!token) { show('loginView'); return; }
+
+  // Validate token with a lightweight request
+  fetch(API_BASE + '/api/contacts?search=__ping__&perPage=1', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  }).then(function(r) {
+    if (r.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      show('loginView');
+    } else {
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      lookupSender();
+    }
+  }).catch(function() {
+    show('loginView');
+  });
+}
+
+function login() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var password = document.getElementById('loginPassword').value;
+  var btn = document.getElementById('loginBtn');
+  var errEl = document.getElementById('loginError');
+
+  if (!email || !password) { showError(errEl, 'Email and password are required.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+  errEl.classList.add('hidden');
+
+  fetch(API_BASE + '/api/collections/users/auth-with-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identity: email, password: password })
+  })
+  .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+  .then(function(res) {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    if (!res.ok) {
+      showError(errEl, res.data.message || 'Invalid credentials.');
+      return;
+    }
+    localStorage.setItem(TOKEN_KEY, res.data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.data.record));
+    document.getElementById('logoutBtn').classList.remove('hidden');
+    lookupSender();
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    showError(errEl, 'Connection failed. Check your network.');
+  });
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  document.getElementById('logoutBtn').classList.add('hidden');
+  currentContact = null;
+  show('loginView');
+}
+
+// ── Sender lookup ───────────────────────────────────────────────────────
+function lookupSender() {
+  if (!isOfficeReady) return;
+
+  var item = Office.context.mailbox.item;
+  senderEmail = item.from.emailAddress;
+  senderName = item.from.displayName || '';
+
+  if (!senderEmail) {
+    show('noOfficeView');
+    return;
+  }
+
+  show('loadingView');
+
+  fetch(API_BASE + '/api/contacts?search=' + encodeURIComponent(senderEmail) + '&perPage=5', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+  })
+  .then(function(r) {
+    if (r.status === 401) { logout(); return null; }
+    return r.json();
+  })
+  .then(function(data) {
+    if (!data) return;
+    if (data.items && data.items.length > 0) {
+      currentContact = data.items[0];
+      renderContact(currentContact);
+      show('contactView');
+    } else {
+      renderNotFound();
+      show('notFoundView');
+    }
+  })
+  .catch(function() {
+    renderNotFound();
+    show('notFoundView');
+  });
+
+  // Listen for email changes
+  try {
+    Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, function() {
+      lookupSender();
+    });
+  } catch(e) { /* ItemChanged not supported in all clients */ }
+}
+
+// ── Render contact ──────────────────────────────────────────────────────
+function renderContact(c) {
+  // Avatar
+  var avatarEl = document.getElementById('contactAvatar');
+  var avatarUrl = c.avatar_small_url || c.avatar_thumb_url || c.avatar_url;
+  if (avatarUrl) {
+    avatarEl.innerHTML = '<img src="' + esc(avatarUrl) + '" alt="">';
+  } else {
+    avatarEl.textContent = initials(c.name || c.first_name || '?');
+  }
+
+  document.getElementById('contactName').textContent = c.name || (c.first_name + ' ' + (c.last_name || '')).trim();
+
+  var titleParts = [];
+  if (c.job_title) titleParts.push(c.job_title);
+  if (c.organisation_name) titleParts.push(c.organisation_name);
+  document.getElementById('contactTitle').textContent = titleParts.join(' at ');
+
+  // Fields
+  var fields = [];
+  if (c.email) fields.push({ label: 'Email', value: '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' });
+  if (c.phone) fields.push({ label: 'Phone', value: esc(c.phone) });
+  if (c.linkedin) fields.push({ label: 'LinkedIn', value: '<a href="' + esc(c.linkedin) + '" target="_blank">Profile</a>' });
+  if (c.location) fields.push({ label: 'Location', value: esc(c.location) });
+
+  var statusClass = c.status === 'active' ? 'status-active' : c.status === 'pending' ? 'status-pending' : 'status-inactive';
+  fields.push({ label: 'Status', value: '<span class="status-badge ' + statusClass + '">' + esc(c.status || 'unknown') + '</span>' });
+
+  if (c.notes) fields.push({ label: 'Notes', value: esc(c.notes) });
+
+  var html = '';
+  for (var i = 0; i < fields.length; i++) {
+    html += '<div class="contact-field">';
+    html += '<span class="contact-field-label">' + fields[i].label + '</span>';
+    html += '<span class="contact-field-value">' + fields[i].value + '</span>';
+    html += '</div>';
+  }
+  document.getElementById('contactFields').innerHTML = html;
+
+  document.getElementById('crmLink').href = API_BASE + '/contacts/' + c.id;
+  document.getElementById('contactMeta').innerHTML =
+    '<span style="color:#999;font-size:11px;">Source: ' + esc(c.source || '—') + ' &middot; Added: ' + formatDate(c.created) + '</span>';
+}
+
+// ── Edit contact ────────────────────────────────────────────────────────
+function startEdit() {
+  if (!currentContact) return;
+  var c = currentContact;
+
+  var html = '';
+  html += fieldInput('Job title', 'edit_job_title', c.job_title || '');
+  html += fieldInput('Phone', 'edit_phone', c.phone || '');
+  html += fieldInput('Location', 'edit_location', c.location || '');
+  html += fieldInput('LinkedIn', 'edit_linkedin', c.linkedin || '');
+  html += '<div class="field"><label>Notes</label><textarea id="edit_notes" rows="3">' + esc(c.notes || '') + '</textarea></div>';
+
+  document.getElementById('editForm').innerHTML = html;
+  document.getElementById('editError').classList.add('hidden');
+  document.getElementById('editSuccess').classList.add('hidden');
+  show('editView');
+}
+
+function cancelEdit() {
+  show('contactView');
+}
+
+function saveEdit() {
+  var btn = document.getElementById('saveBtn');
+  var errEl = document.getElementById('editError');
+  var successEl = document.getElementById('editSuccess');
+
+  var payload = {
+    job_title: document.getElementById('edit_job_title').value.trim(),
+    phone: document.getElementById('edit_phone').value.trim(),
+    location: document.getElementById('edit_location').value.trim(),
+    linkedin: document.getElementById('edit_linkedin').value.trim(),
+    notes: document.getElementById('edit_notes').value.trim()
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  errEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  fetch(API_BASE + '/api/contacts/' + currentContact.id, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'Bearer ' + getToken(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) {
+    if (r.status === 401) { logout(); return null; }
+    return r.json().then(function(d) { return { ok: r.ok, data: d }; });
+  })
+  .then(function(res) {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    if (!res) return;
+    if (!res.ok) {
+      showError(errEl, res.data.message || 'Failed to update contact.');
+      return;
+    }
+    // Refresh contact data
+    currentContact = Object.assign(currentContact, res.data);
+    renderContact(currentContact);
+    show('contactView');
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    showError(errEl, 'Connection failed.');
+  });
+}
+
+// ── Create contact ──────────────────────────────────────────────────────
+function renderNotFound() {
+  document.getElementById('notFoundEmail').textContent = senderEmail;
+
+  var parts = parseName(senderName);
+  document.getElementById('senderInfo').innerHTML =
+    '<strong>' + esc(senderName || senderEmail) + '</strong><br>' + esc(senderEmail);
+
+  var html = '';
+  html += fieldInput('First name', 'create_first_name', parts.first);
+  html += fieldInput('Last name', 'create_last_name', parts.last);
+  html += fieldInput('Email', 'create_email', senderEmail, true);
+  html += fieldInput('Job title', 'create_job_title', '');
+  html += fieldInput('Phone', 'create_phone', '');
+
+  document.getElementById('createForm').innerHTML = html;
+  document.getElementById('createError').classList.add('hidden');
+}
+
+function createContact() {
+  var btn = document.getElementById('createBtn');
+  var errEl = document.getElementById('createError');
+
+  var firstName = document.getElementById('create_first_name').value.trim();
+  var lastName = document.getElementById('create_last_name').value.trim();
+  var email = document.getElementById('create_email').value.trim();
+
+  if (!firstName) { showError(errEl, 'First name is required.'); return; }
+  if (!email) { showError(errEl, 'Email is required.'); return; }
+
+  var payload = {
+    first_name: firstName,
+    last_name: lastName,
+    email: email,
+    job_title: document.getElementById('create_job_title').value.trim(),
+    phone: document.getElementById('create_phone').value.trim(),
+    source: 'outlook',
+    status: 'active'
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+  errEl.classList.add('hidden');
+
+  fetch(API_BASE + '/api/contacts', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + getToken(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) {
+    if (r.status === 401) { logout(); return null; }
+    return r.json().then(function(d) { return { ok: r.ok, data: d }; });
+  })
+  .then(function(res) {
+    btn.disabled = false;
+    btn.textContent = 'Add to CRM';
+    if (!res) return;
+    if (!res.ok) {
+      showError(errEl, res.data.message || 'Failed to create contact.');
+      return;
+    }
+    // Show the new contact
+    currentContact = res.data;
+    renderContact(currentContact);
+    show('contactView');
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Add to CRM';
+    showError(errEl, 'Connection failed.');
+  });
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
+function show(viewId) {
+  var views = ['loginView', 'loadingView', 'contactView', 'editView', 'notFoundView', 'noOfficeView'];
+  for (var i = 0; i < views.length; i++) {
+    document.getElementById(views[i]).classList.toggle('hidden', views[i] !== viewId);
+  }
+}
+
+function showError(el, msg) {
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function esc(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function initials(name) {
+  if (!name) return '?';
+  var parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return parts[0][0].toUpperCase();
+}
+
+function parseName(displayName) {
+  if (!displayName) return { first: '', last: '' };
+  var parts = displayName.trim().split(/\s+/);
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  try {
+    var d = new Date(dateStr);
+    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch(e) { return dateStr; }
+}
+
+function fieldInput(label, id, value, readonly) {
+  return '<div class="field"><label>' + label + '</label>' +
+    '<input id="' + id + '" value="' + esc(value) + '"' + (readonly ? ' readonly style="background:#f5f5f5;color:#666;"' : '') + '></div>';
+}
+</script>
+</body>
+</html>

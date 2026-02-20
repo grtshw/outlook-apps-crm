@@ -180,6 +180,8 @@ export interface GuestListItem extends RecordModel {
   rsvp_responded_at: string
   rsvp_invited_by: string
   rsvp_comments: string
+  invite_opened: boolean
+  invite_clicked: boolean
 }
 
 export interface GuestListShare extends RecordModel {
