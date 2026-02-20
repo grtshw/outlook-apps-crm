@@ -1,3 +1,16 @@
+<!--
+  Outlook Add-in Manifest for The Outlook CRM
+
+  Deployment: M365 admin center > Settings > Integrated apps > Upload custom app > Office Add-in
+  Validate locally: npx office-addin-manifest validate manifest.xml
+
+  Manifest gotchas (the offline validator is more lenient than M365 admin center):
+  - Version must be four-part: 1.0.0.0 (not 1.0.0)
+  - Supertip Description resid must reference a bt:LongStrings entry, not bt:ShortStrings
+  - If nesting VersionOverrides v1.1 inside v1.0, the inner xmlns must be
+    "http://schemas.microsoft.com/office/mailappversionoverrides/1.1" (with /1.1 suffix)
+  - All URLs (icons, taskpane) must return HTTP 200 with no redirects
+-->
 <?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
