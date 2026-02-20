@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	_ "github.com/grtshw/outlook-apps-crm/migrations"
 	"github.com/grtshw/outlook-apps-crm/utils"
@@ -192,8 +193,29 @@ func main() {
 		// Start the backup scheduler (runs at 3 AM AEST daily)
 		go scheduleBackups(app)
 
-		// Load DAM avatar URL cache (refreshed on project-all and avatar webhooks)
+		// Load DAM avatar URL cache and persist URLs to contact records
 		go RefreshDAMAvatarCache()
+		go func() {
+			time.Sleep(5 * time.Second)
+			if result, err := syncAvatarURLsFromDAM(app); err != nil {
+				log.Printf("[Startup] Avatar URL sync failed: %v", err)
+			} else {
+				log.Printf("[Startup] Avatar URL sync: updated %d, skipped %d", result.Updated, result.Skipped)
+			}
+		}()
+
+		// Re-sync DAM avatar URLs every 4 hours
+		go func() {
+			for {
+				time.Sleep(4 * time.Hour)
+				RefreshDAMAvatarCache()
+				if result, err := syncAvatarURLsFromDAM(app); err != nil {
+					log.Printf("[PeriodicSync] Avatar URL sync failed: %v", err)
+				} else {
+					log.Printf("[PeriodicSync] Avatar URL sync: updated %d, skipped %d", result.Updated, result.Skipped)
+				}
+			}
+		}()
 
 		return e.Next()
 	})

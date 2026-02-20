@@ -444,7 +444,7 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		page = 1
 	}
 	perPage, _ := strconv.Atoi(re.Request.URL.Query().Get("perPage"))
-	if perPage < 1 || perPage > 100 {
+	if perPage < 1 || perPage > 500 {
 		perPage = 50
 	}
 	search := re.Request.URL.Query().Get("search")
@@ -1592,8 +1592,18 @@ func syncAvatarURLsFromDAM(app *pocketbase.PocketBase) (*syncAvatarURLsResult, e
 			continue
 		}
 
-		// Skip if already has avatar URLs
-		if record.GetString("avatar_small_url") != "" {
+		// Check if URLs have changed
+		changed := false
+		if person.AvatarThumbURL != "" && record.GetString("avatar_thumb_url") != person.AvatarThumbURL {
+			changed = true
+		}
+		if person.AvatarSmallURL != "" && record.GetString("avatar_small_url") != person.AvatarSmallURL {
+			changed = true
+		}
+		if person.AvatarOriginalURL != "" && record.GetString("avatar_original_url") != person.AvatarOriginalURL {
+			changed = true
+		}
+		if !changed {
 			skipped++
 			continue
 		}
