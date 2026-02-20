@@ -202,6 +202,7 @@ export function RSVPPage() {
 
   const handleSubmit = () => {
     if (!response) return
+    if (plusOne && (!plusOneName.trim() || !plusOneEmail.trim())) return
     mutation.mutate({
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -481,11 +482,12 @@ export function RSVPPage() {
                   <div className="space-y-4 pl-4 border-l-2 border-[#645C49]/30">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm text-white mb-1.5">First name</label>
+                        <label className="block text-sm text-white mb-1.5">First name <span className="text-[#E95139]">*</span></label>
                         <Input
                           value={plusOneName}
                           onChange={(e) => setPlusOneName(e.target.value)}
                           placeholder="First name"
+                          required
                           className={inputClassName}
                         />
                       </div>
@@ -518,12 +520,13 @@ export function RSVPPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-white mb-1.5">Email</label>
+                      <label className="block text-sm text-white mb-1.5">Email <span className="text-[#E95139]">*</span></label>
                       <Input
                         type="email"
                         value={plusOneEmail}
                         onChange={(e) => setPlusOneEmail(e.target.value)}
                         placeholder="their@email.com"
+                        required
                         className={inputClassName}
                       />
                     </div>

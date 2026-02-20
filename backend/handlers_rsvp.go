@@ -255,6 +255,14 @@ func handlePublicRSVPSubmit(re *core.RequestEvent, app *pocketbase.PocketBase) e
 	if input.Response != "accepted" && input.Response != "declined" {
 		return utils.BadRequestResponse(re, "Response must be 'accepted' or 'declined'")
 	}
+	if input.PlusOne {
+		if strings.TrimSpace(input.PlusOneName) == "" {
+			return utils.BadRequestResponse(re, "Plus-one first name is required")
+		}
+		if strings.TrimSpace(input.PlusOneEmail) == "" || !strings.Contains(input.PlusOneEmail, "@") {
+			return utils.BadRequestResponse(re, "Plus-one email is required")
+		}
+	}
 	if len(input.PlusOneDietary) > 1000 {
 		return utils.BadRequestResponse(re, "Plus-one dietary requirements must be 1000 characters or less")
 	}
