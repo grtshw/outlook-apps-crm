@@ -4,6 +4,8 @@ node_modules/
 # Build output
 frontend/dist/
 crm
+outlook-apps-crm
+backend/outlook-apps-crm
 pocketbase
 
 # Legacy frontend backup
