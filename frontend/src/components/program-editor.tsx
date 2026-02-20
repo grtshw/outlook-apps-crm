@@ -156,7 +156,7 @@ export function ProgramEditor({ items, onChange }: ProgramEditorProps) {
                       speaker_contact_id: contact.id,
                       speaker_name: contact.name,
                       speaker_org: contact.organisation_name || undefined,
-                      speaker_image_url: contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url || undefined,
+                      speaker_image_url: contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url || undefined,
                     })}
                   />
                 )}
@@ -250,7 +250,7 @@ function ContactSearch({ onSelect }: { onSelect: (contact: Contact) => void }) {
               }}
             >
               <Avatar className="h-6 w-6">
-                <AvatarImage src={contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url} />
+                <AvatarImage src={contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url} />
                 <AvatarFallback className="text-[10px]">{(contact.first_name || '?')[0]}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">

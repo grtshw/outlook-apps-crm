@@ -279,7 +279,7 @@ export function ContactsPage() {
             render: (contact: Contact) => (
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url} />
+                  <AvatarImage src={contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url} />
                   <AvatarFallback className="text-xs">
                     {initials(contact.name)}
                   </AvatarFallback>
@@ -353,7 +353,7 @@ export function ContactsPage() {
         renderCard={(contact) => (
           <CardContent className="flex flex-col items-center text-center pt-6">
             <Avatar className="h-16 w-16 mb-3">
-              <AvatarImage src={contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url} />
+              <AvatarImage src={contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url} />
               <AvatarFallback>{initials(contact.name)}</AvatarFallback>
             </Avatar>
             <p className="text-sm line-clamp-1">{contact.name}</p>

@@ -522,7 +522,7 @@ export function GuestListDetailPage() {
                         onClick={() => handleContactClick(item)}
                       >
                         <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarImage src={item.contact_avatar_small_url || item.contact_avatar_thumb_url || item.contact_avatar_url} />
+                          <AvatarImage src={item.contact_avatar_thumb_url || item.contact_avatar_small_url || item.contact_avatar_url} />
                           <AvatarFallback className="text-xs">{initials(item.contact_name)}</AvatarFallback>
                         </Avatar>
                         <span className="truncate">{item.contact_name}</span>

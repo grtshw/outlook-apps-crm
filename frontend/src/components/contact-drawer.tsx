@@ -144,7 +144,7 @@ function getActivityIcon(sourceApp: string) {
 
 function getAvatarSrc(contact: Contact | null) {
   if (!contact) return undefined
-  return contact.avatar_small_url || contact.avatar_thumb_url || contact.avatar_url || undefined
+  return contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url || undefined
 }
 
 function LinkedContactsSection({ contact, isAdmin }: { contact: Contact; isAdmin: boolean }) {
