@@ -204,19 +204,6 @@ func main() {
 			}
 		}()
 
-		// Re-sync DAM avatar URLs every 4 hours
-		go func() {
-			for {
-				time.Sleep(4 * time.Hour)
-				RefreshDAMAvatarCache()
-				if result, err := syncAvatarURLsFromDAM(app); err != nil {
-					log.Printf("[PeriodicSync] Avatar URL sync failed: %v", err)
-				} else {
-					log.Printf("[PeriodicSync] Avatar URL sync: updated %d, skipped %d", result.Updated, result.Skipped)
-				}
-			}
-		}()
-
 		return e.Next()
 	})
 
