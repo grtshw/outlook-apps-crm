@@ -956,23 +956,31 @@ export function GuestListDetailPage() {
                               {wasSent ? 'Resend' : 'Send'}
                             </Button>
                           )}
-                          {item.rsvp_token && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 cursor-pointer">
-                                  <EllipsisVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 cursor-pointer">
+                                <EllipsisVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {item.rsvp_token && (
                                 <DropdownMenuItem onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/rsvp/${item.rsvp_token}`)
                                   toast.success('Invite link copied')
                                 }}>
                                   <Link className="w-4 h-4 mr-2" /> Copy invite link
                                 </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                              )}
+                              {!item.rsvp_status && hasEmail && (
+                                <DropdownMenuItem
+                                  disabled={sendInvitesMutation.isPending}
+                                  onClick={() => sendInvitesMutation.mutate([item.id])}
+                                >
+                                  <Send className="w-3.5 h-3.5 mr-2" /> {wasSent ? 'Resend invite' : 'Send invite'}
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       )
                     })}
