@@ -140,7 +140,7 @@ export function GuestListDetailPage() {
     queryKey: ['contacts-bcc'],
     queryFn: () => getContacts({ perPage: 200, status: 'active', sort: 'name' }),
     enabled: editOpen,
-    staleTime: 30 * 1000,
+    staleTime: 0,
   })
 
   const items = itemsData?.items ?? []
@@ -1126,13 +1126,13 @@ export function GuestListDetailPage() {
             <SheetSection title="Confirmation emails">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">BCC contacts</label>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Contacts</label>
                   <ContactCombobox
                     value={editForm.rsvp_bcc_contacts}
                     contacts={bccContactsData?.items ?? []}
                     onChange={(ids) => setEditForm({ ...editForm, rsvp_bcc_contacts: ids })}
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">These contacts will be BCC'd when someone accepts an RSVP.</p>
+                  <p className="text-xs text-muted-foreground mt-1.5">These contacts will be BCC'd on RSVP emails, and sent a note about plus-one requests.</p>
                 </div>
               </div>
             </SheetSection>
