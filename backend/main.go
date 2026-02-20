@@ -247,6 +247,7 @@ func securityHeadersMiddleware(e *core.RequestEvent) error {
 
 	// Outlook Add-in routes need iframe embedding by Office hosts
 	if strings.HasPrefix(path, "/outlook-addin/") {
+		h.Del("X-Frame-Options")
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self' https://appsforoffice.microsoft.com; "+
