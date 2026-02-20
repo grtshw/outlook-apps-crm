@@ -350,9 +350,10 @@ func upsertContactFromRSVP(app *pocketbase.PocketBase, contact *core.Record, inp
 }
 
 // upsertPlusOneContact silently creates or updates a contact record for the plus-one guest.
-func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
+// Returns the contact record (or nil if no plus-one or no email).
+func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) *core.Record {
 	if !input.PlusOne || strings.TrimSpace(input.PlusOneEmail) == "" {
-		return
+		return nil
 	}
 
 	email := strings.TrimSpace(input.PlusOneEmail)
@@ -399,7 +400,7 @@ func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
 					log.Printf("[RSVP] Failed to update plus-one contact %s: %v", contact.Id, err)
 				}
 			}
-			return
+			return contact
 		}
 	}
 
@@ -407,7 +408,7 @@ func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
 	contactCollection, err := app.FindCollectionByNameOrId(utils.CollectionContacts)
 	if err != nil {
 		log.Printf("[RSVP] Failed to find contacts collection for plus-one: %v", err)
-		return
+		return nil
 	}
 
 	newContact := core.NewRecord(contactCollection)
@@ -424,7 +425,93 @@ func upsertPlusOneContact(app *pocketbase.PocketBase, input *rsvpInput) {
 
 	if err := app.Save(newContact); err != nil {
 		log.Printf("[RSVP] Failed to create plus-one contact: %v", err)
+		return nil
 	}
+	return newContact
+}
+
+// addPlusOneToGuestList adds the plus-one contact to the guest list with invite_round "maybe".
+// Skips if the contact is already on the list.
+func addPlusOneToGuestList(app *pocketbase.PocketBase, contact *core.Record, input *rsvpInput, listID string) {
+	if contact == nil {
+		return
+	}
+
+	// Check if already on this guest list
+	existing, err := app.FindRecordsByFilter(
+		utils.CollectionGuestListItems,
+		"guest_list = {:listId} && contact = {:contactId}",
+		"", 1, 0,
+		map[string]any{"listId": listID, "contactId": contact.Id},
+	)
+	if err == nil && len(existing) > 0 {
+		log.Printf("[RSVP] Plus-one contact %s already on guest list %s, skipping", contact.Id, listID)
+		return
+	}
+
+	collection, err := app.FindCollectionByNameOrId(utils.CollectionGuestListItems)
+	if err != nil {
+		log.Printf("[RSVP] Failed to find guest list items collection for plus-one: %v", err)
+		return
+	}
+
+	// Build plus-one name
+	firstName := strings.TrimSpace(input.PlusOneName)
+	lastName := strings.TrimSpace(input.PlusOneLastName)
+	plusOneName := firstName
+	if lastName != "" {
+		plusOneName = firstName + " " + lastName
+	}
+
+	record := core.NewRecord(collection)
+	record.Set("guest_list", listID)
+	record.Set("contact", contact.Id)
+	record.Set("invite_round", "maybe")
+	record.Set("invite_status", "")
+	record.Set("sort_order", getNextSortOrder(app, listID))
+	record.Set("contact_name", plusOneName)
+	record.Set("contact_job_title", input.PlusOneJobTitle)
+	record.Set("contact_organisation_name", input.PlusOneCompany)
+
+	if err := app.Save(record); err != nil {
+		log.Printf("[RSVP] Failed to create plus-one guest list item: %v", err)
+	} else {
+		log.Printf("[RSVP] Added plus-one %s to guest list %s as maybe", contact.Id, listID)
+	}
+}
+
+// sendPlusOneNotificationAsync sends a notification email when someone requests a plus-one.
+func sendPlusOneNotificationAsync(app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, requesterName string) {
+	if !input.PlusOne {
+		return
+	}
+	gl := result.GuestList
+
+	// Resolve event name from projection or fall back to list name
+	eventName := gl.GetString("name")
+	if epID := gl.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			if n := ep.GetString("name"); n != "" {
+				eventName = n
+			}
+		}
+	}
+
+	toEmails := extractBCCEmails(gl)
+
+	// Build plus-one name
+	firstName := strings.TrimSpace(input.PlusOneName)
+	lastName := strings.TrimSpace(input.PlusOneLastName)
+	plusOneName := firstName
+	if lastName != "" {
+		plusOneName = firstName + " " + lastName
+	}
+
+	go func() {
+		if err := sendPlusOneNotificationEmail(app, requesterName, plusOneName, input.PlusOneJobTitle, input.PlusOneCompany, input.PlusOneEmail, eventName, toEmails); err != nil {
+			log.Printf("[RSVP] Failed to send plus-one notification for %s: %v", requesterName, err)
+		}
+	}()
 }
 
 // extractBCCEmails reads the denormalized rsvp_bcc_contacts JSON field and returns a slice of email addresses.
@@ -498,8 +585,9 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 		}
 	}
 
-	// Silently upsert plus-one as a contact
-	upsertPlusOneContact(app, input)
+	// Upsert plus-one as a contact and add to guest list as "maybe"
+	plusOneContact := upsertPlusOneContact(app, input)
+	addPlusOneToGuestList(app, plusOneContact, input, result.GuestList.Id)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_submit",
@@ -512,6 +600,7 @@ func handlePersonalRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, resul
 	})
 
 	sendRSVPConfirmationAsync(app, result, input, fullName)
+	sendPlusOneNotificationAsync(app, result, input, fullName)
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 }
@@ -556,8 +645,9 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 				return utils.InternalErrorResponse(re, "Failed to save RSVP")
 			}
 
-			// Silently upsert plus-one as a contact
-			upsertPlusOneContact(app, input)
+			// Upsert plus-one as a contact and add to guest list as "maybe"
+			plusOneContact := upsertPlusOneContact(app, input)
+			addPlusOneToGuestList(app, plusOneContact, input, listID)
 
 			utils.LogAudit(app, utils.AuditEntry{
 				Action:       "rsvp_submit",
@@ -570,6 +660,7 @@ func handleGenericRSVP(re *core.RequestEvent, app *pocketbase.PocketBase, result
 			})
 
 			sendRSVPConfirmationAsync(app, result, input, fullName)
+			sendPlusOneNotificationAsync(app, result, input, fullName)
 
 			return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 		}
@@ -661,8 +752,9 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 		return utils.InternalErrorResponse(re, "Failed to save RSVP")
 	}
 
-	// Silently upsert plus-one as a contact
-	upsertPlusOneContact(app, input)
+	// Upsert plus-one as a contact and add to guest list as "maybe"
+	plusOneContact := upsertPlusOneContact(app, input)
+	addPlusOneToGuestList(app, plusOneContact, input, listID)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_submit",
@@ -675,6 +767,7 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 	})
 
 	sendRSVPConfirmationAsync(app, result, input, fullName)
+	sendPlusOneNotificationAsync(app, result, input, fullName)
 
 	return re.JSON(http.StatusOK, map[string]string{"message": "RSVP submitted successfully"})
 }

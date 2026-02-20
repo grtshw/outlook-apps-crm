@@ -514,3 +514,59 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 	log.Printf("[Email] RSVP confirmation sent to %s for %s", recipientEmail, eventName)
 	return nil
 }
+
+// sendPlusOneNotificationEmail sends an internal notification when someone requests a plus-one.
+// Recipients are hello@ + configured BCC contacts, all as direct To recipients.
+func sendPlusOneNotificationEmail(app *pocketbase.PocketBase, requesterName, plusOneName, plusOneJobTitle, plusOneCompany, plusOneEmail, eventName string, toEmails []string) error {
+	subject := fmt.Sprintf("Plus-one request: %s for %s", requesterName, eventName)
+
+	// Build plus-one details
+	detailsHTML := ""
+	if plusOneName != "" {
+		detailsHTML += fmt.Sprintf(`<p style="margin: 0 0 4px 0;"><strong>Name:</strong> %s</p>`, plusOneName)
+	}
+	if plusOneJobTitle != "" {
+		detailsHTML += fmt.Sprintf(`<p style="margin: 0 0 4px 0;"><strong>Job title:</strong> %s</p>`, plusOneJobTitle)
+	}
+	if plusOneCompany != "" {
+		detailsHTML += fmt.Sprintf(`<p style="margin: 0 0 4px 0;"><strong>Company:</strong> %s</p>`, plusOneCompany)
+	}
+	if plusOneEmail != "" {
+		detailsHTML += fmt.Sprintf(`<p style="margin: 0 0 4px 0;"><strong>Email:</strong> %s</p>`, plusOneEmail)
+	}
+
+	content := fmt.Sprintf(`
+            <p style="font-size: 16px; margin: 0 0 16px 0;">
+                <strong>%s</strong> would like to bring a plus-one to <strong>%s</strong>.
+            </p>
+            <div style="background: #f8f8f8; padding: 16px; border-radius: 8px; margin: 0 0 16px 0;">
+                %s
+            </div>
+            <p style="font-size: 14px; color: #666; margin: 0;">
+                This plus-one has been added to the guest list as "Maybe" for your review.
+            </p>
+`, requesterName, eventName, detailsHTML)
+
+	// Build To list: hello@ + configured contacts
+	toList := []mail.Address{{Address: "hello@wearetheoutlook.com.au"}}
+	for _, addr := range toEmails {
+		if addr != "" && addr != "hello@wearetheoutlook.com.au" {
+			toList = append(toList, mail.Address{Address: addr})
+		}
+	}
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      toList,
+		Subject: subject,
+		HTML:    wrapEmailHTML(content),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send plus-one notification for %s: %v", requesterName, err)
+		return err
+	}
+
+	log.Printf("[Email] Plus-one notification sent for %s (event: %s)", requesterName, eventName)
+	return nil
+}

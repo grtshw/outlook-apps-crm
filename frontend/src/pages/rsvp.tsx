@@ -481,6 +481,7 @@ export function RSVPPage() {
                   />
                   <div>
                     <span className="text-sm text-white">I'd like to bring a plus-one</span>
+                    <p className="text-xs text-[#A8A9B1] mt-1">We'll review each plus-one request and share an invite if we can squeeze them in.</p>
                   </div>
                 </div>
 
