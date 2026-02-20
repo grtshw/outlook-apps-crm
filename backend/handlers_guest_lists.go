@@ -447,6 +447,9 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		item.Set("notes", src.GetString("notes"))
 		item.Set("client_notes", src.GetString("client_notes"))
 		item.Set("sort_order", src.GetInt("sort_order"))
+		if token, err := generateToken(); err == nil {
+			item.Set("rsvp_token", token)
+		}
 
 		if err := app.Save(item); err != nil {
 			log.Printf("[GuestListClone] Failed to clone item %s: %v", src.Id, err)
@@ -643,6 +646,11 @@ func handleGuestListItemCreate(re *core.RequestEvent, app *pocketbase.PocketBase
 	record.Set("notes", input["notes"])
 	record.Set("sort_order", nextSort)
 
+	// Generate RSVP token
+	if token, err := generateToken(); err == nil {
+		record.Set("rsvp_token", token)
+	}
+
 	// Denormalize contact fields
 	record.Set("contact_name", contact.GetString("name"))
 	record.Set("contact_job_title", contact.GetString("job_title"))
@@ -715,6 +723,9 @@ func handleGuestListItemBulkAdd(re *core.RequestEvent, app *pocketbase.PocketBas
 		record.Set("contact", contactID)
 		record.Set("invite_round", input.InviteRound)
 		record.Set("sort_order", nextSort)
+		if token, err := generateToken(); err == nil {
+			record.Set("rsvp_token", token)
+		}
 		record.Set("contact_name", contact.GetString("name"))
 		record.Set("contact_job_title", contact.GetString("job_title"))
 		record.Set("contact_organisation_name", orgName)

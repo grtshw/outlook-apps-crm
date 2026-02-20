@@ -477,6 +477,9 @@ func addPlusOneToGuestList(app *pocketbase.PocketBase, contact *core.Record, inp
 	record.Set("invite_round", "maybe")
 	record.Set("invite_status", "")
 	record.Set("sort_order", getNextSortOrder(app, listID))
+	if token, err := generateToken(); err == nil {
+		record.Set("rsvp_token", token)
+	}
 	record.Set("contact_name", plusOneName)
 	record.Set("contact_job_title", input.PlusOneJobTitle)
 	record.Set("contact_organisation_name", input.PlusOneCompany)
@@ -738,6 +741,9 @@ func createGuestListItemFromRSVP(re *core.RequestEvent, app *pocketbase.PocketBa
 	record.Set("contact", contact.Id)
 	record.Set("invite_status", input.Response)
 	record.Set("sort_order", nextSort)
+	if token, err := generateToken(); err == nil {
+		record.Set("rsvp_token", token)
+	}
 
 	// Denormalize contact fields
 	record.Set("contact_name", fullName)
