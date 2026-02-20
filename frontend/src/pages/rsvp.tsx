@@ -275,18 +275,10 @@ export function RSVPPage() {
         </p>
         <p className="text-sm text-[#A8A9B1]">
           {submittedResponse === 'accepted'
-            ? `Thanks ${displayName}, we look forward to seeing you at ${info.event_name || info.list_name}.`
-            : `Thanks for letting us know, ${displayName}.`}
+            ? `Thanks ${firstName.trim() || 'so much'}, we look forward to seeing you at ${info.event_name || info.list_name}.`
+            : `Thanks for letting us know, ${firstName.trim() || displayName}.`}
         </p>
       </div>
-      {submittedResponse === 'accepted' && (
-        <button
-          onClick={() => setForwardOpen(true)}
-          className="text-sm text-[#A8A9B1] underline underline-offset-4 hover:text-white cursor-pointer"
-        >
-          Know someone who'd be interested? Forward this invitation
-        </button>
-      )}
     </div>
   )
 
