@@ -517,7 +517,7 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 
 // sendPlusOneNotificationEmail sends an internal notification when someone requests a plus-one.
 // Recipients are hello@ + configured BCC contacts, all as direct To recipients.
-func sendPlusOneNotificationEmail(app *pocketbase.PocketBase, requesterName, plusOneName, plusOneJobTitle, plusOneCompany, plusOneEmail, eventName string, toEmails []string) error {
+func sendPlusOneNotificationEmail(app *pocketbase.PocketBase, requesterName, plusOneName, plusOneJobTitle, plusOneCompany, plusOneEmail, eventName, guestListID string, toEmails []string) error {
 	subject := fmt.Sprintf("Plus-one request: %s for %s", requesterName, eventName)
 
 	// Build plus-one details
@@ -542,10 +542,13 @@ func sendPlusOneNotificationEmail(app *pocketbase.PocketBase, requesterName, plu
             <div style="background: #f8f8f8; padding: 16px; border-radius: 8px; margin: 0 0 16px 0;">
                 %s
             </div>
-            <p style="font-size: 14px; color: #666; margin: 0;">
+            <p style="font-size: 14px; color: #666; margin: 0 0 16px 0;">
                 This plus-one has been added to the guest list as "Maybe" for your review.
             </p>
-`, requesterName, eventName, detailsHTML)
+            <p style="margin: 0;">
+                <a href="https://crm.theoutlook.io/guest-lists/%s" style="color: #E95139; text-decoration: underline;">View guest list</a>
+            </p>
+`, requesterName, eventName, detailsHTML, guestListID)
 
 	// Build To list: hello@ + configured contacts
 	toList := []mail.Address{{Address: "hello@wearetheoutlook.com.au"}}

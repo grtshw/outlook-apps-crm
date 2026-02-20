@@ -508,7 +508,7 @@ func sendPlusOneNotificationAsync(app *pocketbase.PocketBase, result *rsvpLookup
 	}
 
 	go func() {
-		if err := sendPlusOneNotificationEmail(app, requesterName, plusOneName, input.PlusOneJobTitle, input.PlusOneCompany, input.PlusOneEmail, eventName, toEmails); err != nil {
+		if err := sendPlusOneNotificationEmail(app, requesterName, plusOneName, input.PlusOneJobTitle, input.PlusOneCompany, input.PlusOneEmail, eventName, gl.Id, toEmails); err != nil {
 			log.Printf("[RSVP] Failed to send plus-one notification for %s: %v", requesterName, err)
 		}
 	}()
