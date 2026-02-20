@@ -1133,3 +1133,112 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		"skipped": skipped,
 	})
 }
+
+// handlePublicRSVPEmailPreview renders a browser-viewable preview of the RSVP invite email
+func handlePublicRSVPEmailPreview(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	token := re.Request.PathValue("token")
+
+	result, err := lookupRSVPToken(app, token)
+	if err != nil {
+		return utils.NotFoundResponse(re, "RSVP link not found")
+	}
+
+	gl := result.GuestList
+
+	// Resolve event name
+	eventName := ""
+	if epID := gl.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			eventName = ep.GetString("name")
+		}
+	}
+
+	listName := gl.GetString("name")
+	listDescription := gl.GetString("description")
+	eventDate := gl.GetString("event_date")
+	eventTime := gl.GetString("event_time")
+	eventLocation := gl.GetString("event_location")
+
+	eventContext := listName
+	if eventName != "" {
+		eventContext = eventName
+	}
+
+	// Resolve recipient name for personal tokens
+	firstName := "there"
+	if result.Type == "personal" && result.Item != nil {
+		if contactID := result.Item.GetString("contact"); contactID != "" {
+			if contact, err := app.FindRecordById(utils.CollectionContacts, contactID); err == nil {
+				name := utils.DecryptField(contact.GetString("name"))
+				if name != "" {
+					firstName = strings.Fields(name)[0]
+				}
+			}
+		}
+	}
+
+	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), token)
+
+	// Build the same email content as sendRSVPInviteEmail
+	detailsHTML := ""
+	if eventDate != "" || eventTime != "" || eventLocation != "" {
+		detailsHTML = `<div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">`
+		if eventDate != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
+		}
+		if eventTime != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
+		}
+		if eventLocation != "" {
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">%s</p>`, eventLocation)
+		}
+		detailsHTML += `</div>`
+	}
+
+	descriptionHTML := ""
+	if listDescription != "" {
+		descriptionHTML = fmt.Sprintf(`<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">%s</p>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love to see you there.</p>`, listDescription)
+	} else {
+		descriptionHTML = `<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love for you to join us for an evening of conversation, connection and great food.</p>`
+	}
+
+	content := fmt.Sprintf(`
+            <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
+            <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            %s
+            %s
+            <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                Spaces are limited, so please let us know if you can make it.
+            </p>
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
+                    I can make it
+                </a>
+            </div>
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
+                    I can't make it
+                </a>
+            </div>
+            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 16px 0 24px 0;">
+                This link is personal to you. Please don't share it.
+            </p>
+            <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 0 0 8px 0;">
+                Copy and paste if the link doesn't work:
+            </p>
+            <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
+                <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                    %s
+                </p>
+            </div>
+`, eventContext, firstName, descriptionHTML, detailsHTML, rsvpURL, rsvpURL, rsvpURL)
+
+	html := wrapRSVPEmailHTML(content)
+
+	re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+	re.Response.WriteHeader(http.StatusOK)
+	re.Response.Write([]byte(html))
+	return nil
+}
