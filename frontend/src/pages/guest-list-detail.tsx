@@ -41,7 +41,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -955,6 +955,23 @@ export function GuestListDetailPage() {
                               <Send className="w-3.5 h-3.5 mr-1" />
                               {wasSent ? 'Resend' : 'Send'}
                             </Button>
+                          )}
+                          {item.rsvp_token && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 cursor-pointer">
+                                  <EllipsisVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/rsvp/${item.rsvp_token}`)
+                                  toast.success('Invite link copied')
+                                }}>
+                                  <Link className="w-4 h-4 mr-2" /> Copy invite link
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
                       )
