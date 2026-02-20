@@ -8,11 +8,8 @@ import type { DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketb
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, CircleCheck, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, CircleCheck, XCircle, ChevronDown } from 'lucide-react'
 import gsap from 'gsap'
-import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
-
-gsap.registerPlugin(ScrollToPlugin)
 
 const DIETARY_OPTIONS: { value: DietaryRequirement; label: string }[] = [
   { value: 'vegetarian', label: 'Vegetarian' },
@@ -75,14 +72,12 @@ export function RSVPPage() {
 
   const heroPaneRef = useRef<HTMLDivElement>(null)
   const formPaneRef = useRef<HTMLDivElement>(null)
-  const downBtnRef = useRef<HTMLButtonElement>(null)
-  const upBtnRef = useRef<HTMLButtonElement>(null)
   const heroImageRef = useRef<HTMLDivElement>(null)
   const heroContentRef = useRef<HTMLDivElement>(null)
   const formInnerRef = useRef<HTMLDivElement>(null)
   const heroAnimated = useRef(false)
 
-  // Detect scroll: swap buttons + transition hero bg from terracotta to black
+  // Detect scroll: transition hero bg from terracotta to black + parallax
   useEffect(() => {
     let ticking = false
     const onScroll = () => {
@@ -90,18 +85,8 @@ export function RSVPPage() {
       ticking = true
       requestAnimationFrame(() => {
         ticking = false
-        if (!downBtnRef.current || !upBtnRef.current || !heroPaneRef.current) return
+        if (!heroPaneRef.current) return
         const progress = Math.min(Math.max(window.scrollY / window.innerHeight, 0), 1)
-        const scrolledPastHero = progress > 0.5
-
-        // Swap buttons
-        if (scrolledPastHero) {
-          gsap.set(downBtnRef.current, { opacity: 0, pointerEvents: 'none' })
-          gsap.set(upBtnRef.current, { opacity: 1, pointerEvents: 'auto' })
-        } else {
-          gsap.set(downBtnRef.current, { opacity: 1, pointerEvents: 'auto' })
-          gsap.set(upBtnRef.current, { opacity: 0, pointerEvents: 'none' })
-        }
 
         // Interpolate hero bg: #E95139 → #020202
         const r = Math.round(0xE9 + (0x02 - 0xE9) * progress)
@@ -109,47 +94,15 @@ export function RSVPPage() {
         const b = Math.round(0x39 + (0x02 - 0x39) * progress)
         heroPaneRef.current.style.backgroundColor = `rgb(${r},${g},${b})`
 
-        // Mobile parallax: translate hero content upward as user scrolls
-        if (window.innerWidth < 1024) {
-          const parallaxY = window.scrollY * 0.15
-          if (heroContentRef.current) heroContentRef.current.style.transform = `translateY(-${parallaxY}px)`
-          if (heroImageRef.current) heroImageRef.current.style.transform = `translateY(-${parallaxY * 0.5}px)`
-        }
+        // Parallax: translate hero content upward as user scrolls
+        const parallaxY = window.scrollY * 0.15
+        if (heroContentRef.current) heroContentRef.current.style.transform = `translateY(-${parallaxY}px)`
+        if (heroImageRef.current) heroImageRef.current.style.transform = `translateY(-${parallaxY * 0.5}px)`
       })
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
-
-  const scrollDown = () => {
-    if (!formPaneRef.current || !downBtnRef.current || !upBtnRef.current) return
-    gsap.set(downBtnRef.current, { pointerEvents: 'none' })
-    gsap.to(downBtnRef.current, { opacity: 0, duration: 0.3, ease: 'power2.in' })
-    gsap.to(window, {
-      scrollTo: { y: formPaneRef.current, autoKill: false },
-      duration: 1.2,
-      ease: 'power3.inOut',
-      onComplete: () => {
-        gsap.set(upBtnRef.current!, { pointerEvents: 'auto' })
-        gsap.fromTo(upBtnRef.current, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' })
-      },
-    })
-  }
-
-  const scrollUp = () => {
-    if (!heroPaneRef.current || !downBtnRef.current || !upBtnRef.current) return
-    gsap.set(upBtnRef.current, { pointerEvents: 'none' })
-    gsap.to(upBtnRef.current, { opacity: 0, duration: 0.3, ease: 'power2.in' })
-    gsap.to(window, {
-      scrollTo: { y: heroPaneRef.current, autoKill: false },
-      duration: 1.2,
-      ease: 'power3.inOut',
-      onComplete: () => {
-        gsap.set(downBtnRef.current!, { pointerEvents: 'auto' })
-        gsap.fromTo(downBtnRef.current, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' })
-      },
-    })
-  }
 
   // Hero entrance animation — staggered fade-in on load
   useEffect(() => {
@@ -692,32 +645,9 @@ export function RSVPPage() {
 
   // Editorial hero + form layout
   return (
-    <div className="rsvp-theme bg-[#E95139]">
-      {/* Fixed semicircle nav — desktop only */}
-      <div className="hidden lg:flex fixed bottom-0 left-1/2 -translate-x-1/2 z-50 flex-col items-center">
-        {/* Graphite semicircle — scroll down */}
-        <button
-          ref={downBtnRef}
-          onClick={scrollDown}
-          className="w-20 h-10 rounded-t-full bg-[#1A1917] flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
-          aria-label="Scroll to RSVP form"
-        >
-          <ChevronDown className="h-5 w-5 text-white/70" />
-        </button>
-        {/* Orange semicircle — scroll up (hidden initially) */}
-        <button
-          ref={upBtnRef}
-          onClick={scrollUp}
-          className="w-20 h-10 rounded-t-full bg-[#E95139] flex items-center justify-center cursor-pointer hover:scale-105 transition-transform absolute bottom-0"
-          style={{ opacity: 0, pointerEvents: 'none' }}
-          aria-label="Scroll back to top"
-        >
-          <ChevronUp className="h-5 w-5 text-white/70" />
-        </button>
-      </div>
-
-      {/* Pane 1: Full-viewport magazine spread — sticky on mobile for card-over effect */}
-      <div ref={heroPaneRef} className="h-screen sticky top-0 lg:relative bg-[#E95139] p-6 lg:p-10 flex flex-col">
+    <div className="rsvp-theme bg-[#020202]">
+      {/* Pane 1: Full-viewport magazine spread — sticky for card-over effect */}
+      <div ref={heroPaneRef} className="h-screen sticky top-0 bg-[#E95139] p-6 lg:p-10 flex flex-col">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
           <span className="text-white/80 text-sm font-[family-name:var(--font-display)] lg:hidden">The Outlook After Dark</span>
@@ -760,8 +690,15 @@ export function RSVPPage() {
                 <p>An intimate evening of conversation, connection and great food.</p>
               )}
             </div>
+            <button
+              onClick={() => formPaneRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="flex flex-col items-center gap-1.5 mt-auto cursor-pointer group"
+            >
+              <span className="text-sm text-white/80 tracking-wider uppercase font-mono group-hover:text-white transition-colors">RSVP</span>
+              <ChevronDown className="h-5 w-5 text-white/60 group-hover:text-white transition-colors" />
+            </button>
             {(info.event_date || info.event_time || info.event_location) && (
-              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-white/70 mt-auto mb-8">
+              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-white/70 mb-8">
                 {info.event_date && <span>{info.event_date}</span>}
                 {info.event_time && <span>{info.event_time}</span>}
                 {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
@@ -778,7 +715,7 @@ export function RSVPPage() {
       </div>
 
       {/* Pane 2: Program + RSVP form — slides over sticky hero on mobile */}
-      <div ref={formPaneRef} className="min-h-screen relative z-10 overflow-hidden lg:overflow-visible">
+      <div ref={formPaneRef} className="min-h-screen relative z-10 overflow-hidden">
         {/* Flower bg visible as border */}
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
