@@ -105,6 +105,7 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 		"landing_image_url":   result.GuestList.GetString("landing_image_url"),
 		"landing_program":     landingProgram,
 		"landing_content":     result.GuestList.GetString("landing_content"),
+		"program_description": result.GuestList.GetString("program_description"),
 	}
 
 	// Merge event projection details

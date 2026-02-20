@@ -88,6 +88,7 @@ export function GuestListDetailPage() {
     event_location_address: '',
     landing_program: [] as ProgramItem[],
     landing_content: '',
+    program_description: '',
     organisation: '',
     rsvp_bcc_contacts: [] as string[],
   })
@@ -285,6 +286,7 @@ export function GuestListDetailPage() {
       event_location_address: guestList.event_location_address || '',
       landing_program: guestList.landing_program || [],
       landing_content: guestList.landing_content || '',
+      program_description: guestList.program_description || '',
       organisation: guestList.organisation || '',
       rsvp_bcc_contacts: (guestList.rsvp_bcc_contacts || []).map((c: { id: string }) => c.id),
     })
@@ -1041,6 +1043,15 @@ export function GuestListDetailPage() {
 
             <SheetSection title="RSVP content">
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Program description</label>
+                  <Textarea
+                    value={editForm.program_description}
+                    onChange={(e) => setEditForm({ ...editForm, program_description: e.target.value })}
+                    placeholder="Intro text shown above the program..."
+                    rows={3}
+                  />
+                </div>
                 <div>
                   <label className="block text-sm text-muted-foreground mb-1.5">Program</label>
                   <ProgramEditor

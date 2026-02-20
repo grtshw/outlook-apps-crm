@@ -127,32 +127,16 @@ export function RSVPPage() {
     }
   }, [info])
 
-  // Carousel crossfade + noise animation
+  // Slow Ken Burns zoom on hero image
   useEffect(() => {
     if (!heroImageRef.current) return
+    const img = heroImageRef.current.querySelector('img')
+    if (!img) return
 
-    const images = heroImageRef.current.querySelectorAll('img[data-carousel-index]') as NodeListOf<HTMLImageElement>
-    if (images.length < 2) return
-
-    const hold = 5      // seconds each image is fully visible
-    const fade = 1.5    // crossfade duration
-
-    const tl = gsap.timeline({ repeat: -1 })
-
-    images.forEach((img, i) => {
-      const next = images[(i + 1) % images.length]
-
-      // Hold current image, then crossfade: fade in next while fading out current
-      // Also apply subtle Ken Burns scale on incoming image
-      tl.to({}, { duration: hold })
-        .set(next, { scale: 1.05 })
-        .to(next, { opacity: 1, scale: 1, duration: fade, ease: 'power1.inOut' }, `>`)
-        .to(img, { opacity: 0, duration: fade, ease: 'power1.inOut' }, `<`)
-    })
-
-    return () => {
-      tl.kill()
-    }
+    gsap.fromTo(img,
+      { scale: 1 },
+      { scale: 1.08, duration: 20, ease: 'none', repeat: -1, yoyo: true }
+    )
   }, [])
 
   // Form pane entrance — fade up when scrolled into view
@@ -648,30 +632,19 @@ export function RSVPPage() {
     <div className="rsvp-theme bg-[#020202]">
       {/* Pane 1: Full-viewport magazine spread — sticky for card-over effect */}
       <div ref={heroPaneRef} className="h-screen sticky top-0 bg-[#E95139] p-6 lg:p-10 flex flex-col">
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-white/80 text-sm font-[family-name:var(--font-display)] lg:hidden">The Outlook After Dark</span>
-          <span className="text-white/60 text-xs font-mono tracking-wider uppercase max-lg:ml-auto">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
-        </div>
-
         {/* Main spread */}
         <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-10 min-h-0">
-          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative saturate-[0.3]">
-            {/* Carousel images — stacked, crossfade via GSAP */}
-            {['/images/rsvp-hero-dinner.jpg', '/images/rsvp-hero-flowers.jpg', '/images/rsvp-hero-flowers-dark.jpg'].map((src, i) => (
-              <img
-                key={src}
-                src={src}
-                alt=""
-                data-carousel-index={i}
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ opacity: i === 0 ? 1 : 0 }}
-              />
-            ))}
+          <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative">
+            <img
+              src="/images/rsvp-hero.jpg"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <span className="absolute top-8 left-8 text-white/60 text-xs font-mono tracking-wider uppercase z-10">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
           </div>
-          <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center">
-            <div className="pt-6 lg:pt-4">
-              <img src="/images/logo-white.svg" alt="The Outlook" className="h-8 opacity-80 mx-auto mb-6 lg:mb-10" />
+          <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center lg:px-10">
+            <div className="pt-10 lg:pt-8">
+              <img src="/images/logo-white.svg" alt="The Outlook" className="h-8 opacity-80 mx-auto mb-10 lg:mb-14" />
               {info.organisation_logo_url && (
                 <img
                   src={info.organisation_logo_url}
@@ -690,26 +663,27 @@ export function RSVPPage() {
                 <p>An intimate evening of conversation, connection and great food.</p>
               )}
             </div>
-            <button
-              onClick={() => formPaneRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="flex flex-col items-center gap-1.5 mt-auto cursor-pointer group"
-            >
-              <span className="text-sm text-white/80 tracking-wider uppercase font-mono group-hover:text-white transition-colors">RSVP</span>
-              <ChevronDown className="h-5 w-5 text-white/60 group-hover:text-white transition-colors" />
-            </button>
             {(info.event_date || info.event_time || info.event_location) && (
-              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-white/70 mb-8">
+              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-white/70 mt-auto">
                 {info.event_date && <span>{info.event_date}</span>}
                 {info.event_time && <span>{info.event_time}</span>}
                 {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
               </div>
             )}
+            <div className="w-[20%] h-px bg-white/30 mx-auto" />
+            <button
+              onClick={() => formPaneRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="flex flex-col items-center gap-1.5 mb-8 cursor-pointer group"
+            >
+              <span className="text-sm text-white/80 tracking-wider uppercase font-mono group-hover:text-white transition-colors">RSVP</span>
+              <ChevronDown className="h-5 w-5 text-white/60 group-hover:text-white transition-colors" />
+            </button>
           </div>
         </div>
 
         {/* Bottom bar — desktop only */}
         <div className="hidden lg:flex items-end justify-between mt-4">
-          <span className="text-white/80 text-sm font-[family-name:var(--font-display)]">The Outlook After Dark</span>
+          <span className="text-[#020202] text-2xl font-[family-name:var(--font-display)]">The Outlook After Dark</span>
           <span className="text-white/50 text-xs font-mono">{info.event_name}</span>
         </div>
       </div>
@@ -720,7 +694,7 @@ export function RSVPPage() {
         <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
 
         {/* Graphite inner panel */}
-        <div ref={formInnerRef} className="relative min-h-screen bg-[#1A1917] p-4 lg:p-10">
+        <div ref={formInnerRef} className="relative min-h-screen bg-[#1A1917] p-6 lg:p-16">
           {/* Mobile: stacked accordions */}
           <div className="lg:hidden px-2 pt-8 pb-8 space-y-4">
             {/* Program accordion */}
@@ -742,6 +716,9 @@ export function RSVPPage() {
                         {info.event_time && <span>{info.event_time}</span>}
                         {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
                       </div>
+                    )}
+                    {info.program_description && (
+                      <p className="text-white/80 text-base leading-relaxed">{info.program_description}</p>
                     )}
                     {info.landing_program?.length > 0 && (
                       <div>
@@ -809,11 +786,11 @@ export function RSVPPage() {
           </div>
 
           {/* Desktop: side-by-side layout */}
-          <div className="hidden lg:flex px-6 pt-16 pb-16 gap-12">
+          <div className="hidden lg:flex px-10 pt-16 pb-16 gap-20">
               {/* Left: Program / event info */}
               <div className="flex-1 flex flex-col justify-center sticky top-20 self-start">
                 <h2 className="text-4xl lg:text-5xl text-white font-[family-name:var(--font-display)] leading-[1.1] mb-8">
-                  {info.event_name || info.list_name}
+                  The evening
                 </h2>
                 {(info.event_date || info.event_time || info.event_location) && (
                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-white mb-8 pb-8 border-b border-[#645C49]/30">
@@ -823,9 +800,12 @@ export function RSVPPage() {
                   </div>
                 )}
 
+                {info.program_description && (
+                  <p className="text-white/80 text-lg leading-relaxed mb-8">{info.program_description}</p>
+                )}
+
                 {info.landing_program?.length > 0 && (
                   <>
-                    <p className="eyebrow text-white/70 mb-4">The evening</p>
                     <div>
                       {info.landing_program.map((item, i) => {
                         const isEdge = i === 0 || i === (info.landing_program?.length ?? 0) - 1

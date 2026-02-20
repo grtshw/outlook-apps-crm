@@ -117,6 +117,7 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"landing_image_url":   record.GetString("landing_image_url"),
 		"landing_program":     record.Get("landing_program"),
 		"landing_content":     record.GetString("landing_content"),
+		"program_description": record.GetString("program_description"),
 		"event_date":          record.GetString("event_date"),
 		"event_time":          record.GetString("event_time"),
 		"event_location":           record.GetString("event_location"),
@@ -221,6 +222,9 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 			return utils.BadRequestResponse(re, "Content too long (max 10000)")
 		}
 		record.Set("landing_content", v)
+	}
+	if v, ok := input["program_description"].(string); ok {
+		record.Set("program_description", v)
 	}
 	if v, ok := input["event_date"].(string); ok {
 		record.Set("event_date", v)
