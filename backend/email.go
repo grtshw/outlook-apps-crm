@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/mail"
+	"net/url"
 	"os"
 	"strings"
 
@@ -259,7 +260,8 @@ func wrapRSVPEmailHTML(content string) string {
 }
 
 // sendRSVPInviteEmail sends an RSVP invitation to a guest with their personal RSVP link.
-func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, listDescription, eventName, eventDate, eventTime, eventLocation string) error {
+// rsvpToken is used to embed open/click tracking in the email.
+func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, rsvpToken, listName, listDescription, eventName, eventDate, eventTime, eventLocation string) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
@@ -339,6 +341,20 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
                 </p>
             </div>
 `, eventContext, firstName, descriptionHTML, detailsHTML, rsvpURL, rsvpURL, rsvpURL)
+
+	// Add invite tracking (open pixel + click-wrapped links)
+	if rsvpToken != "" {
+		baseURL := getBaseURL()
+		trackBase := fmt.Sprintf("%s/api/public/t/%s", baseURL, rsvpToken)
+		clickURL := fmt.Sprintf("%s/click?url=%s", trackBase, url.QueryEscape(rsvpURL))
+		pixelURL := fmt.Sprintf("%s/open.gif", trackBase)
+
+		// Replace rsvpURL hrefs with click-tracked URL
+		content = strings.ReplaceAll(content, fmt.Sprintf(`href="%s"`, rsvpURL), fmt.Sprintf(`href="%s"`, clickURL))
+
+		// Append tracking pixel
+		content += fmt.Sprintf(`<img src="%s" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`, pixelURL)
+	}
 
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},

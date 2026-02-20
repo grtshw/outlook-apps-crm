@@ -52,6 +52,41 @@ func main() {
 		},
 	})
 
+	// Register backfill-rsvp-tokens command for existing guest list items without tokens
+	app.RootCmd.AddCommand(&cobra.Command{
+		Use:   "backfill-rsvp-tokens",
+		Short: "Generate RSVP tokens for all guest list items that don't have one",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := app.Bootstrap(); err != nil {
+				log.Fatalf("Failed to bootstrap: %v", err)
+			}
+			items, err := app.FindRecordsByFilter(
+				utils.CollectionGuestListItems,
+				"rsvp_token = ''",
+				"", 0, 0, nil,
+			)
+			if err != nil {
+				log.Fatalf("Failed to query items: %v", err)
+			}
+			fmt.Printf("Found %d items without RSVP tokens\n", len(items))
+			updated := 0
+			for _, item := range items {
+				token, err := generateToken()
+				if err != nil {
+					log.Printf("Failed to generate token for %s: %v", item.Id, err)
+					continue
+				}
+				item.Set("rsvp_token", token)
+				if err := app.Save(item); err != nil {
+					log.Printf("Failed to save item %s: %v", item.Id, err)
+				} else {
+					updated++
+				}
+			}
+			fmt.Printf("Updated %d items with RSVP tokens\n", updated)
+		},
+	})
+
 	// Register import-presenters command for syncing presenters from Presentations + DAM avatars
 	app.RootCmd.AddCommand(&cobra.Command{
 		Use:   "import-presenters",
@@ -565,6 +600,15 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 
 	e.Router.GET("/api/public/rsvp/{token}/email-preview", func(re *core.RequestEvent) error {
 		return handlePublicRSVPEmailPreview(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	// Invite tracking (open pixel + click redirect)
+	e.Router.GET("/api/public/t/{token}/open.gif", func(re *core.RequestEvent) error {
+		return handleTrackOpen(re, app)
+	}).BindFunc(utils.RateLimitPublic)
+
+	e.Router.GET("/api/public/t/{token}/click", func(re *core.RequestEvent) error {
+		return handleTrackClick(re, app)
 	}).BindFunc(utils.RateLimitPublic)
 
 	// Admin RSVP management

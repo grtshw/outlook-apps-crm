@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -1226,7 +1228,7 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), item.GetString("rsvp_token"))
 		recipientName := contact.GetString("name")
 
-		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, listName, listDescription, eventName, eventDate, eventTime, eventLocation)
+		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, item.GetString("rsvp_token"), listName, listDescription, eventName, eventDate, eventTime, eventLocation)
 		sent++
 	}
 
@@ -1347,5 +1349,72 @@ func handlePublicRSVPEmailPreview(re *core.RequestEvent, app *pocketbase.PocketB
 	re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	re.Response.WriteHeader(http.StatusOK)
 	re.Response.Write([]byte(html))
+	return nil
+}
+
+// ============================================================================
+// Invite Tracking (open pixel + click redirect)
+// ============================================================================
+
+// 1x1 transparent GIF
+var trackingPixelGIF, _ = base64.StdEncoding.DecodeString("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+
+func handleTrackOpen(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	token := re.Request.PathValue("token")
+
+	items, err := app.FindRecordsByFilter(
+		utils.CollectionGuestListItems,
+		"rsvp_token = {:token}",
+		"", 1, 0,
+		map[string]any{"token": token},
+	)
+	if err == nil && len(items) > 0 {
+		item := items[0]
+		if !item.GetBool("invite_opened") {
+			item.Set("invite_opened", true)
+			if err := app.Save(item); err != nil {
+				log.Printf("[Tracking] Failed to save invite_opened for item %s: %v", item.Id, err)
+			}
+		}
+	}
+
+	re.Response.Header().Set("Content-Type", "image/gif")
+	re.Response.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	re.Response.WriteHeader(http.StatusOK)
+	re.Response.Write(trackingPixelGIF)
+	return nil
+}
+
+func handleTrackClick(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	token := re.Request.PathValue("token")
+	dest := re.Request.URL.Query().Get("url")
+
+	// Validate destination URL is same-origin to prevent open redirect
+	baseURL := getBaseURL()
+	if dest == "" || !strings.HasPrefix(dest, baseURL) {
+		return re.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid URL"})
+	}
+
+	if _, err := url.ParseRequestURI(dest); err != nil {
+		return re.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid URL"})
+	}
+
+	items, err := app.FindRecordsByFilter(
+		utils.CollectionGuestListItems,
+		"rsvp_token = {:token}",
+		"", 1, 0,
+		map[string]any{"token": token},
+	)
+	if err == nil && len(items) > 0 {
+		item := items[0]
+		if !item.GetBool("invite_clicked") {
+			item.Set("invite_clicked", true)
+			if err := app.Save(item); err != nil {
+				log.Printf("[Tracking] Failed to save invite_clicked for item %s: %v", item.Id, err)
+			}
+		}
+	}
+
+	http.Redirect(re.Response, re.Request, dest, http.StatusFound)
 	return nil
 }
