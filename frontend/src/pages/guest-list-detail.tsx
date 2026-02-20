@@ -774,6 +774,27 @@ export function GuestListDetailPage() {
         )}
       </div>
 
+      {/* RSVP link */}
+      {guestList.rsvp_generic_url && (
+        <div className="space-y-3">
+          <h2 className="text-lg">RSVP link</h2>
+          <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+            <span className="text-sm text-muted-foreground truncate flex-1">{guestList.rsvp_generic_url}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="cursor-pointer shrink-0"
+              onClick={() => {
+                navigator.clipboard.writeText(guestList.rsvp_generic_url!)
+                toast.success('RSVP link copied')
+              }}
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* RSVP detail sheet */}
       <Sheet open={!!rsvpDetailItem} onOpenChange={(o) => !o && setRsvpDetailItem(null)}>
         <SheetContent>

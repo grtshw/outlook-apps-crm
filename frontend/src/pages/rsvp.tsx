@@ -636,7 +636,7 @@ export function RSVPPage() {
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <span className="absolute top-8 left-8 text-white/60 text-xs font-mono tracking-wider uppercase z-10">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
+            <span className="absolute top-8 left-8 bg-black/20 text-white/60 text-xs font-mono tracking-wider uppercase z-10 px-3 py-1.5">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
           </div>
           <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center lg:px-10">
             <div className="pt-10 lg:pt-8">
@@ -782,9 +782,9 @@ export function RSVPPage() {
           </div>
 
           {/* Desktop: side-by-side layout */}
-          <div className="hidden lg:flex px-10 pt-16 pb-16 gap-20">
-              {/* Left: Program / event info */}
-              <div className="flex-1 flex flex-col justify-center sticky top-20 self-start">
+          <div className="hidden lg:flex px-10 pt-16 pb-16 gap-20 items-start">
+              {/* Left: Program / event info — sticky while form scrolls */}
+              <div className="flex-1 flex flex-col justify-center sticky top-16">
                 <h2 className="text-4xl lg:text-5xl text-white font-[family-name:var(--font-display)] leading-[1.1] mb-8">
                   The evening
                 </h2>

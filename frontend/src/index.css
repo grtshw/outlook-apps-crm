@@ -9,8 +9,8 @@
 @font-face {
   font-family: 'PP Museum';
   src:
-    url('/fonts/PPMuseum-Medium.woff2') format('woff2'),
-    url('/fonts/PPMuseum-Medium.woff') format('woff');
+    url('/fonts/PPMuseum-Regular.woff2') format('woff2'),
+    url('/fonts/PPMuseum-Regular.woff') format('woff');
   font-display: swap;
 }
 
