@@ -74,6 +74,7 @@ export function GuestListDetailPage() {
   const [showContactCols, setShowContactCols] = useState(false)
   const [rsvpDetailItem, setRsvpDetailItem] = useState<GuestListItem | null>(null)
   const [rsvpDrawerOpen, setRsvpDrawerOpen] = useState(false)
+  const [rsvpRoundFilter, setRsvpRoundFilter] = useState<Set<string>>(new Set(['1st', '2nd']))
   const [cloneOpen, setCloneOpen] = useState(false)
 
   // Edit form state
@@ -896,19 +897,48 @@ export function GuestListDetailPage() {
 
             {guestList.rsvp_enabled && (
               <SheetSection title="Personal invites">
+                <div className="flex items-center gap-1.5 mb-2">
+                  {([['1st', '1'], ['2nd', '2'], ['maybe', 'M']] as const).map(([value, label]) => {
+                    const active = rsvpRoundFilter.has(value)
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-full border cursor-pointer transition-colors',
+                          active
+                            ? 'bg-foreground text-background border-foreground'
+                            : 'bg-transparent text-muted-foreground border-border hover:border-foreground/50'
+                        )}
+                        onClick={() => {
+                          const next = new Set(rsvpRoundFilter)
+                          if (next.has(value)) next.delete(value)
+                          else next.add(value)
+                          setRsvpRoundFilter(next)
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
                 {items.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">
                     No guests on this list yet.
                   </p>
                 ) : (
                   <div className="divide-y divide-border">
-                    {items.map((item) => {
+                    {items
+                      .filter((item) => rsvpRoundFilter.size === 0 || rsvpRoundFilter.has(item.invite_round || ''))
+                      .map((item) => {
                       const hasEmail = !!item.contact_email
                       const wasSent = item.invite_status === 'invited' || item.rsvp_status !== ''
+                      const roundLabel = item.invite_round === '1st' ? '1' : item.invite_round === '2nd' ? '2' : item.invite_round === '3rd' ? '3' : item.invite_round === 'maybe' ? 'M' : '—'
                       return (
-                        <div key={item.id} className="flex items-center gap-3 py-2.5 px-2">
-                          <span className="text-sm truncate w-[140px] shrink-0">{item.contact_name}</span>
-                          <span className="text-sm text-muted-foreground truncate w-[100px] shrink-0">{item.contact_organisation_name || '—'}</span>
+                        <div key={item.id} className="flex items-center gap-2 py-2.5 px-2">
+                          <span className="text-xs text-muted-foreground w-[16px] shrink-0 text-center">{roundLabel}</span>
+                          <span className="text-sm truncate w-[130px] shrink-0">{item.contact_name}</span>
+                          <span className="text-sm text-muted-foreground truncate w-[90px] shrink-0">{item.contact_organisation_name || '—'}</span>
                           <span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{item.contact_email || 'No email'}</span>
                           {item.rsvp_status === 'accepted' ? (
                             <span className="shrink-0 text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Accepted</span>
