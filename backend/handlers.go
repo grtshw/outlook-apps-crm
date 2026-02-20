@@ -214,7 +214,7 @@ func handleExternalContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBa
 
 	// Allowed fields for external update
 	allowedFields := []string{
-		"first_name", "last_name", "phone", "pronouns", "bio", "job_title",
+		"first_name", "last_name", "preferred_name", "phone", "pronouns", "bio", "job_title",
 		"linkedin", "instagram", "website", "location",
 	}
 
