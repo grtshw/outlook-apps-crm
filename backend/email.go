@@ -277,6 +277,7 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
 		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
+		Bcc:     []mail.Address{{Address: "hello@wearetheoutlook.com.au"}},
 		Subject: subject,
 		HTML:    wrapEmailHTML(content),
 	}
