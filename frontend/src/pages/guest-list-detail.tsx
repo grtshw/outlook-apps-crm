@@ -41,7 +41,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -368,6 +368,7 @@ export function GuestListDetailPage() {
   }
 
   const handleRemoveItem = (item: GuestListItem) => {
+    if (!confirm(`Remove ${item.contact_name || 'this guest'} from the guest list?`)) return
     deleteItemMutation.mutate(item.id)
   }
 
@@ -484,6 +485,7 @@ export function GuestListDetailPage() {
                   { key: 'invite_round', label: 'Invite round' },
                   { key: 'invite_status', label: 'Invite status' },
                   { key: null, label: 'RSVP' },
+                  { key: null, label: 'Tracking' },
                   { key: 'city', label: 'City', collapsible: true },
                   { key: 'connection', label: 'Connection', collapsible: true },
                   { key: 'relationship', label: 'Relationship', collapsible: true },
@@ -603,6 +605,16 @@ export function GuestListDetailPage() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </button>
+                    </TableCell>
+                    <TableCell>
+                      {(item.invite_status === 'invited' || item.rsvp_status) ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Eye className={cn("h-3.5 w-3.5", item.invite_opened ? "text-foreground" : "text-muted-foreground/30")} />
+                          <MousePointerClick className={cn("h-3.5 w-3.5", item.invite_clicked ? "text-foreground" : "text-muted-foreground/30")} />
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     {showContactCols && (
                       <>
@@ -792,6 +804,22 @@ export function GuestListDetailPage() {
                 )}
               </div>
 
+              {(rsvpDetailItem.invite_status === 'invited' || rsvpDetailItem.rsvp_status) && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Email tracking</p>
+                  <div className="flex items-center gap-3">
+                    <span className={cn("inline-flex items-center gap-1 text-sm", rsvpDetailItem.invite_opened ? "text-foreground" : "text-muted-foreground")}>
+                      <Eye className="h-3.5 w-3.5" />
+                      {rsvpDetailItem.invite_opened ? 'Opened' : 'Not opened'}
+                    </span>
+                    <span className={cn("inline-flex items-center gap-1 text-sm", rsvpDetailItem.invite_clicked ? "text-foreground" : "text-muted-foreground")}>
+                      <MousePointerClick className="h-3.5 w-3.5" />
+                      {rsvpDetailItem.invite_clicked ? 'Clicked' : 'Not clicked'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {rsvpDetailItem.rsvp_responded_at && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Responded</p>
@@ -940,6 +968,12 @@ export function GuestListDetailPage() {
                           <span className="text-sm truncate w-[130px] shrink-0">{item.contact_name}</span>
                           <span className="text-sm text-muted-foreground truncate w-[90px] shrink-0">{item.contact_organisation_name || '—'}</span>
                           <span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{item.contact_email || 'No email'}</span>
+                          {wasSent && !item.rsvp_status && (
+                            <span className="shrink-0 inline-flex items-center gap-1">
+                              <Eye className={cn("w-3.5 h-3.5", item.invite_opened ? "text-foreground" : "text-muted-foreground/30")} />
+                              <MousePointerClick className={cn("w-3.5 h-3.5", item.invite_clicked ? "text-foreground" : "text-muted-foreground/30")} />
+                            </span>
+                          )}
                           {item.rsvp_status === 'accepted' ? (
                             <span className="shrink-0 text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Accepted</span>
                           ) : item.rsvp_status === 'declined' ? (
