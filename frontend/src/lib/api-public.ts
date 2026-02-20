@@ -120,6 +120,7 @@ export interface RSVPInfo {
   landing_image_url: string
   landing_program: ProgramItem[]
   landing_content: string
+  program_description: string
   // Event details (from guest list, with fallback to event projection)
   event_date: string
   event_time: string
