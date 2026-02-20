@@ -139,7 +139,7 @@ export function GuestListDetailPage() {
     queryKey: ['contacts-bcc'],
     queryFn: () => getContacts({ perPage: 200, status: 'active', sort: 'name' }),
     enabled: editOpen,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   })
 
   const items = itemsData?.items ?? []
@@ -1067,8 +1067,13 @@ export function GuestListDetailPage() {
                     placeholder="Additional content below the program..."
                   />
                 </div>
+              </div>
+            </SheetSection>
+
+            <SheetSection title="Confirmation emails">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">BCC on confirmation emails</label>
+                  <label className="block text-sm text-muted-foreground mb-1.5">BCC contacts</label>
                   <ContactCombobox
                     value={editForm.rsvp_bcc_contacts}
                     contacts={bccContactsData?.items ?? []}
