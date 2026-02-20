@@ -138,7 +138,7 @@ export function GuestListDetailPage() {
 
   const { data: bccContactsData } = useQuery({
     queryKey: ['contacts-bcc'],
-    queryFn: () => getContacts({ perPage: 200, status: 'active', sort: 'name' }),
+    queryFn: () => getContacts({ perPage: 500, status: 'active', sort: 'name' }),
     enabled: editOpen,
     staleTime: 0,
   })
