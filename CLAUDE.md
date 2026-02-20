@@ -380,20 +380,38 @@ e.Router.POST("/api/contacts", handler).BindFunc(utils.RequireAdmin)
 
 ## COPE Provider Pattern
 
-CRM is the **canonical source** for contacts and organisations. It projects data to consumers.
+CRM is the **canonical source** for contacts and organisations. It projects data to consumers (DAM, Presentations, Website).
+
+**CRM is the ONLY app that creates contacts.** Other apps (Presentations, DAM) receive contact projections from CRM — they never create contacts independently. This prevents duplicate records across the ecosystem.
 
 **CRM does NOT store files locally.** All file storage (avatars, logos) is managed by DAM:
 - Avatar uploads via `POST /api/contacts/{id}/avatar` are proxied to DAM's HMAC endpoint
 - Logo uploads use HMAC tokens — CRM frontend uploads directly to DAM
-- CRM only stores URL references (`avatar_url`, `avatar_thumb_url`, etc.)
+- CRM only stores URL references (`avatar_thumb_url`, `avatar_small_url`, `avatar_original_url`)
 - `contacts.avatar` and `organisations.logo_*` FileFields have been removed
 
-### Resolving Avatar URLs from DAM
+### Resolving Avatar URLs from DAM (CRITICAL)
+
+Avatar URLs stored on contacts are **DAM proxy URLs** (e.g. `https://outlook-apps-dam.fly.dev/api/people/{damPersonId}/avatar/thumb`). They must NEVER be raw Tigris S3 URLs (which return 403 — Tigris doesn't support public ACLs).
 
 Contact avatar URLs come from two sources, checked in order:
 
-1. **Contact record fields**: `avatar_small_url` → `avatar_thumb_url` → `avatar_url` (stored on the contact by DAM webhook updates)
-2. **DAM avatar cache**: In-memory cache populated on startup from `DAM_PUBLIC_URL/api/public/people`, keyed by CRM contact ID. Refreshed periodically and after projections. See `dam_avatars.go`.
+1. **Contact record fields**: `avatar_small_url` → `avatar_thumb_url` (stored by `syncAvatarURLsFromDAM` on startup)
+2. **DAM avatar cache**: In-memory cache populated on startup from `DAM_PUBLIC_URL/api/public/people`, keyed by CRM contact ID. Also uses DAM proxy URLs. See `dam_avatars.go`.
+
+**How avatar sync works:**
+1. On CRM startup, `syncAvatarURLsFromDAM()` fetches DAM's `/api/public/people` (gets DAM person `id` + `crm_id`)
+2. For each person with a `crm_id` matching a CRM contact, it constructs DAM proxy URLs
+3. Proxy URLs are saved to the contact's `avatar_thumb_url`, `avatar_small_url`, `avatar_original_url` fields
+4. DAM's proxy handler (`/api/people/{id}/avatar/{size}`) reads from S3 with proper auth and streams the image
+
+```go
+// ✅ CORRECT — DAM proxy URL (goes through DAM's authenticated S3 proxy)
+damURL + "/api/people/" + person.ID + "/avatar/thumb"
+
+// ❌ WRONG — raw Tigris URL (403 in production, Tigris has no public ACLs)
+"https://fly.storage.tigris.dev/bucket/variants/avatars/{id}/thumb.jpg"
+```
 
 Use `resolveProgramAvatars()` in `handlers_rsvp.go` to enrich JSON arrays (like `landing_program`) with avatar URLs at response time. This function handles `types.JSONRaw` from PocketBase — it unmarshals the raw JSON before iterating.
 
