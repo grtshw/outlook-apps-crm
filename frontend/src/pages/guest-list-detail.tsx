@@ -910,16 +910,22 @@ export function GuestListDetailPage() {
                           <span className="text-sm truncate w-[140px] shrink-0">{item.contact_name}</span>
                           <span className="text-sm text-muted-foreground truncate w-[100px] shrink-0">{item.contact_organisation_name || '—'}</span>
                           <span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{item.contact_email || 'No email'}</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0 cursor-pointer"
-                            disabled={!hasEmail || sendInvitesMutation.isPending}
-                            onClick={() => sendInvitesMutation.mutate([item.id])}
-                          >
-                            <Send className="w-3.5 h-3.5 mr-1" />
-                            {wasSent ? 'Resend' : 'Send'}
-                          </Button>
+                          {item.rsvp_status === 'accepted' ? (
+                            <span className="shrink-0 text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Accepted</span>
+                          ) : item.rsvp_status === 'declined' ? (
+                            <span className="shrink-0 text-xs text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Declined</span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0 cursor-pointer"
+                              disabled={!hasEmail || sendInvitesMutation.isPending}
+                              onClick={() => sendInvitesMutation.mutate([item.id])}
+                            >
+                              <Send className="w-3.5 h-3.5 mr-1" />
+                              {wasSent ? 'Resend' : 'Send'}
+                            </Button>
+                          )}
                         </div>
                       )
                     })}

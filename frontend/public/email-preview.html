@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSVP Email Preview</title>
+    <style>
+        body { margin: 0; padding: 40px; background: #888; font-family: sans-serif; }
+        .tab-bar { max-width: 600px; margin: 0 auto 0 auto; display: flex; gap: 4px; }
+        .tab { padding: 8px 16px; background: #555; color: #fff; border: none; cursor: pointer; font-size: 13px; border-radius: 6px 6px 0 0; }
+        .tab.active { background: #020202; }
+        .email-frame { max-width: 600px; margin: 0 auto; box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="tab-bar">
+        <button class="tab active" onclick="show('invite')">Invite</button>
+        <button class="tab" onclick="show('forward')">Forward</button>
+        <button class="tab" onclick="show('confirmation')">Confirmation</button>
+    </div>
+
+    <!-- INVITE EMAIL -->
+    <div id="invite" class="email-frame">
+        <div style="max-width: 600px; margin: 0 auto; background: #020202;">
+            <div style="padding: 32px 32px 24px 32px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                    <td style="padding-right: 16px; vertical-align: middle;"><img src="/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
+                    <td style="vertical-align: middle;"><img src="/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
+                </tr></table>
+            </div>
+            <div style="width: 100%; height: 0; padding-bottom: 50%; position: relative; overflow: hidden;">
+                <img src="/images/rsvp-hero.jpg" alt="" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+            </div>
+            <div style="padding: 40px 32px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
+                <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">Dinner with Askable</h1>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi Grant,</p>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                    We're hosting dinner with our friends at Askable for a small group of leaders. Good food, good company, and a conversation worth having.
+                </p>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love to see you there.</p>
+                <div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">Thursday, 12 March 2025</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">5:45 – 9:00pm</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">Ace Hotel, Wentworth Avenue, Surry Hills</p>
+                </div>
+                <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                    Spaces are limited, so please let us know if you can make it.
+                </p>
+                <div style="display: inline-block; width: 48%; vertical-align: top;">
+                    <a href="#" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
+                        I can make it
+                    </a>
+                </div>
+                <div style="display: inline-block; width: 48%; vertical-align: top;">
+                    <a href="#" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
+                        I can't make it
+                    </a>
+                </div>
+                <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 16px 0 24px 0;">
+                    This link is personal to you. Please don't share it.
+                </p>
+                <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 0 0 8px 0;">
+                    Copy and paste if the link doesn't work:
+                </p>
+                <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
+                    <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                        https://crm.theoutlook.io/rsvp/95ac9cdcebf7253a53509dcc0cf731c00cb766390d09e1f8807d1070650d8044
+                    </p>
+                </div>
+            </div>
+            <div style="padding: 32px; border-top: 1px solid #333;">
+                <p style="font-size: 12px; color: #777; margin: 0 0 16px 0; line-height: 1.5;">
+                    The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
+                </p>
+                <p style="font-size: 11px; color: #555; margin: 0;">
+                    &copy; 2021-2026 The Outlook Pty Ltd &mdash; ABN 72 655 333 403
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORWARD EMAIL -->
+    <div id="forward" class="email-frame hidden">
+        <div style="max-width: 600px; margin: 0 auto; background: #020202;">
+            <div style="padding: 32px 32px 24px 32px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                    <td style="padding-right: 16px; vertical-align: middle;"><img src="/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
+                    <td style="vertical-align: middle;"><img src="/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
+                </tr></table>
+            </div>
+            <div style="width: 100%; height: 0; padding-bottom: 50%; position: relative; overflow: hidden;">
+                <img src="/images/rsvp-hero.jpg" alt="" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+            </div>
+            <div style="padding: 40px 32px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
+                <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">Dinner with Askable</h1>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi Sarah,</p>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">
+                    Amanda thought you'd enjoy Dinner with Askable, and has passed along an invitation for you.
+                </p>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 16px 0 8px 0;">We're hosting dinner with our friends at Askable for a small group of leaders. We'd love to see you there.</p>
+                <div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">Thursday, 12 March 2025</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">5:45 – 9:00pm</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">Ace Hotel, Wentworth Avenue, Surry Hills</p>
+                </div>
+                <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                    Spaces are limited, so let us know if you can make it.
+                </p>
+                <div style="display: inline-block; width: 48%; vertical-align: top;">
+                    <a href="#" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
+                        I can make it
+                    </a>
+                </div>
+                <div style="display: inline-block; width: 48%; vertical-align: top;">
+                    <a href="#" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
+                        I can't make it
+                    </a>
+                </div>
+                <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 16px 0 24px 0;">
+                    This link is personal to you. Please don't share it.
+                </p>
+                <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 0 0 8px 0;">
+                    Copy and paste if the link doesn't work:
+                </p>
+                <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
+                    <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                        https://crm.theoutlook.io/rsvp/abc123def456...
+                    </p>
+                </div>
+            </div>
+            <div style="padding: 32px; border-top: 1px solid #333;">
+                <p style="font-size: 12px; color: #777; margin: 0 0 16px 0; line-height: 1.5;">
+                    The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
+                </p>
+                <p style="font-size: 11px; color: #555; margin: 0;">
+                    &copy; 2021-2026 The Outlook Pty Ltd &mdash; ABN 72 655 333 403
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRMATION EMAIL -->
+    <div id="confirmation" class="email-frame hidden">
+        <div style="max-width: 600px; margin: 0 auto; background: #020202;">
+            <div style="padding: 32px 32px 24px 32px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                    <td style="padding-right: 16px; vertical-align: middle;"><img src="/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
+                    <td style="vertical-align: middle;"><img src="/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
+                </tr></table>
+            </div>
+            <div style="width: 100%; height: 0; padding-bottom: 50%; position: relative; overflow: hidden;">
+                <img src="/images/rsvp-hero.jpg" alt="" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+            </div>
+            <div style="padding: 40px 32px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+                <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're confirmed</p>
+                <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">Dinner with Askable</h1>
+                <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">
+                    Grant, confirming your RSVP and looking forward to seeing you on the night.
+                </p>
+                <div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">Thursday, 12 March 2025</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">5:45 – 9:00pm</p>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">Ace Hotel, Wentworth Avenue, Surry Hills</p>
+                </div>
+                <p style="color: rgba(255,255,255,0.4); font-size: 14px; margin: 0;">
+                    If your plans change, please let us know by replying to this email.
+                </p>
+            </div>
+            <div style="padding: 32px; border-top: 1px solid #333;">
+                <p style="font-size: 12px; color: #777; margin: 0 0 16px 0; line-height: 1.5;">
+                    The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
+                </p>
+                <p style="font-size: 11px; color: #555; margin: 0;">
+                    &copy; 2021-2026 The Outlook Pty Ltd &mdash; ABN 72 655 333 403
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function show(id) {
+            document.querySelectorAll('.email-frame').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.remove('hidden');
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

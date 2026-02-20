@@ -216,8 +216,52 @@ func sendAttendeeOTPEmail(app *pocketbase.PocketBase, email, recipientName, code
 	return nil
 }
 
+// wrapRSVPEmailHTML wraps content in a dark, moody email template matching the RSVP page design.
+func wrapRSVPEmailHTML(content string) string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.3; color: #ffffff; font-size: 16px; margin: 0; padding: 0; background: #020202;">
+
+    <div style="max-width: 600px; margin: 0 auto; background: #020202;">
+        <!-- Logos -->
+        <div style="padding: 32px 32px 24px 32px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td style="padding-right: 16px; vertical-align: middle;"><img src="https://crm.theoutlook.io/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
+                <td style="vertical-align: middle;"><img src="https://crm.theoutlook.io/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
+            </tr></table>
+        </div>
+
+        <!-- Hero image -->
+        <div style="width: 100%; height: 0; padding-bottom: 50%; position: relative; overflow: hidden;">
+            <img src="https://crm.theoutlook.io/images/rsvp-hero.jpg" alt="" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: block;">
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 32px;">
+` + content + `
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 32px; border-top: 1px solid #333;">
+            <p style="font-size: 12px; color: #777; margin: 0 0 16px 0; line-height: 1.5;">
+                The Outlook acknowledges Aboriginal Traditional Owners of Country throughout Australia and pays respect to their cultures and Elders past and present.
+            </p>
+            <p style="font-size: 11px; color: #555; margin: 0;">
+                &copy; 2021-2026 The Outlook Pty Ltd &mdash; ABN 72 655 333 403
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>`
+}
+
 // sendRSVPInviteEmail sends an RSVP invitation to a guest with their personal RSVP link.
-func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, eventName, eventDate, eventTime, eventLocation string) error {
+func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, listName, listDescription, eventName, eventDate, eventTime, eventLocation string) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
@@ -233,53 +277,77 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 	// Build event details block
 	detailsHTML := ""
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
-		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		detailsHTML = `<div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
 
+	// Use guest list description if available, otherwise fall back to generic copy
+	descriptionHTML := ""
+	if listDescription != "" {
+		descriptionHTML = fmt.Sprintf(`<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">%s</p>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love to see you there.</p>`, listDescription)
+	} else {
+		descriptionHTML = `<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love for you to join us for an evening of conversation, connection and great food.</p>`
+	}
+
 	subject := fmt.Sprintf("%s, you're invited to %s", firstName, eventContext)
 	content := fmt.Sprintf(`
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                We'd love for you to join us at <strong>%s</strong>, an evening of conversation, connection and great food.
-            </p>
+            <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
+            <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
             %s
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+            %s
+            <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
                 Spaces are limited, so please let us know if you can make it.
             </p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
-                    RSVP now
+            <!--[if mso]>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%%"><tr>
+            <td width="50%%" style="padding-right: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
+                    I can make it
                 </a>
             </div>
-            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
+            <!--[if mso]>
+            </td><td width="50%%" style="padding-left: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
+                    I can't make it
+                </a>
+            </div>
+            <!--[if mso]>
+            </td></tr></table>
+            <![endif]-->
+            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 16px 0 24px 0;">
+                This link is personal to you. Please don't share it.
+            </p>
+            <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 0 0 8px 0;">
                 Copy and paste if the link doesn't work:
             </p>
-            <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 6px; margin: 0;">
-                <p style="color: #666666; font-size: 13px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+            <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
+                <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
                     %s
                 </p>
             </div>
-            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
-                This link is personal to you. Please don't share it.
-            </p>
-`, firstName, eventContext, detailsHTML, rsvpURL, rsvpURL)
+`, eventContext, firstName, descriptionHTML, detailsHTML, rsvpURL, rsvpURL, rsvpURL)
 
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
 		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
 		Bcc:     []mail.Address{{Address: "hello@wearetheoutlook.com.au"}},
 		Subject: subject,
-		HTML:    wrapEmailHTML(content),
+		HTML:    wrapRSVPEmailHTML(content),
 	}
 
 	if err := app.NewMailClient().Send(msg); err != nil {
@@ -293,7 +361,7 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 
 // sendRSVPForwardEmail sends an invitation email when someone forwards their RSVP to another person.
 // To: recipient, CC: forwarder, BCC: hello@wearetheoutlook.com.au
-func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, forwarderName, forwarderEmail, rsvpURL, eventName, eventDate, eventTime, eventLocation string) error {
+func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, forwarderName, forwarderEmail, rsvpURL, listDescription, eventName, eventDate, eventTime, eventLocation string) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
@@ -304,43 +372,67 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
 	// Build event details block
 	detailsHTML := ""
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
-		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		detailsHTML = `<div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
 
+	// Description block after the forwarding intro
+	descriptionHTML := ""
+	if listDescription != "" {
+		descriptionHTML = fmt.Sprintf(`<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 16px 0 8px 0;">%s We'd love to see you there.</p>`, listDescription)
+	}
+
 	subject := fmt.Sprintf("%s thinks you'd love %s", forwarderFirst, eventName)
 	content := fmt.Sprintf(`
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                %s thought you'd enjoy <strong>%s</strong>, an evening of conversation, connection and great food, and has passed along an invitation for you.
+            <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
+            <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">
+                %s thought you'd enjoy %s, and has passed along an invitation for you.
             </p>
             %s
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+            %s
+            <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
                 Spaces are limited, so let us know if you can make it.
             </p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="%s" style="display: inline-block; background: #0d0d0d; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-size: 16px;">
-                    RSVP now
+            <!--[if mso]>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%%"><tr>
+            <td width="50%%" style="padding-right: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
+                    I can make it
                 </a>
             </div>
-            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 8px 0;">
+            <!--[if mso]>
+            </td><td width="50%%" style="padding-left: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
+                    I can't make it
+                </a>
+            </div>
+            <!--[if mso]>
+            </td></tr></table>
+            <![endif]-->
+            <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 24px 0 8px 0;">
                 Copy and paste if the link doesn't work:
             </p>
-            <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 6px; margin: 0;">
-                <p style="color: #666666; font-size: 13px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+            <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
+                <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
                     %s
                 </p>
             </div>
-`, firstName, forwarderFirst, eventName, detailsHTML, rsvpURL, rsvpURL)
+`, eventName, firstName, forwarderFirst, eventName, descriptionHTML, detailsHTML, rsvpURL, rsvpURL, rsvpURL)
 
 	msg := &mailer.Message{
 		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
@@ -348,7 +440,7 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
 		Cc:      []mail.Address{{Address: forwarderEmail, Name: forwarderName}},
 		Bcc:     []mail.Address{{Address: "hello@wearetheoutlook.com.au"}},
 		Subject: subject,
-		HTML:    wrapEmailHTML(content),
+		HTML:    wrapRSVPEmailHTML(content),
 	}
 
 	if err := app.NewMailClient().Send(msg); err != nil {
@@ -375,29 +467,30 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 	// Build event details block
 	detailsHTML := ""
 	if eventDate != "" || eventTime != "" || eventLocation != "" {
-		detailsHTML = `<div style="background: #f5f5f5; padding: 20px 24px; border-radius: 8px; margin: 24px 0;">`
+		detailsHTML = `<div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">`
 		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
 		}
 		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
 		}
 		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: #4a4a4a; font-size: 15px; margin: 0;">%s</p>`, eventLocation)
+			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">%s</p>`, eventLocation)
 		}
 		detailsHTML += `</div>`
 	}
 
 	content := fmt.Sprintf(`
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
-            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                You're confirmed for <strong>%s</strong>. We look forward to seeing you there.
+            <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're confirmed</p>
+            <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
+            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">
+                %s, confirming your RSVP and looking forward to seeing you on the night.
             </p>
             %s
-            <p style="color: #9a9a9a; font-size: 14px; margin: 24px 0 0 0;">
+            <p style="color: rgba(255,255,255,0.4); font-size: 14px; margin: 0;">
                 If your plans change, please let us know by replying to this email.
             </p>
-`, firstName, eventName, detailsHTML)
+`, eventName, firstName, detailsHTML)
 
 	// Build BCC list: always include hello@ + any configured contacts
 	bccList := []mail.Address{{Address: "hello@wearetheoutlook.com.au"}}
@@ -412,7 +505,7 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
 		Bcc:     bccList,
 		Subject: subject,
-		HTML:    wrapEmailHTML(content),
+		HTML:    wrapRSVPEmailHTML(content),
 	}
 
 	if err := app.NewMailClient().Send(msg); err != nil {
