@@ -13,7 +13,6 @@ import (
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -315,12 +314,8 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	return utils.SuccessResponse(re, "Guest list updated")
 }
 
-// resolveGuestListImageURL returns a public URL for the landing_image FileField.
-// Falls back to the legacy landing_image_url text field if no file is uploaded.
-func resolveGuestListImageURL(app *pocketbase.PocketBase, record *core.Record) string {
-	if filename := record.GetString("landing_image"); filename != "" {
-		return fmt.Sprintf("%s/api/files/%s/%s/%s", getPublicBaseURL(), record.Collection().Id, record.Id, filename)
-	}
+// resolveGuestListImageURL returns the DAM image URL stored in landing_image_url.
+func resolveGuestListImageURL(_ *pocketbase.PocketBase, record *core.Record) string {
 	return record.GetString("landing_image_url")
 }
 
@@ -399,45 +394,6 @@ func handleGuestListDelete(re *core.RequestEvent, app *pocketbase.PocketBase) er
 
 	utils.LogFromRequest(app, re, "delete", utils.CollectionGuestLists, id, "success", nil, "")
 	return utils.SuccessResponse(re, "Guest list deleted")
-}
-
-func handleGuestListImageUpload(re *core.RequestEvent, app *pocketbase.PocketBase) error {
-	id := re.Request.PathValue("id")
-	record, err := app.FindRecordById(utils.CollectionGuestLists, id)
-	if err != nil {
-		return utils.NotFoundResponse(re, "Guest list not found")
-	}
-
-	if err := re.Request.ParseMultipartForm(10 << 20); err != nil {
-		return utils.BadRequestResponse(re, "Invalid file upload")
-	}
-
-	file, header, err := re.Request.FormFile("image")
-	if err != nil {
-		return utils.BadRequestResponse(re, "No image file provided")
-	}
-	defer file.Close()
-
-	fileBytes, err := io.ReadAll(file)
-	if err != nil {
-		return utils.InternalErrorResponse(re, "Failed to read file")
-	}
-
-	fsFile, err := filesystem.NewFileFromBytes(fileBytes, header.Filename)
-	if err != nil {
-		return utils.InternalErrorResponse(re, "Failed to process file")
-	}
-
-	record.Set("landing_image", fsFile)
-
-	if err := app.Save(record); err != nil {
-		return utils.InternalErrorResponse(re, "Failed to save image")
-	}
-
-	utils.LogFromRequest(app, re, "update", utils.CollectionGuestLists, record.Id, "success", nil, "uploaded landing image")
-	return re.JSON(http.StatusOK, map[string]any{
-		"landing_image_url": resolveGuestListImageURL(app, record),
-	})
 }
 
 func handleGuestListImageDelete(re *core.RequestEvent, app *pocketbase.PocketBase) error {

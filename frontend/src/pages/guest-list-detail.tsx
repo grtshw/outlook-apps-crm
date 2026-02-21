@@ -14,7 +14,6 @@ import {
   toggleGuestListRSVP,
   sendRSVPInvites,
   getThemes,
-  uploadGuestListImage,
   deleteGuestListImage,
 } from '@/lib/api'
 import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
@@ -45,7 +44,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, ImagePlus, Search } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -272,15 +271,6 @@ export function GuestListDetailPage() {
     mutationFn: (enabled: boolean) => toggleGuestListRSVP(id!, enabled),
     onSuccess: (data) => {
       toast.success(data.rsvp_enabled ? 'RSVP enabled' : 'RSVP disabled')
-      queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
-    },
-    onError: (error: Error) => toast.error(error.message),
-  })
-
-  const uploadImageMutation = useMutation({
-    mutationFn: (file: File) => uploadGuestListImage(id!, file),
-    onSuccess: () => {
-      toast.success('Image uploaded')
       queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1049,23 +1039,6 @@ export function GuestListDetailPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            const input = document.createElement('input')
-                            input.type = 'file'
-                            input.accept = 'image/jpeg,image/png,image/webp'
-                            input.onchange = (e) => {
-                              const file = (e.target as HTMLInputElement).files?.[0]
-                              if (file) uploadImageMutation.mutate(file)
-                            }
-                            input.click()
-                          }}
-                          disabled={uploadImageMutation.isPending}
-                        >
-                          Upload
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
                           onClick={() => deleteImageMutation.mutate()}
                           disabled={deleteImageMutation.isPending}
                         >
@@ -1074,34 +1047,14 @@ export function GuestListDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="flex-1 h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
-                        onClick={() => setDamBrowserOpen(true)}
-                      >
-                        <Search className="w-4 h-4" />
-                        Browse DAM
-                      </button>
-                      <button
-                        type="button"
-                        className="flex-1 h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
-                        onClick={() => {
-                          const input = document.createElement('input')
-                          input.type = 'file'
-                          input.accept = 'image/jpeg,image/png,image/webp'
-                          input.onchange = (e) => {
-                            const file = (e.target as HTMLInputElement).files?.[0]
-                            if (file) uploadImageMutation.mutate(file)
-                          }
-                          input.click()
-                        }}
-                        disabled={uploadImageMutation.isPending}
-                      >
-                        <ImagePlus className="w-4 h-4" />
-                        {uploadImageMutation.isPending ? 'Uploading...' : 'Upload'}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="w-full h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+                      onClick={() => setDamBrowserOpen(true)}
+                    >
+                      <Search className="w-4 h-4" />
+                      Browse DAM
+                    </button>
                   )}
                 </div>
               </div>

@@ -439,15 +439,6 @@ export async function deleteGuestList(id: string): Promise<{ message: string }> 
   return fetchJSON(`/api/guest-lists/${id}`, { method: 'DELETE' })
 }
 
-export async function uploadGuestListImage(id: string, file: File): Promise<{ landing_image_url: string }> {
-  const formData = new FormData()
-  formData.append('image', file)
-  return fetchJSON(`/api/guest-lists/${id}/image`, {
-    method: 'POST',
-    body: formData,
-  })
-}
-
 export async function deleteGuestListImage(id: string): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}/image`, { method: 'DELETE' })
 }

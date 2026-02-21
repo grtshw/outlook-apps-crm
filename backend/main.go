@@ -591,10 +591,6 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleGuestListClone(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
-	e.Router.POST("/api/guest-lists/{id}/image", func(re *core.RequestEvent) error {
-		return handleGuestListImageUpload(re, app)
-	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
-
 	e.Router.DELETE("/api/guest-lists/{id}/image", func(re *core.RequestEvent) error {
 		return handleGuestListImageDelete(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
