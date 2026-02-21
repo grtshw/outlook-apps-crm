@@ -191,7 +191,7 @@ export function GuestListDetailPage() {
   // ── Mutations ──
 
   const updateListMutation = useMutation({
-    mutationFn: (data: Partial<{ name: string; description: string; event_projection: string; status: string }>) =>
+    mutationFn: (data: Parameters<typeof updateGuestList>[1]) =>
       updateGuestList(id!, data),
     onSuccess: () => {
       toast.success('Guest list updated')
