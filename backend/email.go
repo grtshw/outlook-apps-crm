@@ -89,8 +89,12 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 		et.ButtonText = "#ffffff"
 	}
 
-	// Logos
-	et.LogoURL = getStr(theme, "logo_url", base+"/images/logo-white.svg")
+	// Logos — use email-safe PNG version if the theme logo is an SVG
+	logoURL := getStr(theme, "logo_url", base+"/images/logo-white.svg")
+	if strings.HasSuffix(logoURL, ".svg") {
+		logoURL = base + "/images/logo-email.png"
+	}
+	et.LogoURL = logoURL
 	et.BrandLogoURL = getStr(theme, "logo_light_url", "")
 
 	// Hero image: guest list landing_image_url > theme hero_image_url > default
