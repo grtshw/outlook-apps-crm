@@ -45,6 +45,7 @@ function buildThemeStyle(theme: PublicTheme | null): React.CSSProperties {
     '--theme-text': theme.color_text,
     '--theme-text-muted': theme.color_text_muted,
     '--theme-border': theme.color_border,
+    '--theme-button': theme.color_button || theme.color_text,
     '--font-display': theme.is_dark
       ? "'PP Museum', Georgia, serif"
       : "'Monument Grotesk', sans-serif",
@@ -100,8 +101,8 @@ export function RSVPPage() {
   const brandName = theme?.name || 'The Outlook After Dark'
 
   const inputClassName = isDark
-    ? 'bg-white/5 border-[var(--theme-border)]/30 text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
-    : 'bg-[var(--theme-bg)] border-[var(--theme-border)] text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
+    ? 'bg-white/5 border-[var(--theme-border)]/30 text-[var(--theme-primary)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
+    : 'bg-[var(--theme-bg)] border-[var(--theme-border)] text-[var(--theme-primary)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
   const textareaClassName = inputClassName
 
   const heroPaneRef = useRef<HTMLDivElement>(null)
@@ -332,8 +333,8 @@ export function RSVPPage() {
       {/* Response selection */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <label
-          className={`flex items-center gap-3 p-4 cursor-pointer transition-colors border border-[var(--theme-border)]/30 ${
-            response === 'accepted' ? 'bg-[var(--theme-primary)] border-[var(--theme-primary)]' : 'hover:border-[var(--theme-border)]'
+          className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${
+            response === 'accepted' ? 'border border-[var(--theme-border)]/50' : 'border border-[var(--theme-border)]/25'
           }`}
         >
           <input
@@ -351,8 +352,8 @@ export function RSVPPage() {
           <span className="text-sm text-[var(--theme-text)]">I can make it</span>
         </label>
         <label
-          className={`flex items-center gap-3 p-4 cursor-pointer transition-colors border border-[var(--theme-border)]/30 ${
-            response === 'declined' ? 'bg-[var(--theme-bg)]/40 border-[var(--theme-text-muted)]/60' : 'hover:border-[var(--theme-border)]'
+          className={`flex items-center gap-3 p-4 cursor-pointer transition-colors ${
+            response === 'declined' ? 'border border-[var(--theme-border)]/50' : 'border border-[var(--theme-border)]/25'
           }`}
         >
           <input
@@ -375,7 +376,7 @@ export function RSVPPage() {
       <div className="space-y-6 pb-16">
 
           {/* Your details */}
-          <div className="border-t border-[var(--theme-border)]/30 pt-10 mt-4">
+          <div className="border-t border-[var(--theme-border)]/10 pt-10 mt-4">
             <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Your details</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -429,7 +430,7 @@ export function RSVPPage() {
 
           {/* Additional requirements — only when accepting */}
           {response === 'accepted' && (
-            <details className="group border-t border-[var(--theme-border)]/30 pt-6 mt-10">
+            <details className="group border-t border-[var(--theme-border)]/10 pt-6 mt-10">
               <summary className="flex items-center justify-between cursor-pointer list-none">
                 <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)]">Additional requirements</h3>
                 <ChevronDown className="h-5 w-5 text-[var(--theme-text-muted)]/40 transition-transform group-open:rotate-180" />
@@ -494,7 +495,7 @@ export function RSVPPage() {
 
           {/* Invitation — plus one + who invited you */}
           {response === 'accepted' && (
-            <div className="border-t border-[var(--theme-border)]/30 pt-10 mt-10">
+            <div className="border-t border-[var(--theme-border)]/10 pt-10 mt-10">
               <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Invitation</h3>
               <div className="space-y-4">
                 {/* Plus one */}
@@ -599,7 +600,7 @@ export function RSVPPage() {
           )}
 
           {/* Anything else? — comments */}
-          <div className="border-t border-[var(--theme-border)]/30 pt-10 mt-10">
+          <div className="border-t border-[var(--theme-border)]/10 pt-10 mt-10">
             <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Anything else?</h3>
             <div className="space-y-4">
               <div>
@@ -617,7 +618,7 @@ export function RSVPPage() {
 
           {/* Privacy policy */}
           <div
-            className="flex items-start gap-3 cursor-pointer border-t border-[var(--theme-border)]/30 pt-6 mt-6"
+            className="flex items-start gap-3 cursor-pointer border-t border-[var(--theme-border)]/10 pt-6 mt-6"
             onClick={() => setPolicyAccepted((v) => !v)}
           >
             <Checkbox
@@ -652,7 +653,7 @@ export function RSVPPage() {
           <button
             onClick={handleSubmit}
             disabled={mutation.isPending || !policyAccepted || !response || !firstName.trim() || !email.trim()}
-            className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white px-12 h-12 text-base transition-colors cursor-pointer"
+            className="bg-[var(--theme-text)] hover:bg-[var(--theme-text)]/90 disabled:opacity-40 disabled:cursor-not-allowed text-black px-12 h-12 text-base transition-colors cursor-pointer"
           >
             {mutation.isPending ? 'Submitting...' : 'Submit'}
           </button>
@@ -674,7 +675,7 @@ export function RSVPPage() {
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <span className="absolute top-8 left-8 bg-black/20 text-white/60 text-xs font-mono tracking-wider uppercase z-10 px-3 py-1.5">{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
+            <span className="absolute top-8 left-8 bg-black/20 text-xs font-mono tracking-wider uppercase z-10 px-3 py-1.5" style={{ color: 'var(--theme-bg)' }}>{info.prefilled_first_name ? `${info.prefilled_first_name}, you're invited` : "You're invited"}</span>
           </div>
           <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center lg:px-10">
             <div className="pt-10 lg:pt-8">
@@ -686,11 +687,11 @@ export function RSVPPage() {
                   className="h-8 mb-4 object-contain mx-auto"
                 />
               )}
-              <h1 className="text-3xl lg:text-5xl xl:text-6xl text-[var(--theme-hero-text)] font-[family-name:var(--font-display)] leading-[1]">
+              <h1 className="text-2xl lg:text-3xl xl:text-4xl text-[var(--theme-hero-text)] font-[family-name:var(--font-display)] leading-[1]">
                 {info.list_name}
               </h1>
             </div>
-            <div className="text-[var(--theme-hero-text)]/80 text-lg lg:text-xl leading-relaxed">
+            <div className="text-[var(--theme-primary)] text-lg lg:text-xl leading-relaxed">
               {info.description ? (
                 <p>{info.description}</p>
               ) : (
@@ -698,9 +699,10 @@ export function RSVPPage() {
               )}
             </div>
             {(info.event_date || info.event_time || info.event_location) && (
-              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-[var(--theme-hero-text)]/70 mt-auto">
-                {info.event_date && <span>{info.event_date}</span>}
-                {info.event_time && <span>{info.event_time}</span>}
+              <div className="flex flex-col gap-3 text-sm lg:text-base text-[var(--theme-primary)] mt-auto">
+                {(info.event_date || info.event_time) && (
+                  <span className="uppercase font-mono tracking-wider text-xs">{[info.event_date, info.event_time].filter(Boolean).join('   \u2022   ')}</span>
+                )}
                 {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
               </div>
             )}
@@ -723,7 +725,7 @@ export function RSVPPage() {
       </div>
 
       {/* Pane 2: Program + RSVP form — slides over sticky hero on mobile */}
-      <div ref={formPaneRef} className="min-h-screen relative z-10 overflow-hidden">
+      <div ref={formPaneRef} className="min-h-screen relative z-10 overflow-clip">
         {/* Decorative bg visible as border — only for dark themes with hero flowers */}
         {isDark && (
           <div className="absolute inset-0 bg-cover bg-center bg-fixed" style={{ backgroundImage: 'url(/images/rsvp-hero-flowers.jpg)' }} />
@@ -748,8 +750,9 @@ export function RSVPPage() {
                   <div className="space-y-6 pb-4">
                     {(info.event_date || info.event_time || info.event_location) && (
                       <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-[var(--theme-text)] pb-6 border-b border-[var(--theme-border)]/30">
-                        {info.event_date && <span>{info.event_date}</span>}
-                        {info.event_time && <span>{info.event_time}</span>}
+                        {(info.event_date || info.event_time) && (
+                          <span className="uppercase font-mono tracking-wider text-xs">{[info.event_date, info.event_time].filter(Boolean).join('   \u2022   ')}</span>
+                        )}
                         {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
                       </div>
                     )}
@@ -757,11 +760,11 @@ export function RSVPPage() {
                       <p className="text-[var(--theme-text)]/80 text-base leading-relaxed">{info.program_description}</p>
                     )}
                     {info.landing_program?.length > 0 && (
-                      <div>
+                      <div className="border border-[var(--theme-border)]/10 overflow-hidden">
                         {info.landing_program.map((item, i) => {
                           const isEdge = i === 0 || i === (info.landing_program?.length ?? 0) - 1
                           return (
-                          <div key={i} className={`${isEdge ? 'bg-[var(--theme-bg)]' : 'bg-[var(--theme-bg)]/80'} ${i > 0 ? 'border-t border-[var(--theme-border)]/30' : ''}`}>
+                          <div key={i} className={`${isEdge ? 'bg-[#1a1a1a]' : 'bg-[var(--theme-secondary)]'} ${i > 0 ? 'border-t border-[var(--theme-border)]/10' : ''}`}>
                             <button
                               type="button"
                               className="w-full flex items-start gap-3 px-4 py-3 text-left cursor-pointer"
@@ -771,9 +774,9 @@ export function RSVPPage() {
                                 {item.time}
                               </span>
                               <div className="flex-1 min-w-0">
-                                <p className="text-lg font-[family-name:var(--font-display)] text-[var(--theme-text)]">{item.title}</p>
+                                <p className="text-base font-[family-name:var(--font-display)] text-[var(--theme-text)]">{item.title}</p>
                                 {(item.speaker_name || item.speaker_org) && (
-                                  <p className="text-xs mt-0.5 text-[var(--theme-text)]/50">
+                                  <p className="text-xs mt-1.5 text-[var(--theme-text)]/70 uppercase font-mono tracking-wider">
                                     {[item.speaker_name, item.speaker_org].filter(Boolean).join(', ')}
                                   </p>
                                 )}
@@ -786,7 +789,7 @@ export function RSVPPage() {
                             </button>
                             {item.description && expandedProgram === i && (
                               <div className="px-4 pb-3 pt-0 ml-[72px]">
-                                <div className="text-sm leading-relaxed text-[var(--theme-text)]/60" dangerouslySetInnerHTML={{ __html: item.description }} />
+                                <div className="text-lg leading-snug text-[var(--theme-text)]/90" dangerouslySetInnerHTML={{ __html: item.description }} />
                               </div>
                             )}
                           </div>
@@ -794,7 +797,7 @@ export function RSVPPage() {
                       </div>
                     )}
                     {info.landing_content && (
-                      <div className="border-t border-[var(--theme-border)]/30 pt-6">
+                      <div className="border-t border-[var(--theme-border)]/10 pt-6">
                         <div className="text-base leading-relaxed text-[var(--theme-text)]/80" dangerouslySetInnerHTML={{ __html: info.landing_content }} />
                       </div>
                     )}
@@ -804,7 +807,7 @@ export function RSVPPage() {
             )}
 
             {/* RSVP accordion */}
-            <div className="border-t border-[var(--theme-border)]/30">
+            <div className="border-t border-[var(--theme-border)]/10">
               <button
                 type="button"
                 className="w-full flex items-center justify-between py-4 cursor-pointer"
@@ -824,14 +827,15 @@ export function RSVPPage() {
           {/* Desktop: side-by-side layout */}
           <div className="hidden lg:flex px-10 pt-16 pb-16 gap-20 items-start">
               {/* Left: Program / event info — sticky while form scrolls */}
-              <div className="flex-1 flex flex-col justify-center sticky top-16">
+              <div className="flex-1 flex flex-col justify-center sticky top-16 self-start">
                 <h2 className="text-4xl lg:text-5xl text-[var(--theme-text)] font-[family-name:var(--font-display)] leading-[1.1] mb-8">
                   {info.program_title || 'The evening'}
                 </h2>
                 {(info.event_date || info.event_time || info.event_location) && (
                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-[var(--theme-text)] mb-8 pb-8 border-b border-[var(--theme-border)]/30">
-                    {info.event_date && <span>{info.event_date}</span>}
-                    {info.event_time && <span>{info.event_time}</span>}
+                    {(info.event_date || info.event_time) && (
+                      <span className="uppercase font-mono tracking-wider text-xs">{[info.event_date, info.event_time].filter(Boolean).join('   \u2022   ')}</span>
+                    )}
                     {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
                   </div>
                 )}
@@ -842,23 +846,23 @@ export function RSVPPage() {
 
                 {info.landing_program?.length > 0 && (
                   <>
-                    <div>
+                    <div className="border border-[var(--theme-border)]/10 overflow-hidden">
                       {info.landing_program.map((item, i) => {
                         const isEdge = i === 0 || i === (info.landing_program?.length ?? 0) - 1
                         return (
-                        <div key={i} className={`${isEdge ? 'bg-[var(--theme-bg)]' : 'bg-[var(--theme-bg)]/80'} ${i > 0 ? 'border-t border-[var(--theme-border)]/30' : ''}`}>
+                        <div key={i} className={`${isEdge ? 'bg-[#1a1a1a]' : 'bg-[var(--theme-secondary)]'} ${i > 0 ? 'border-t border-[var(--theme-border)]/10' : ''}`}>
                           <button
                             type="button"
-                            className="w-full flex items-start gap-4 px-5 py-4 text-left cursor-pointer"
+                            className="w-full flex items-start gap-4 px-6 py-5 text-left cursor-pointer"
                             onClick={() => setExpandedProgram(expandedProgram === i ? null : i)}
                           >
                             <span className="font-mono text-sm text-[var(--theme-text)]/70 w-[80px] shrink-0 tracking-wider pt-0.5">
                               {item.time}
                             </span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-2xl font-[family-name:var(--font-display)] text-[var(--theme-text)]">{item.title}</p>
+                              <p className="text-xl font-[family-name:var(--font-display)] text-[var(--theme-text)]">{item.title}</p>
                               {(item.speaker_name || item.speaker_org) && (
-                                <p className="text-sm mt-0.5 text-[var(--theme-text)]/50">
+                                <p className="text-sm mt-1.5 text-[var(--theme-text)]/70 uppercase font-mono tracking-wider">
                                   {[item.speaker_name, item.speaker_org].filter(Boolean).join(', ')}
                                 </p>
                               )}
@@ -878,7 +882,7 @@ export function RSVPPage() {
                           </button>
                           {item.description && expandedProgram === i && (
                             <div className="px-5 pb-3 pt-0 ml-[96px]">
-                              <div className="text-sm leading-relaxed text-[var(--theme-text)]/60" dangerouslySetInnerHTML={{ __html: item.description }} />
+                              <div className="text-lg leading-snug text-[var(--theme-text)]/90" dangerouslySetInnerHTML={{ __html: item.description }} />
                             </div>
                           )}
                         </div>
@@ -888,7 +892,7 @@ export function RSVPPage() {
                 )}
 
                 {info.landing_content && (
-                  <div className="border-t border-[var(--theme-border)]/30 pt-8 mt-8">
+                  <div className="border-t border-[var(--theme-border)]/10 pt-8 mt-8">
                     <div className="text-base leading-relaxed text-[var(--theme-text)]/80" dangerouslySetInnerHTML={{ __html: info.landing_content }} />
                   </div>
                 )}

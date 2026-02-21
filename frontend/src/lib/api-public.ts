@@ -12,6 +12,7 @@ export interface PublicTheme {
   color_text: string
   color_text_muted: string
   color_border: string
+  color_button: string
   logo_url: string
   logo_light_url: string
   hero_image_url: string

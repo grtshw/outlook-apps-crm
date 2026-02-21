@@ -36,6 +36,7 @@ export default function ThemesPage() {
   const [colorText, setColorText] = useState('#ffffff')
   const [colorTextMuted, setColorTextMuted] = useState('#A8A9B1')
   const [colorBorder, setColorBorder] = useState('#645C49')
+  const [colorButton, setColorButton] = useState('#ffffff')
   const [logoUrl, setLogoUrl] = useState('')
   const [logoLightUrl, setLogoLightUrl] = useState('')
   const [heroImageUrl, setHeroImageUrl] = useState('')
@@ -89,6 +90,7 @@ export default function ThemesPage() {
     setColorText('#ffffff')
     setColorTextMuted('#A8A9B1')
     setColorBorder('#645C49')
+    setColorButton('#ffffff')
     setLogoUrl('')
     setLogoLightUrl('')
     setHeroImageUrl('')
@@ -107,6 +109,7 @@ export default function ThemesPage() {
     setColorText(theme.color_text)
     setColorTextMuted(theme.color_text_muted)
     setColorBorder(theme.color_border)
+    setColorButton(theme.color_button || theme.color_text)
     setLogoUrl(theme.logo_url)
     setLogoLightUrl(theme.logo_light_url)
     setHeroImageUrl(theme.hero_image_url)
@@ -125,6 +128,7 @@ export default function ThemesPage() {
       color_text: colorText,
       color_text_muted: colorTextMuted,
       color_border: colorBorder,
+      color_button: colorButton,
       logo_url: logoUrl,
       logo_light_url: logoLightUrl,
       hero_image_url: heroImageUrl,
@@ -221,6 +225,7 @@ export default function ThemesPage() {
                   { label: 'Text', value: colorText, set: setColorText },
                   { label: 'Text muted', value: colorTextMuted, set: setColorTextMuted },
                   { label: 'Border', value: colorBorder, set: setColorBorder },
+                  { label: 'Button', value: colorButton, set: setColorButton },
                 ].map(({ label, value, set }) => (
                   <div key={label} className="flex items-center gap-3">
                     <input
