@@ -249,7 +249,7 @@ export default function ThemesPage() {
                 style={{ backgroundColor: colorBackground }}
               >
                 <div className="space-y-2">
-                  <p style={{ color: colorText, fontFamily: 'PP Museum, Georgia, serif', fontSize: '1.25rem' }}>
+                  <p style={{ color: colorText, fontFamily: isDark ? 'PP Museum, Georgia, serif' : 'Monument Grotesk, sans-serif', fontSize: '1.25rem' }}>
                     Heading text
                   </p>
                   <p style={{ color: colorTextMuted, fontSize: '0.875rem' }}>
@@ -289,16 +289,6 @@ export default function ThemesPage() {
                     </div>
                   )}
                 </div>
-              </div>
-            </SheetSection>
-
-            <SheetSection title="Hero image">
-              <div>
-                <label className="block text-sm mb-1.5">Default hero image URL</label>
-                <Input value={heroImageUrl} onChange={(e) => setHeroImageUrl(e.target.value)} placeholder="/images/rsvp-hero.jpg" />
-                {heroImageUrl && (
-                  <img src={heroImageUrl} alt="" className="mt-2 rounded w-full h-32 object-cover" />
-                )}
               </div>
             </SheetSection>
 

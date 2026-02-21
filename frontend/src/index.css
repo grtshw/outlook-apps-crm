@@ -24,6 +24,8 @@
   --theme-text-muted: #A8A9B1;
   --theme-border: #645C49;
   --font-display: 'PP Museum', Georgia, serif;
+  --theme-hero-text: #ffffff;
+  --theme-hero-text-muted: #A8A9B1;
 
   /* Override shadcn primary for checkboxes/buttons within RSVP */
   --primary: var(--theme-primary);

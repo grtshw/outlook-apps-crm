@@ -14,6 +14,8 @@ import {
   toggleGuestListRSVP,
   sendRSVPInvites,
   getThemes,
+  uploadGuestListImage,
+  deleteGuestListImage,
 } from '@/lib/api'
 import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
@@ -42,7 +44,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, ImagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -77,6 +79,15 @@ export function GuestListDetailPage() {
   const [rsvpDrawerOpen, setRsvpDrawerOpen] = useState(false)
   const [rsvpRoundFilter, setRsvpRoundFilter] = useState<Set<string>>(new Set(['1st', '2nd']))
   const [cloneOpen, setCloneOpen] = useState(false)
+  const [programOpen, setProgramOpen] = useState(false)
+
+  // Program form state
+  const [programForm, setProgramForm] = useState({
+    program_title: '',
+    program_description: '',
+    landing_program: [] as ProgramItem[],
+    landing_content: '',
+  })
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -126,7 +137,7 @@ export function GuestListDetailPage() {
   const { data: eventsData } = useQuery({
     queryKey: ['event-projections'],
     queryFn: () => getEventProjections(),
-    enabled: editOpen || cloneOpen,
+    enabled: cloneOpen,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -198,6 +209,7 @@ export function GuestListDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
       queryClient.invalidateQueries({ queryKey: ['guest-lists'] })
       setEditOpen(false)
+      setProgramOpen(false)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -263,6 +275,24 @@ export function GuestListDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const uploadImageMutation = useMutation({
+    mutationFn: (file: File) => uploadGuestListImage(id!, file),
+    onSuccess: () => {
+      toast.success('Image uploaded')
+      queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const deleteImageMutation = useMutation({
+    mutationFn: () => deleteGuestListImage(id!),
+    onSuccess: () => {
+      toast.success('Image removed')
+      queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
   const sendInvitesMutation = useMutation({
     mutationFn: (itemIds?: string[]) => sendRSVPInvites(id!, itemIds),
     onSuccess: (data) => {
@@ -281,6 +311,22 @@ export function GuestListDetailPage() {
   }, [items])
 
   // ── Handlers ──
+
+  const handleOpenProgram = () => {
+    if (!guestList) return
+    setProgramForm({
+      program_title: guestList.program_title || '',
+      program_description: guestList.program_description || '',
+      landing_program: guestList.landing_program || [],
+      landing_content: guestList.landing_content || '',
+    })
+    setProgramOpen(true)
+  }
+
+  const handleSaveProgram = (e: React.FormEvent) => {
+    e.preventDefault()
+    updateListMutation.mutate(programForm)
+  }
 
   const handleOpenEdit = () => {
     if (!guestList) return
@@ -423,8 +469,8 @@ export function GuestListDetailPage() {
       <PageHeader title={guestList.name}>
         {isAdmin && (
           <>
-            <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
-              <Share2 className="w-4 h-4 mr-1" /> Share
+            <Button variant="outline" onClick={handleOpenProgram}>
+              <LayoutList className="w-4 h-4 mr-1" /> Program
             </Button>
             <Button variant="outline" onClick={() => setRsvpDrawerOpen(true)}>
               <Send className="w-4 h-4 mr-1" /> RSVP
@@ -433,7 +479,7 @@ export function GuestListDetailPage() {
               )}
             </Button>
             <Button onClick={() => setContactSearchOpen(true)}>
-              <UserPlus className="w-4 h-4 mr-1" /> Select guests
+              <UserPlus className="w-4 h-4 mr-1" /> Guests
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -442,6 +488,10 @@ export function GuestListDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShareDialogOpen(true)}>
+                  <Share2 className="w-4 h-4 mr-2" /> Share
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleOpenEdit}>
                   <Pencil className="w-4 h-4 mr-2" /> Edit
                 </DropdownMenuItem>
@@ -953,29 +1003,85 @@ export function GuestListDetailPage() {
             </SheetSection>
 
             <SheetSection title="Theme">
-              <Select
-                value={guestList.theme || ''}
-                onValueChange={(value: string) => {
-                  updateListMutation.mutate({ theme: value })
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  {themes.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full border border-border shrink-0"
-                          style={{ backgroundColor: t.color_primary }}
-                        />
-                        {t.name}
+              <div className="space-y-4">
+                <Select
+                  value={guestList.theme || ''}
+                  onValueChange={(value: string) => {
+                    updateListMutation.mutate({ theme: value })
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {themes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full border border-border shrink-0"
+                            style={{ backgroundColor: t.color_primary }}
+                          />
+                          {t.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Hero image</label>
+                  {guestList.landing_image_url ? (
+                    <div className="space-y-2">
+                      <img src={guestList.landing_image_url} alt="" className="w-full h-32 object-cover rounded" />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'image/jpeg,image/png,image/webp'
+                            input.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0]
+                              if (file) uploadImageMutation.mutate(file)
+                            }
+                            input.click()
+                          }}
+                          disabled={uploadImageMutation.isPending}
+                        >
+                          Replace
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteImageMutation.mutate()}
+                          disabled={deleteImageMutation.isPending}
+                        >
+                          Remove
+                        </Button>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w-full h-24 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/jpeg,image/png,image/webp'
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0]
+                          if (file) uploadImageMutation.mutate(file)
+                        }
+                        input.click()
+                      }}
+                      disabled={uploadImageMutation.isPending}
+                    >
+                      <ImagePlus className="w-4 h-4" />
+                      {uploadImageMutation.isPending ? 'Uploading...' : 'Upload image'}
+                    </button>
+                  )}
+                </div>
+              </div>
             </SheetSection>
 
             {guestList.rsvp_enabled && (
@@ -1109,25 +1215,6 @@ export function GuestListDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">Event</label>
-                  <Select
-                    value={editForm.event_projection || 'none'}
-                    onValueChange={(v) => setEditForm({ ...editForm, event_projection: v === 'none' ? '' : v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select event" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {events.map((event) => (
-                        <SelectItem key={event.id} value={event.id}>
-                          {event.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
                   <label className="block text-sm text-muted-foreground mb-1.5">Status</label>
                   <Select
                     value={editForm.status}
@@ -1191,35 +1278,6 @@ export function GuestListDetailPage() {
               </div>
             </SheetSection>
 
-            <SheetSection title="RSVP content">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">Program description</label>
-                  <Textarea
-                    value={editForm.program_description}
-                    onChange={(e) => setEditForm({ ...editForm, program_description: e.target.value })}
-                    placeholder="Intro text shown above the program..."
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">Program</label>
-                  <ProgramEditor
-                    items={editForm.landing_program}
-                    onChange={(items) => setEditForm({ ...editForm, landing_program: items })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">Additional content</label>
-                  <RichTextEditor
-                    content={editForm.landing_content}
-                    onChange={(html) => setEditForm({ ...editForm, landing_content: html })}
-                    placeholder="Additional content below the program..."
-                  />
-                </div>
-              </div>
-            </SheetSection>
-
             <SheetSection title="Confirmation emails">
               <div className="space-y-4">
                 <div>
@@ -1240,6 +1298,61 @@ export function GuestListDetailPage() {
               Cancel
             </Button>
             <Button onClick={handleSaveEdit} disabled={updateListMutation.isPending}>
+              {updateListMutation.isPending ? 'Saving...' : 'Save changes'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Program sheet */}
+      <Sheet open={programOpen} onOpenChange={(o) => !o && setProgramOpen(false)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Program</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1.5">Title</label>
+                <Input
+                  value={programForm.program_title}
+                  onChange={(e) => setProgramForm({ ...programForm, program_title: e.target.value })}
+                  placeholder="e.g. The evening"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1.5">Description</label>
+                <Textarea
+                  value={programForm.program_description}
+                  onChange={(e) => setProgramForm({ ...programForm, program_description: e.target.value })}
+                  placeholder="Intro text shown above the program..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1.5">Program</label>
+                <ProgramEditor
+                  items={programForm.landing_program}
+                  onChange={(items) => setProgramForm({ ...programForm, landing_program: items })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1.5">Additional content</label>
+                <RichTextEditor
+                  content={programForm.landing_content}
+                  onChange={(html) => setProgramForm({ ...programForm, landing_content: html })}
+                  placeholder="Additional content below the program..."
+                />
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setProgramOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveProgram} disabled={updateListMutation.isPending}>
               {updateListMutation.isPending ? 'Saving...' : 'Save changes'}
             </Button>
           </SheetFooter>

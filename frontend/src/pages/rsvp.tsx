@@ -45,6 +45,11 @@ function buildThemeStyle(theme: PublicTheme | null): React.CSSProperties {
     '--theme-text': theme.color_text,
     '--theme-text-muted': theme.color_text_muted,
     '--theme-border': theme.color_border,
+    '--font-display': theme.is_dark
+      ? "'PP Museum', Georgia, serif"
+      : "'Monument Grotesk', sans-serif",
+    '--theme-hero-text': theme.is_dark ? theme.color_text : '#1a1a1a',
+    '--theme-hero-text-muted': theme.is_dark ? (theme.color_text_muted || '#A8A9B1') : '#666666',
   } as React.CSSProperties
 }
 
@@ -108,10 +113,10 @@ export function RSVPPage() {
 
   // Detect scroll: transition hero bg from primary to background + parallax
   useEffect(() => {
-    const primaryColor = theme?.color_primary ?? '#E95139'
-    const bgColor = theme?.color_background ?? '#020202'
-    const [pr, pg, pb] = hexToRgb(primaryColor)
-    const [br, bg, bb] = hexToRgb(bgColor)
+    const startColor = (theme?.is_dark ?? true) ? (theme?.color_primary ?? '#E95139') : (theme?.color_background ?? '#ffffff')
+    const endColor = (theme?.is_dark ?? true) ? (theme?.color_background ?? '#020202') : (theme?.color_surface ?? '#0d0d0d')
+    const [pr, pg, pb] = hexToRgb(startColor)
+    const [br, bg, bb] = hexToRgb(endColor)
 
     let ticking = false
     const onScroll = () => {
@@ -656,7 +661,7 @@ export function RSVPPage() {
   return (
     <div className="rsvp-theme bg-[var(--theme-bg)]" style={themeStyle}>
       {/* Pane 1: Full-viewport magazine spread — sticky for card-over effect */}
-      <div ref={heroPaneRef} className="h-screen sticky top-0 bg-[var(--theme-primary)] p-6 lg:p-10 flex flex-col">
+      <div ref={heroPaneRef} className={`h-screen sticky top-0 p-6 lg:p-10 flex flex-col ${isDark ? 'bg-[var(--theme-primary)]' : 'bg-[var(--theme-bg)]'}`}>
         {/* Main spread */}
         <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-10 min-h-0">
           <div ref={heroImageRef} className="h-[35vh] lg:h-auto lg:flex-[2] min-w-0 overflow-hidden shrink-0 relative">
@@ -677,11 +682,11 @@ export function RSVPPage() {
                   className="h-8 mb-4 object-contain mx-auto"
                 />
               )}
-              <h1 className="text-3xl lg:text-5xl xl:text-6xl text-[var(--theme-text)] font-[family-name:var(--font-display)] leading-[1]">
+              <h1 className="text-3xl lg:text-5xl xl:text-6xl text-[var(--theme-hero-text)] font-[family-name:var(--font-display)] leading-[1]">
                 {info.list_name}
               </h1>
             </div>
-            <div className="text-[var(--theme-text)]/80 text-lg lg:text-xl leading-relaxed">
+            <div className="text-[var(--theme-hero-text)]/80 text-lg lg:text-xl leading-relaxed">
               {info.description ? (
                 <p>{info.description}</p>
               ) : (
@@ -689,27 +694,27 @@ export function RSVPPage() {
               )}
             </div>
             {(info.event_date || info.event_time || info.event_location) && (
-              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-[var(--theme-text)]/70 mt-auto">
+              <div className="flex flex-col gap-1.5 text-sm lg:text-base text-[var(--theme-hero-text)]/70 mt-auto">
                 {info.event_date && <span>{info.event_date}</span>}
                 {info.event_time && <span>{info.event_time}</span>}
                 {info.event_location && <span>{info.event_location}{info.event_location_address ? `, ${info.event_location_address}` : ''}</span>}
               </div>
             )}
-            <div className="w-[20%] h-px bg-[var(--theme-text)]/30 mx-auto" />
+            <div className="w-[20%] h-px bg-[var(--theme-hero-text)]/30 mx-auto" />
             <button
               onClick={() => formPaneRef.current?.scrollIntoView({ behavior: 'smooth' })}
               className="flex flex-col items-center gap-1.5 mb-8 cursor-pointer group"
             >
-              <span className="text-sm text-[var(--theme-text)]/80 tracking-wider uppercase font-mono group-hover:text-[var(--theme-text)] transition-colors">RSVP</span>
-              <ChevronDown className="h-5 w-5 text-[var(--theme-text)]/60 group-hover:text-[var(--theme-text)] transition-colors" />
+              <span className="text-sm text-[var(--theme-hero-text)]/80 tracking-wider uppercase font-mono group-hover:text-[var(--theme-hero-text)] transition-colors">RSVP</span>
+              <ChevronDown className="h-5 w-5 text-[var(--theme-hero-text)]/60 group-hover:text-[var(--theme-hero-text)] transition-colors" />
             </button>
           </div>
         </div>
 
         {/* Bottom bar — desktop only */}
         <div className="hidden lg:flex items-end justify-between mt-4">
-          <span className="text-[var(--theme-bg)] text-2xl font-[family-name:var(--font-display)]">{brandName}</span>
-          <span className="text-[var(--theme-text)]/50 text-xs font-mono">{info.event_name}</span>
+          <span className={`text-2xl font-[family-name:var(--font-display)] ${isDark ? 'text-[var(--theme-bg)]' : 'text-[var(--theme-hero-text)]/30'}`}>{brandName}</span>
+          <span className="text-[var(--theme-hero-text)]/50 text-xs font-mono">{info.event_name}</span>
         </div>
       </div>
 
@@ -732,7 +737,7 @@ export function RSVPPage() {
                   className="w-full flex items-center justify-between py-4 cursor-pointer"
                   onClick={() => setMobileProgramOpen((v) => !v)}
                 >
-                  <span className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)]">The evening</span>
+                  <span className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)]">{info.program_title || 'The evening'}</span>
                   <ChevronDown className={`h-5 w-5 text-[var(--theme-text-muted)]/40 transition-transform ${mobileProgramOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {mobileProgramOpen && (
@@ -817,7 +822,7 @@ export function RSVPPage() {
               {/* Left: Program / event info — sticky while form scrolls */}
               <div className="flex-1 flex flex-col justify-center sticky top-16">
                 <h2 className="text-4xl lg:text-5xl text-[var(--theme-text)] font-[family-name:var(--font-display)] leading-[1.1] mb-8">
-                  The evening
+                  {info.program_title || 'The evening'}
                 </h2>
                 {(info.event_date || info.event_time || info.event_location) && (
                   <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-[var(--theme-text)] mb-8 pb-8 border-b border-[var(--theme-border)]/30">

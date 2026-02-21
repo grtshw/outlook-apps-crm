@@ -13,6 +13,7 @@ import (
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -114,10 +115,11 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"landing_enabled":     record.GetBool("landing_enabled"),
 		"landing_headline":    record.GetString("landing_headline"),
 		"landing_description": record.GetString("landing_description"),
-		"landing_image_url":   record.GetString("landing_image_url"),
+		"landing_image_url":   resolveGuestListImageURL(app, record),
 		"landing_program":     record.Get("landing_program"),
 		"landing_content":     record.GetString("landing_content"),
 		"program_description": record.GetString("program_description"),
+		"program_title":       record.GetString("program_title"),
 		"event_date":          record.GetString("event_date"),
 		"event_time":          record.GetString("event_time"),
 		"event_location":           record.GetString("event_location"),
@@ -227,6 +229,12 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	if v, ok := input["program_description"].(string); ok {
 		record.Set("program_description", v)
 	}
+	if v, ok := input["program_title"].(string); ok {
+		if len(v) > 200 {
+			return utils.BadRequestResponse(re, "Program title too long (max 200)")
+		}
+		record.Set("program_title", v)
+	}
 	if v, ok := input["event_date"].(string); ok {
 		record.Set("event_date", v)
 	}
@@ -307,6 +315,15 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	return utils.SuccessResponse(re, "Guest list updated")
 }
 
+// resolveGuestListImageURL returns a public URL for the landing_image FileField.
+// Falls back to the legacy landing_image_url text field if no file is uploaded.
+func resolveGuestListImageURL(app *pocketbase.PocketBase, record *core.Record) string {
+	if filename := record.GetString("landing_image"); filename != "" {
+		return fmt.Sprintf("%s/api/files/%s/%s/%s", getBaseURL(), record.Collection().Id, record.Id, filename)
+	}
+	return record.GetString("landing_image_url")
+}
+
 // fetchDAMOrgLogo calls DAM's public org-lookup endpoint and returns the inverted logo URL.
 func fetchDAMOrgLogo(damBaseURL, orgID string) string {
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -384,6 +401,63 @@ func handleGuestListDelete(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	return utils.SuccessResponse(re, "Guest list deleted")
 }
 
+func handleGuestListImageUpload(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	id := re.Request.PathValue("id")
+	record, err := app.FindRecordById(utils.CollectionGuestLists, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Guest list not found")
+	}
+
+	if err := re.Request.ParseMultipartForm(10 << 20); err != nil {
+		return utils.BadRequestResponse(re, "Invalid file upload")
+	}
+
+	file, header, err := re.Request.FormFile("image")
+	if err != nil {
+		return utils.BadRequestResponse(re, "No image file provided")
+	}
+	defer file.Close()
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to read file")
+	}
+
+	fsFile, err := filesystem.NewFileFromBytes(fileBytes, header.Filename)
+	if err != nil {
+		return utils.InternalErrorResponse(re, "Failed to process file")
+	}
+
+	record.Set("landing_image", fsFile)
+
+	if err := app.Save(record); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to save image")
+	}
+
+	utils.LogFromRequest(app, re, "update", utils.CollectionGuestLists, record.Id, "success", nil, "uploaded landing image")
+	return re.JSON(http.StatusOK, map[string]any{
+		"landing_image_url": resolveGuestListImageURL(app, record),
+	})
+}
+
+func handleGuestListImageDelete(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	id := re.Request.PathValue("id")
+	record, err := app.FindRecordById(utils.CollectionGuestLists, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Guest list not found")
+	}
+
+	record.Set("landing_image", "")
+	record.Set("landing_image_url", "")
+
+	if err := app.Save(record); err != nil {
+		return utils.InternalErrorResponse(re, "Failed to remove image")
+	}
+
+	utils.LogFromRequest(app, re, "update", utils.CollectionGuestLists, record.Id, "success", nil, "removed landing image")
+	return utils.SuccessResponse(re, "Image removed")
+}
+
 func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	id := re.Request.PathValue("id")
 	source, err := app.FindRecordById(utils.CollectionGuestLists, id)
@@ -423,6 +497,8 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	newList.Set("landing_image_url", source.GetString("landing_image_url"))
 	newList.Set("landing_program", source.Get("landing_program"))
 	newList.Set("landing_content", source.GetString("landing_content"))
+	newList.Set("program_description", source.GetString("program_description"))
+	newList.Set("program_title", source.GetString("program_title"))
 
 	if err := app.Save(newList); err != nil {
 		return utils.InternalErrorResponse(re, "Failed to create cloned list")
@@ -1239,9 +1315,11 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 		"landing_enabled":      guestList.GetBool("landing_enabled"),
 		"landing_headline":     guestList.GetString("landing_headline"),
 		"landing_description":  guestList.GetString("landing_description"),
-		"landing_image_url":    guestList.GetString("landing_image_url"),
+		"landing_image_url":    resolveGuestListImageURL(app, guestList),
 		"landing_program":      resolveProgramAvatars(app, guestList.Get("landing_program")),
 		"landing_content":      guestList.GetString("landing_content"),
+		"program_description":  guestList.GetString("program_description"),
+		"program_title":        guestList.GetString("program_title"),
 	}
 
 	// Merge event projection details

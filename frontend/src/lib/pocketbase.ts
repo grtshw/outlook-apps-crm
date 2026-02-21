@@ -159,6 +159,8 @@ export interface GuestList extends RecordModel {
   landing_image_url: string
   landing_program: ProgramItem[]
   landing_content: string
+  program_description: string
+  program_title: string
   event_date: string
   event_time: string
   event_location: string

@@ -421,7 +421,7 @@ export async function updateGuestList(
     name: string; description: string; event_projection: string; status: string;
     landing_enabled: boolean; landing_headline: string; landing_description: string;
     landing_image_url: string; landing_program: import('./pocketbase').ProgramItem[];
-    landing_content: string;
+    landing_content: string; program_description: string; program_title: string;
     event_date: string; event_time: string; event_location: string; event_location_address: string;
     organisation: string;
     rsvp_bcc_contacts: string[];
@@ -437,6 +437,19 @@ export async function updateGuestList(
 
 export async function deleteGuestList(id: string): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}`, { method: 'DELETE' })
+}
+
+export async function uploadGuestListImage(id: string, file: File): Promise<{ landing_image_url: string }> {
+  const formData = new FormData()
+  formData.append('image', file)
+  return fetchJSON(`/api/guest-lists/${id}/image`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export async function deleteGuestListImage(id: string): Promise<{ message: string }> {
+  return fetchJSON(`/api/guest-lists/${id}/image`, { method: 'DELETE' })
 }
 
 export async function cloneGuestList(
