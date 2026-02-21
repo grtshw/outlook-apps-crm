@@ -181,6 +181,9 @@ func main() {
 		// Configure SendGrid SMTP
 		configurePocketBaseSMTP(app)
 
+		// Redirect public routes from crm.* to rsvp.* domain
+		e.Router.BindFunc(publicDomainRedirect)
+
 		// Security headers middleware
 		e.Router.BindFunc(securityHeadersMiddleware)
 
@@ -258,6 +261,33 @@ func securityHeadersMiddleware(e *core.RequestEvent) error {
 	} else {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
+	}
+
+	return e.Next()
+}
+
+// publicDomainRedirect redirects public-facing routes (RSVP, shared) from the CRM domain
+// to the public RSVP domain, so attendees see rsvp.theoutlook.io instead of crm.theoutlook.io
+func publicDomainRedirect(e *core.RequestEvent) error {
+	rsvpURL := os.Getenv("PUBLIC_RSVP_URL")
+	if rsvpURL == "" {
+		return e.Next()
+	}
+
+	host := e.Request.Host
+	crmHost := strings.TrimPrefix(strings.TrimPrefix(getBaseURL(), "https://"), "http://")
+
+	// Only redirect if request is on the CRM domain (not already on the RSVP domain)
+	if host != crmHost {
+		return e.Next()
+	}
+
+	path := e.Request.URL.Path
+
+	// Redirect public-facing routes to the RSVP domain
+	if strings.HasPrefix(path, "/rsvp/") || strings.HasPrefix(path, "/shared/") {
+		target := rsvpURL + e.Request.URL.RequestURI()
+		return e.Redirect(http.StatusMovedPermanently, target)
 	}
 
 	return e.Next()

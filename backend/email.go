@@ -231,13 +231,13 @@ func wrapRSVPEmailHTML(content string) string {
         <!-- Logos -->
         <div style="padding: 32px 32px 24px 32px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-                <td style="padding-right: 16px; vertical-align: middle;"><img src="https://crm.theoutlook.io/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
-                <td style="vertical-align: middle;"><img src="https://crm.theoutlook.io/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
+                <td style="padding-right: 16px; vertical-align: middle;"><img src="https://rsvp.theoutlook.io/images/logo-white.svg" alt="The Outlook" style="height: 20px; display: block;"></td>
+                <td style="vertical-align: middle;"><img src="https://rsvp.theoutlook.io/images/to-after-dark-white.png" alt="The Outlook After Dark" style="height: 32px; display: block;"></td>
             </tr></table>
         </div>
 
         <!-- Hero image -->
-        <img src="https://crm.theoutlook.io/images/rsvp-hero.jpg" alt="" width="600" style="width: 100%; height: auto; display: block;">
+        <img src="https://rsvp.theoutlook.io/images/rsvp-hero.jpg" alt="" width="600" style="width: 100%; height: auto; display: block;">
 
         <!-- Content -->
         <div style="padding: 40px 32px;">
@@ -344,7 +344,7 @@ func sendRSVPInviteEmail(app *pocketbase.PocketBase, recipientEmail, recipientNa
 
 	// Add invite tracking (open pixel + click-wrapped links)
 	if rsvpToken != "" {
-		baseURL := getBaseURL()
+		baseURL := getPublicBaseURL()
 		trackBase := fmt.Sprintf("%s/api/public/t/%s", baseURL, rsvpToken)
 		clickURL := fmt.Sprintf("%s/click?url=%s", trackBase, url.QueryEscape(rsvpURL))
 		pixelURL := fmt.Sprintf("%s/open.gif", trackBase)

@@ -1056,7 +1056,7 @@ func handlePublicRSVPForward(re *core.RequestEvent, app *pocketbase.PocketBase) 
 		}
 	}
 
-	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), rsvpToken)
+	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), rsvpToken)
 	listDescription := result.GuestList.GetString("description")
 	eventDate := result.GuestList.GetString("event_date")
 	eventTime := result.GuestList.GetString("event_time")
@@ -1117,7 +1117,7 @@ func handleGuestListRSVPToggle(re *core.RequestEvent, app *pocketbase.PocketBase
 
 	genericURL := ""
 	if record.GetString("rsvp_generic_token") != "" {
-		genericURL = fmt.Sprintf("%s/rsvp/%s", getBaseURL(), record.GetString("rsvp_generic_token"))
+		genericURL = fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), record.GetString("rsvp_generic_token"))
 	}
 
 	utils.LogFromRequest(app, re, "update", utils.CollectionGuestLists, id, "success", map[string]any{
@@ -1230,7 +1230,7 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		}
 
 		// Build RSVP URL and send email
-		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), item.GetString("rsvp_token"))
+		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), item.GetString("rsvp_token"))
 		recipientName := contact.GetString("name")
 
 		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, item.GetString("rsvp_token"), listName, listDescription, eventName, eventDate, eventTime, eventLocation)
@@ -1396,7 +1396,8 @@ func handleTrackClick(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 	// Validate destination URL is same-origin to prevent open redirect
 	baseURL := getBaseURL()
-	if dest == "" || !strings.HasPrefix(dest, baseURL) {
+	publicURL := getPublicBaseURL()
+	if dest == "" || (!strings.HasPrefix(dest, baseURL) && !strings.HasPrefix(dest, publicURL)) {
 		return re.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid URL"})
 	}
 

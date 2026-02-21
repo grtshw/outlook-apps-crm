@@ -96,7 +96,7 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 
 	rsvpGenericURL := ""
 	if record.GetBool("rsvp_enabled") && record.GetString("rsvp_generic_token") != "" {
-		rsvpGenericURL = fmt.Sprintf("%s/rsvp/%s", getBaseURL(), record.GetString("rsvp_generic_token"))
+		rsvpGenericURL = fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), record.GetString("rsvp_generic_token"))
 	}
 
 	return re.JSON(http.StatusOK, map[string]any{
@@ -319,7 +319,7 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 // Falls back to the legacy landing_image_url text field if no file is uploaded.
 func resolveGuestListImageURL(app *pocketbase.PocketBase, record *core.Record) string {
 	if filename := record.GetString("landing_image"); filename != "" {
-		return fmt.Sprintf("%s/api/files/%s/%s/%s", getBaseURL(), record.Collection().Id, record.Id, filename)
+		return fmt.Sprintf("%s/api/files/%s/%s/%s", getPublicBaseURL(), record.Collection().Id, record.Id, filename)
 	}
 	return record.GetString("landing_image_url")
 }
@@ -968,7 +968,7 @@ func handleGuestListShareCreate(re *core.RequestEvent, app *pocketbase.PocketBas
 	}
 
 	// Build share URL
-	shareURL := fmt.Sprintf("%s/shared/%s", getBaseURL(), token)
+	shareURL := fmt.Sprintf("%s/shared/%s", getPublicBaseURL(), token)
 
 	// Get event name for email
 	eventName := ""

@@ -2018,11 +2018,20 @@ func buildActivityResponse(r *core.Record) map[string]any {
 
 // --- Utility Functions ---
 
-// getBaseURL returns the public base URL for the app
+// getBaseURL returns the base URL for the admin app
 func getBaseURL() string {
 	baseURL := os.Getenv("PUBLIC_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://crm.theoutlook.io"
+	}
+	return baseURL
+}
+
+// getPublicBaseURL returns the public-facing base URL (for RSVP pages, share links, emails)
+func getPublicBaseURL() string {
+	baseURL := os.Getenv("PUBLIC_RSVP_URL")
+	if baseURL == "" {
+		return getBaseURL()
 	}
 	return baseURL
 }
