@@ -124,6 +124,23 @@ export interface ProgramItem {
   speaker_image_url?: string
 }
 
+export interface Theme extends RecordModel {
+  name: string
+  slug: string
+  color_primary: string
+  color_secondary: string
+  color_background: string
+  color_surface: string
+  color_text: string
+  color_text_muted: string
+  color_border: string
+  logo_url: string
+  logo_light_url: string
+  hero_image_url: string
+  is_dark: boolean
+  sort_order: number
+}
+
 export interface GuestList extends RecordModel {
   name: string
   description: string
@@ -150,6 +167,7 @@ export interface GuestList extends RecordModel {
   organisation_name: string
   organisation_logo_url: string
   rsvp_bcc_contacts: Array<{ id: string; name: string; email: string }>
+  theme: string
 }
 
 export interface GuestListItem extends RecordModel {

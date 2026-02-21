@@ -11,6 +11,7 @@ import {
   type GuestList,
   type GuestListItem,
   type GuestListShare,
+  type Theme,
 } from './pocketbase'
 import type { RecordModel } from 'pocketbase'
 
@@ -424,6 +425,7 @@ export async function updateGuestList(
     event_date: string; event_time: string; event_location: string; event_location_address: string;
     organisation: string;
     rsvp_bcc_contacts: string[];
+    theme: string;
   }>
 ): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}`, {
@@ -593,6 +595,35 @@ export async function saveMailchimpSettings(data: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+}
+
+// Themes CRUD
+export async function getThemes(): Promise<{ items: Theme[] }> {
+  return fetchJSON('/api/themes')
+}
+
+export async function getTheme(id: string): Promise<Theme> {
+  return fetchJSON(`/api/themes/${id}`)
+}
+
+export async function createTheme(data: Partial<Theme>): Promise<Theme> {
+  return fetchJSON('/api/themes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateTheme(id: string, data: Partial<Theme>): Promise<Theme> {
+  return fetchJSON(`/api/themes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteTheme(id: string): Promise<{ message: string }> {
+  return fetchJSON(`/api/themes/${id}`, { method: 'DELETE' })
 }
 
 // File URLs

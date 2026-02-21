@@ -2,6 +2,22 @@
 
 import type { ProgramItem } from './pocketbase'
 
+export interface PublicTheme {
+  name: string
+  slug: string
+  color_primary: string
+  color_secondary: string
+  color_background: string
+  color_surface: string
+  color_text: string
+  color_text_muted: string
+  color_border: string
+  logo_url: string
+  logo_light_url: string
+  hero_image_url: string
+  is_dark: boolean
+}
+
 async function publicFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
   if (!res.ok) {
@@ -83,6 +99,8 @@ export interface SharedGuestListView {
   event_venue_country: string
   event_timezone: string
   event_description: string
+  // Theme
+  theme: PublicTheme | null
 }
 
 export async function getSharedGuestList(token: string, sessionToken: string): Promise<SharedGuestListView> {
@@ -138,6 +156,8 @@ export interface RSVPInfo {
   // Organisation
   organisation_name: string
   organisation_logo_url: string
+  // Theme
+  theme: PublicTheme | null
 }
 
 export async function getRSVPInfo(token: string): Promise<RSVPInfo> {

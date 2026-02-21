@@ -95,11 +95,15 @@ func handlePublicRSVPInfo(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	// Landing page fields — resolve speaker avatars from contacts
 	landingProgram := resolveProgramAvatars(app, result.GuestList.Get("landing_program"))
 
+	// Fetch theme (single query, no N+1)
+	theme := fetchThemeForGuestList(app, result.GuestList)
+
 	response := map[string]any{
 		"type":        result.Type,
 		"list_name":   result.GuestList.GetString("name"),
 		"event_name":  eventName,
 		"description": result.GuestList.GetString("description"),
+		"theme":       theme,
 		// Landing page
 		"landing_enabled":     result.GuestList.GetBool("landing_enabled"),
 		"landing_headline":    result.GuestList.GetString("landing_headline"),

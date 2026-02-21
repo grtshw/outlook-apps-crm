@@ -14,22 +14,23 @@
   font-display: swap;
 }
 
-/* ── RSVP Theme ── */
+/* ── RSVP Theme — CSS custom properties set dynamically by JS from theme API data ── */
 
 .rsvp-theme {
-  --rsvp-black: #020202;
-  --rsvp-slate: #A8A9B1;
-  --rsvp-stone: #645C49;
-  --rsvp-graphite: #1A1917;
-  --rsvp-terracotta: #E95139;
+  --theme-primary: #E95139;
+  --theme-bg: #020202;
+  --theme-surface: #1A1917;
+  --theme-text: #ffffff;
+  --theme-text-muted: #A8A9B1;
+  --theme-border: #645C49;
   --font-display: 'PP Museum', Georgia, serif;
 
   /* Override shadcn primary for checkboxes/buttons within RSVP */
-  --primary: #E95139;
+  --primary: var(--theme-primary);
   --primary-foreground: #ffffff;
 }
 
-/* Override theme.css label styles (which force black + uppercase mono) for dark RSVP forms.
+/* Override theme.css label styles (which force black + uppercase mono) for RSVP forms.
    theme.css uses @layer base with !important — we need to be in the same layer but later,
    OR use a higher-specificity selector. Using attribute selector for extra specificity.
    Also covers Sheet portals (forward drawer) which render outside .rsvp-theme. */
@@ -42,6 +43,6 @@
     text-transform: none !important;
     font-size: 0.875rem !important;
     letter-spacing: 0 !important;
-    color: #ffffff !important;
+    color: var(--theme-text) !important;
   }
 }

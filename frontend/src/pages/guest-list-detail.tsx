@@ -13,6 +13,7 @@ import {
   getOrganisations,
   toggleGuestListRSVP,
   sendRSVPInvites,
+  getThemes,
 } from '@/lib/api'
 import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
@@ -143,10 +144,17 @@ export function GuestListDetailPage() {
     staleTime: 0,
   })
 
+  const { data: themesData } = useQuery({
+    queryKey: ['themes'],
+    queryFn: getThemes,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const items = itemsData?.items ?? []
   const shares = sharesData?.items ?? []
   const events = eventsData?.items ?? []
   const organisations = orgsData?.items ?? []
+  const themes = themesData?.items ?? []
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -942,6 +950,32 @@ export function GuestListDetailPage() {
                   </Button>
                 </div>
               )}
+            </SheetSection>
+
+            <SheetSection title="Theme">
+              <Select
+                value={guestList.theme || ''}
+                onValueChange={(value: string) => {
+                  updateListMutation.mutate({ theme: value })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a theme" />
+                </SelectTrigger>
+                <SelectContent>
+                  {themes.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full border border-border shrink-0"
+                          style={{ backgroundColor: t.color_primary }}
+                        />
+                        {t.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </SheetSection>
 
             {guestList.rsvp_enabled && (

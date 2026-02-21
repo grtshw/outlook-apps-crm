@@ -126,6 +126,7 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"organisation_name":        record.GetString("organisation_name"),
 		"organisation_logo_url":    record.GetString("organisation_logo_url"),
 		"rsvp_bcc_contacts":        record.Get("rsvp_bcc_contacts"),
+		"theme":                    record.GetString("theme"),
 		"created":                  record.GetString("created"),
 		"updated":             record.GetString("updated"),
 	})
@@ -265,6 +266,10 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 				record.Set("organisation_logo_url", logoURL)
 			}
 		}
+	}
+
+	if v, ok := input["theme"].(string); ok {
+		record.Set("theme", v)
 	}
 
 	// Handle BCC contacts: receive array of contact IDs, denormalize to [{id, name, email}]
@@ -1230,6 +1235,7 @@ func handlePublicGuestListView(re *core.RequestEvent, app *pocketbase.PocketBase
 		"total_guests":         len(items),
 		"shared_by":            "The Outlook",
 		"shared_at":            share.GetString("created"),
+		"theme":                fetchThemeForGuestList(app, guestList),
 		"landing_enabled":      guestList.GetBool("landing_enabled"),
 		"landing_headline":     guestList.GetString("landing_headline"),
 		"landing_description":  guestList.GetString("landing_description"),

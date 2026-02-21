@@ -15,6 +15,7 @@ const (
 	CollectionContactLinks       = "contact_links"
 	CollectionHumanitixSyncLog   = "humanitix_sync_log"
 	CollectionAttendeeOTPCodes   = "attendee_otp_codes"
+	CollectionThemes             = "themes"
 )
 
 // Field names

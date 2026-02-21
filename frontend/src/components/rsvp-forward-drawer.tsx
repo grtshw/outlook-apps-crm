@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { forwardRSVP } from '@/lib/api-public'
-import type { RSVPForwardSubmission } from '@/lib/api-public'
+import type { RSVPForwardSubmission, PublicTheme } from '@/lib/api-public'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CircleCheck } from 'lucide-react'
-
-const inputClassName = 'bg-white/5 border-[#645C49]/30 text-white placeholder:text-[#A8A9B1]/50 focus-visible:ring-[#E95139]/40'
 
 interface RSVPForwardDrawerProps {
   open: boolean
@@ -15,9 +13,25 @@ interface RSVPForwardDrawerProps {
   token: string
   eventName: string
   listName: string
+  theme?: PublicTheme | null
 }
 
-export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listName }: RSVPForwardDrawerProps) {
+export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listName, theme }: RSVPForwardDrawerProps) {
+  const isDark = theme?.is_dark ?? true
+
+  const inputClassName = isDark
+    ? 'bg-white/5 border-[var(--theme-border)]/30 text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
+    : 'bg-[var(--theme-bg)] border-[var(--theme-border)] text-[var(--theme-text)] placeholder:text-[var(--theme-text-muted)]/50 focus-visible:ring-[var(--theme-primary)]/40'
+
+  const themeStyle = theme ? {
+    '--theme-primary': theme.color_primary,
+    '--theme-bg': theme.color_background,
+    '--theme-surface': theme.color_surface,
+    '--theme-text': theme.color_text,
+    '--theme-text-muted': theme.color_text_muted,
+    '--theme-border': theme.color_border,
+  } as React.CSSProperties : {}
+
   const [forwarderName, setForwarderName] = useState('')
   const [forwarderEmail, setForwarderEmail] = useState('')
   const [forwarderCompany, setForwarderCompany] = useState('')
@@ -50,18 +64,19 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         showCloseButton={false}
-        className="rsvp-forward-drawer bg-[#1A1917] border-[#645C49]/30 text-white [--sheet-width:28rem] p-0"
+        className="rsvp-forward-drawer bg-[var(--theme-surface)] border-[var(--theme-border)]/30 text-[var(--theme-text)] [--sheet-width:28rem] p-0"
+        style={themeStyle}
       >
         {submitted ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
-            <CircleCheck className="h-16 w-16 text-[#E95139]" />
+            <CircleCheck className="h-16 w-16 text-[var(--theme-primary)]" />
             <p className="text-2xl font-[family-name:var(--font-display)]">Invitation sent</p>
-            <p className="text-sm text-[#A8A9B1]">
+            <p className="text-sm text-[var(--theme-text-muted)]">
               We've sent an invitation to {recipientName} at {recipientEmail}. You've been CC'd on the email.
             </p>
             <button
               onClick={() => onOpenChange(false)}
-              className="mt-4 text-sm text-[#A8A9B1] underline underline-offset-4 hover:text-white cursor-pointer"
+              className="mt-4 text-sm text-[var(--theme-text-muted)] underline underline-offset-4 hover:text-[var(--theme-text)] cursor-pointer"
             >
               Close
             </button>
@@ -69,9 +84,9 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
         ) : (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="p-6 pb-4 border-b border-[#645C49]/30">
+            <div className="p-6 pb-4 border-b border-[var(--theme-border)]/30">
               <h2 className="text-2xl font-[family-name:var(--font-display)]">Forward this invitation</h2>
-              <p className="text-sm text-[#A8A9B1] mt-1">
+              <p className="text-sm text-[var(--theme-text-muted)] mt-1">
                 Know someone who'd be a great fit for {eventName || listName}? Feel free to forward this invitation.
               </p>
             </div>
@@ -80,10 +95,10 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* Your details */}
               <div>
-                <h3 className="text-2xl text-white font-[family-name:var(--font-display)] mb-4">Your details</h3>
+                <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Your details</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Your name <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Your name <span className="text-[var(--theme-primary)]">*</span></label>
                     <Input
                       value={forwarderName}
                       onChange={(e) => setForwarderName(e.target.value)}
@@ -92,7 +107,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Your email <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Your email <span className="text-[var(--theme-primary)]">*</span></label>
                     <Input
                       type="email"
                       value={forwarderEmail}
@@ -102,7 +117,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Your company</label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Your company</label>
                     <Input
                       value={forwarderCompany}
                       onChange={(e) => setForwarderCompany(e.target.value)}
@@ -115,10 +130,10 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
 
               {/* Their details */}
               <div>
-                <h3 className="text-2xl text-white font-[family-name:var(--font-display)] mb-4">Their details</h3>
+                <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Their details</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Their name <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Their name <span className="text-[var(--theme-primary)]">*</span></label>
                     <Input
                       value={recipientName}
                       onChange={(e) => setRecipientName(e.target.value)}
@@ -127,7 +142,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Their email <span className="text-[#E95139]">*</span></label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Their email <span className="text-[var(--theme-primary)]">*</span></label>
                     <Input
                       type="email"
                       value={recipientEmail}
@@ -137,7 +152,7 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-white mb-1.5">Their company</label>
+                    <label className="block text-sm text-[var(--theme-text)] mb-1.5">Their company</label>
                     <Input
                       value={recipientCompany}
                       onChange={(e) => setRecipientCompany(e.target.value)}
@@ -158,13 +173,13 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
                   onCheckedChange={(checked) => setPolicyAccepted(checked === true)}
                   className="mt-0.5"
                 />
-                <span className="text-sm text-[#A8A9B1] leading-relaxed">
+                <span className="text-sm text-[var(--theme-text-muted)] leading-relaxed">
                   I agree to The Outlook&apos;s{' '}
                   <a
                     href="https://theoutlook.io/legal/privacy-policy"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline text-white hover:text-[#E95139]"
+                    className="underline text-[var(--theme-text)] hover:text-[var(--theme-primary)]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     privacy policy
@@ -174,24 +189,24 @@ export function RSVPForwardDrawer({ open, onOpenChange, token, eventName, listNa
 
               {/* Error */}
               {mutation.isError && (
-                <p className="text-sm text-[#E95139]">
+                <p className="text-sm text-[var(--theme-primary)]">
                   {mutation.error instanceof Error ? mutation.error.message : 'Something went wrong'}
                 </p>
               )}
             </div>
 
             {/* Footer */}
-            <div className="p-6 pt-4 border-t border-[#645C49]/30 flex items-center justify-between">
+            <div className="p-6 pt-4 border-t border-[var(--theme-border)]/30 flex items-center justify-between">
               <button
                 onClick={() => onOpenChange(false)}
-                className="text-sm text-[#A8A9B1] hover:text-white cursor-pointer"
+                className="text-sm text-[var(--theme-text-muted)] hover:text-[var(--theme-text)] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="bg-[#E95139] hover:bg-[#E95139]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 h-11 text-sm transition-colors cursor-pointer"
+                className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 h-11 text-sm transition-colors cursor-pointer"
               >
                 {mutation.isPending ? 'Sending...' : 'Send invitation'}
               </button>

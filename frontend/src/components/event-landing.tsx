@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { RSVPInfo } from '@/lib/api-public'
+import { useState, useMemo } from 'react'
+import type { RSVPInfo, PublicTheme } from '@/lib/api-public'
 import type { ProgramItem } from '@/lib/pocketbase'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9,16 +9,33 @@ interface EventLandingProps {
   children: React.ReactNode
 }
 
+function buildThemeStyle(theme: PublicTheme | null): React.CSSProperties {
+  if (!theme) return {}
+  return {
+    '--theme-primary': theme.color_primary,
+    '--theme-bg': theme.color_background,
+    '--theme-surface': theme.color_surface,
+    '--theme-text': theme.color_text,
+    '--theme-text-muted': theme.color_text_muted,
+    '--theme-border': theme.color_border,
+  } as React.CSSProperties
+}
+
 export function EventLanding({ info, children }: EventLandingProps) {
   const headline = info.landing_headline || info.event_name || info.list_name
   const [expandedProgram, setExpandedProgram] = useState<number | null>(null)
+
+  const theme = info.theme
+  const isDark = theme?.is_dark ?? true
+  const themeStyle = useMemo(() => buildThemeStyle(theme), [theme])
+  const logoSrc = isDark ? (theme?.logo_light_url || '/images/logo-white.svg') : (theme?.logo_url || '/images/logo.svg')
 
   const venueString = [info.event_venue, info.event_venue_city, info.event_venue_country]
     .filter(Boolean)
     .join(', ')
 
   return (
-    <div className="rsvp-theme min-h-screen bg-[#020202]">
+    <div className="rsvp-theme min-h-screen bg-[var(--theme-bg)]" style={themeStyle}>
       {/* Hero section */}
       <div className="relative">
         {info.landing_image_url && (
@@ -31,10 +48,10 @@ export function EventLanding({ info, children }: EventLandingProps) {
           </div>
         )}
         <div className="relative max-w-3xl mx-auto px-4 pt-12 pb-10 text-center">
-          <img src="/images/logo-white.svg" alt="The Outlook" className="h-8 mx-auto mb-8" />
-          <h1 className="text-3xl text-white mb-4 font-[family-name:var(--font-display)]">{headline}</h1>
+          <img src={logoSrc} alt="The Outlook" className="h-8 mx-auto mb-8" />
+          <h1 className="text-3xl text-[var(--theme-text)] mb-4 font-[family-name:var(--font-display)]">{headline}</h1>
           {(info.event_date || info.event_start_date || venueString) && (
-            <div className="text-[#A8A9B1] space-y-1 text-sm">
+            <div className="text-[var(--theme-text-muted)] space-y-1 text-sm">
               {formatEventDate(info) && <p>{formatEventDate(info)}</p>}
               {venueString && <p>{venueString}</p>}
             </div>
@@ -46,7 +63,7 @@ export function EventLanding({ info, children }: EventLandingProps) {
       {info.landing_description && (
         <div className="max-w-3xl mx-auto px-4 py-8">
           <div
-            className="prose prose-invert prose-sm max-w-none"
+            className={cn('prose prose-sm max-w-none', isDark ? 'prose-invert' : '')}
             dangerouslySetInnerHTML={{ __html: info.landing_description }}
           />
         </div>
@@ -55,7 +72,7 @@ export function EventLanding({ info, children }: EventLandingProps) {
       {/* Program */}
       {info.landing_program?.length > 0 && (
         <div className="max-w-3xl mx-auto px-4 py-8">
-          <p className="eyebrow text-[#A8A9B1] mb-4">Program</p>
+          <p className="eyebrow text-[var(--theme-text-muted)] mb-4">Program</p>
           <div className="space-y-px">
             {info.landing_program.map((item, i) => (
               <ProgramRow
@@ -64,6 +81,7 @@ export function EventLanding({ info, children }: EventLandingProps) {
                 isFirst={i === 0}
                 expanded={expandedProgram === i}
                 onToggle={() => setExpandedProgram(expandedProgram === i ? null : i)}
+                isDark={isDark}
               />
             ))}
           </div>
@@ -74,7 +92,7 @@ export function EventLanding({ info, children }: EventLandingProps) {
       {info.landing_content && (
         <div className="max-w-3xl mx-auto px-4 py-8">
           <div
-            className="prose prose-invert prose-sm max-w-none"
+            className={cn('prose prose-sm max-w-none', isDark ? 'prose-invert' : '')}
             dangerouslySetInnerHTML={{ __html: info.landing_content }}
           />
         </div>
@@ -93,11 +111,13 @@ function ProgramRow({
   isFirst,
   expanded,
   onToggle,
+  isDark,
 }: {
   item: ProgramItem
   isFirst: boolean
   expanded: boolean
   onToggle: () => void
+  isDark: boolean
 }) {
   const hasExpandable = !!item.description
 
@@ -106,8 +126,8 @@ function ProgramRow({
       className={cn(
         'rounded-lg px-5 py-4',
         isFirst
-          ? 'bg-[#020202] border border-[#645C49]/20'
-          : 'bg-[#2F2D29]'
+          ? 'bg-[var(--theme-bg)] border border-[var(--theme-border)]/20'
+          : isDark ? 'bg-[#2F2D29]' : 'bg-[var(--theme-surface)]'
       )}
     >
       <div
@@ -121,17 +141,17 @@ function ProgramRow({
         )}
       >
         {/* Time */}
-        <span className="font-mono text-xs shrink-0 w-[80px] tracking-wider text-[#A8A9B1]">
+        <span className="font-mono text-xs shrink-0 w-[80px] tracking-wider text-[var(--theme-text-muted)]">
           {item.time}
         </span>
 
         {/* Title + speaker */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-white">
+          <p className="text-sm text-[var(--theme-text)]">
             {item.title}
           </p>
           {(item.speaker_name || item.speaker_org) && (
-            <p className="text-xs mt-0.5 text-[#A8A9B1]/60">
+            <p className="text-xs mt-0.5 text-[var(--theme-text-muted)]/60">
               {[item.speaker_name, item.speaker_org].filter(Boolean).join(': ')}
             </p>
           )}
@@ -150,7 +170,7 @@ function ProgramRow({
         {hasExpandable && (
           <ChevronDown
             className={cn(
-              'h-4 w-4 shrink-0 transition-transform text-[#A8A9B1]/40',
+              'h-4 w-4 shrink-0 transition-transform text-[var(--theme-text-muted)]/40',
               expanded && 'rotate-180'
             )}
           />
@@ -160,7 +180,7 @@ function ProgramRow({
       {/* Expanded description */}
       {expanded && item.description && (
         <div
-          className="mt-3 ml-[96px] text-sm text-[#A8A9B1]"
+          className="mt-3 ml-[96px] text-sm text-[var(--theme-text-muted)]"
           dangerouslySetInnerHTML={{ __html: item.description }}
         />
       )}
@@ -174,7 +194,6 @@ function formatEventDate(info: RSVPInfo): string {
 
   const parts: string[] = []
 
-  // Try to parse and format the date nicely
   try {
     const date = new Date(dateStr)
     if (!isNaN(date.getTime())) {

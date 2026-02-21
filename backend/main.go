@@ -515,6 +515,27 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleListEventProjections(re, app)
 	}).BindFunc(utils.RequireAuth)
 
+	// Themes CRUD (admin only)
+	e.Router.GET("/api/themes", func(re *core.RequestEvent) error {
+		return handleThemesList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	e.Router.GET("/api/themes/{id}", func(re *core.RequestEvent) error {
+		return handleThemeGet(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	e.Router.POST("/api/themes", func(re *core.RequestEvent) error {
+		return handleThemeCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.PATCH("/api/themes/{id}", func(re *core.RequestEvent) error {
+		return handleThemeUpdate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.DELETE("/api/themes/{id}", func(re *core.RequestEvent) error {
+		return handleThemeDelete(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	// Guest lists CRUD (admin only)
 	e.Router.GET("/api/guest-lists", func(re *core.RequestEvent) error {
 		return handleGuestListsList(re, app)
