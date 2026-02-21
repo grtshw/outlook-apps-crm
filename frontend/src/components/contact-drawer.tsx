@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Contact, ContactLink, Activity, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
@@ -11,6 +11,7 @@ import {
   SheetFooter,
   SheetTitle,
   SheetSection,
+  useSheetClose,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -287,6 +288,44 @@ function LinkedContactsSection({ contact, isAdmin }: { contact: Contact; isAdmin
   )
 }
 
+function ContactDrawerFooter({
+  isNew,
+  onDelete,
+  onSubmit,
+  isDeleting,
+  isSaving,
+}: {
+  isNew: boolean
+  onDelete: () => void
+  onSubmit: (e: React.FormEvent) => void
+  isDeleting: boolean
+  isSaving: boolean
+}) {
+  const requestClose = useSheetClose()
+  return (
+    <SheetFooter>
+      {!isNew && (
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          onClick={onDelete}
+          disabled={isDeleting}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+      <div className="flex-1" />
+      <Button type="button" variant="outline" onClick={requestClose}>
+        Cancel
+      </Button>
+      <Button onClick={onSubmit} disabled={isSaving}>
+        {isSaving ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
+      </Button>
+    </SheetFooter>
+  )
+}
+
 export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
@@ -316,6 +355,9 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     accessibility_requirements_other: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const initialFormData = useRef(formData)
+
+  const isDirty = JSON.stringify(formData) !== JSON.stringify(initialFormData.current)
 
   // Load organisations for picker
   const { data: orgsData } = useQuery({
@@ -332,8 +374,9 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   })
 
   useEffect(() => {
+    let data: typeof formData
     if (contact) {
-      setFormData({
+      data = {
         first_name: contact.first_name || '',
         last_name: contact.last_name || '',
         email: contact.email || '',
@@ -355,9 +398,9 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         dietary_requirements_other: contact.dietary_requirements_other || '',
         accessibility_requirements: contact.accessibility_requirements || [],
         accessibility_requirements_other: contact.accessibility_requirements_other || '',
-      })
+      }
     } else {
-      setFormData({
+      data = {
         first_name: '',
         last_name: '',
         email: '',
@@ -379,8 +422,10 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         dietary_requirements_other: '',
         accessibility_requirements: [],
         accessibility_requirements_other: '',
-      })
+      }
     }
+    setFormData(data)
+    initialFormData.current = data
     setFieldErrors({})
   }, [contact])
 
@@ -486,7 +531,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   )
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} isDirty={isDirty}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{isNew ? 'Add contact' : 'Edit contact'}</SheetTitle>
@@ -939,30 +984,13 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
         {/* Action buttons in sticky footer */}
         {isAdmin && (
-          <SheetFooter>
-            {!isNew && (
-              <Button
-                type="button"
-                variant="destructive"
-                size="icon"
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-            <div className="flex-1" />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
-            </Button>
-          </SheetFooter>
+          <ContactDrawerFooter
+            isNew={isNew}
+            onDelete={handleDelete}
+            onSubmit={handleSubmit}
+            isDeleting={deleteMutation.isPending}
+            isSaving={saveMutation.isPending}
+          />
         )}
       </SheetContent>
     </Sheet>

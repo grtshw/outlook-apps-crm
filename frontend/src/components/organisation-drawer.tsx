@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Organisation } from '@/lib/pocketbase'
@@ -11,6 +11,7 @@ import {
   SheetFooter,
   SheetTitle,
   SheetSection,
+  useSheetClose,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +71,44 @@ function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: React.R
   )
 }
 
+function OrgDrawerFooter({
+  isNew,
+  onDelete,
+  onSubmit,
+  isDeleting,
+  isSaving,
+}: {
+  isNew: boolean
+  onDelete: () => void
+  onSubmit: (e: React.FormEvent) => void
+  isDeleting: boolean
+  isSaving: boolean
+}) {
+  const requestClose = useSheetClose()
+  return (
+    <SheetFooter>
+      {!isNew && (
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          onClick={onDelete}
+          disabled={isDeleting}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+      <div className="flex-1" />
+      <Button type="button" variant="outline" onClick={requestClose}>
+        Cancel
+      </Button>
+      <Button onClick={onSubmit} disabled={isSaving}>
+        {isSaving ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
+      </Button>
+    </SheetFooter>
+  )
+}
+
 export function OrganisationDrawer({ open, onClose, organisation }: OrganisationDrawerProps) {
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
@@ -85,10 +124,14 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
     industry: '',
     status: 'active' as Organisation['status'],
   })
+  const initialFormData = useRef(formData)
+
+  const isDirty = JSON.stringify(formData) !== JSON.stringify(initialFormData.current)
 
   useEffect(() => {
+    let data: typeof formData
     if (organisation) {
-      setFormData({
+      data = {
         name: organisation.name || '',
         website: organisation.website || '',
         linkedin: organisation.linkedin || '',
@@ -97,9 +140,9 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
         description_long: organisation.description_long || '',
         industry: organisation.industry || '',
         status: organisation.status || 'active',
-      })
+      }
     } else {
-      setFormData({
+      data = {
         name: '',
         website: '',
         linkedin: '',
@@ -108,8 +151,10 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
         description_long: '',
         industry: '',
         status: 'active',
-      })
+      }
     }
+    setFormData(data)
+    initialFormData.current = data
   }, [organisation])
 
   const saveMutation = useMutation({
@@ -158,7 +203,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
   const hasSocial = !!(formData.website || formData.linkedin)
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} isDirty={isDirty}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{isNew ? 'Add organisation' : 'Edit organisation'}</SheetTitle>
@@ -362,30 +407,13 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
 
         {/* Action buttons in sticky footer */}
         {isAdmin && (
-          <SheetFooter>
-            {!isNew && (
-              <Button
-                type="button"
-                variant="destructive"
-                size="icon"
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-            <div className="flex-1" />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? 'Saving...' : isNew ? 'Create' : 'Save changes'}
-            </Button>
-          </SheetFooter>
+          <OrgDrawerFooter
+            isNew={isNew}
+            onDelete={handleDelete}
+            onSubmit={handleSubmit}
+            isDeleting={deleteMutation.isPending}
+            isSaving={saveMutation.isPending}
+          />
         )}
       </SheetContent>
     </Sheet>
