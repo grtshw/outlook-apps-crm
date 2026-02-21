@@ -574,9 +574,10 @@ func sendRSVPConfirmationAsync(app *pocketbase.PocketBase, result *rsvpLookupRes
 	eventTime := gl.GetString("event_time")
 	eventLocation := gl.GetString("event_location")
 	bccEmails := extractBCCEmails(gl)
+	emailTheme := buildEmailTheme(app, gl)
 
 	go func() {
-		if err := sendRSVPConfirmationEmail(app, input.Email, fullName, eventName, eventDate, eventTime, eventLocation, bccEmails); err != nil {
+		if err := sendRSVPConfirmationEmail(app, input.Email, fullName, eventName, eventDate, eventTime, eventLocation, bccEmails, emailTheme); err != nil {
 			log.Printf("[RSVP] Failed to send confirmation email to %s: %v", input.Email, err)
 		}
 	}()
@@ -1062,7 +1063,8 @@ func handlePublicRSVPForward(re *core.RequestEvent, app *pocketbase.PocketBase) 
 	eventDate := result.GuestList.GetString("event_date")
 	eventTime := result.GuestList.GetString("event_time")
 	eventLocation := result.GuestList.GetString("event_location")
-	go sendRSVPForwardEmail(app, input.RecipientEmail, input.RecipientName, input.ForwarderName, input.ForwarderEmail, rsvpURL, listDescription, eventName, eventDate, eventTime, eventLocation)
+	emailTheme := buildEmailTheme(app, result.GuestList)
+	go sendRSVPForwardEmail(app, input.RecipientEmail, input.RecipientName, input.ForwarderName, input.ForwarderEmail, rsvpURL, listDescription, eventName, eventDate, eventTime, eventLocation, emailTheme)
 
 	utils.LogAudit(app, utils.AuditEntry{
 		Action:       "rsvp_forward",
@@ -1161,6 +1163,7 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 	eventDate := guestList.GetString("event_date")
 	eventTime := guestList.GetString("event_time")
 	eventLocation := guestList.GetString("event_location")
+	emailTheme := buildEmailTheme(app, guestList)
 
 	// Find items to send to
 	var items []*core.Record
@@ -1234,7 +1237,7 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), item.GetString("rsvp_token"))
 		recipientName := contact.GetString("name")
 
-		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, item.GetString("rsvp_token"), listName, listDescription, eventName, eventDate, eventTime, eventLocation)
+		go sendRSVPInviteEmail(app, email, recipientName, rsvpURL, item.GetString("rsvp_token"), listName, listDescription, eventName, eventDate, eventTime, eventLocation, emailTheme)
 		sent++
 	}
 
@@ -1292,65 +1295,11 @@ func handlePublicRSVPEmailPreview(re *core.RequestEvent, app *pocketbase.PocketB
 		}
 	}
 
-	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getBaseURL(), token)
+	rsvpURL := fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), token)
+	theme := buildEmailTheme(app, gl)
+	content := buildRSVPInviteContent(theme, eventContext, firstName, listDescription, eventDate, eventTime, eventLocation, rsvpURL)
 
-	// Build the same email content as sendRSVPInviteEmail
-	detailsHTML := ""
-	if eventDate != "" || eventTime != "" || eventLocation != "" {
-		detailsHTML = `<div style="padding: 24px 0; margin: 24px 0; border-top: 1px solid #333; border-bottom: 1px solid #333;">`
-		if eventDate != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventDate)
-		}
-		if eventTime != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0 0 4px 0;">%s</p>`, eventTime)
-		}
-		if eventLocation != "" {
-			detailsHTML += fmt.Sprintf(`<p style="color: rgba(255,255,255,0.7); font-size: 15px; margin: 0;">%s</p>`, eventLocation)
-		}
-		detailsHTML += `</div>`
-	}
-
-	descriptionHTML := ""
-	if listDescription != "" {
-		descriptionHTML = fmt.Sprintf(`<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">%s</p>
-            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love to see you there.</p>`, listDescription)
-	} else {
-		descriptionHTML = `<p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd love for you to join us for an evening of conversation, connection and great food.</p>`
-	}
-
-	content := fmt.Sprintf(`
-            <p style="color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">You're invited</p>
-            <h1 style="color: #ffffff; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
-            <p style="color: rgba(255,255,255,0.8); font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hi %s,</p>
-            %s
-            %s
-            <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
-                Spaces are limited, so please let us know if you can make it.
-            </p>
-            <div style="display: inline-block; width: 48%%; vertical-align: top;">
-                <a href="%s" style="display: block; background: #E95139; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #E95139;">
-                    I can make it
-                </a>
-            </div>
-            <div style="display: inline-block; width: 48%%; vertical-align: top;">
-                <a href="%s" style="display: block; background: transparent; color: #ffffff; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid #555;">
-                    I can't make it
-                </a>
-            </div>
-            <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 16px 0 24px 0;">
-                This link is personal to you. Please don't share it.
-            </p>
-            <p style="color: rgba(255,255,255,0.3); font-size: 13px; margin: 0 0 8px 0;">
-                Copy and paste if the link doesn't work:
-            </p>
-            <div style="background: rgba(255,255,255,0.05); padding: 12px 16px; margin: 0;">
-                <p style="color: rgba(255,255,255,0.4); font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
-                    %s
-                </p>
-            </div>
-`, eventContext, firstName, descriptionHTML, detailsHTML, rsvpURL, rsvpURL, rsvpURL)
-
-	html := wrapRSVPEmailHTML(content)
+	html := wrapRSVPEmailHTML(content, theme)
 
 	re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	re.Response.WriteHeader(http.StatusOK)

@@ -749,7 +749,7 @@ export function RSVPPage() {
                 {mobileProgramOpen && (
                   <div className="space-y-6 pb-4">
                     {(info.event_date || info.event_time || info.event_location) && (
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-[var(--theme-text)] pb-6 border-b border-[var(--theme-border)]/30">
+                      <div className="flex flex-col gap-2 text-lg text-[var(--theme-text)] pb-6 border-b border-[var(--theme-border)]/30">
                         {(info.event_date || info.event_time) && (
                           <span className="uppercase font-mono tracking-wider text-xs">{[info.event_date, info.event_time].filter(Boolean).join('   \u2022   ')}</span>
                         )}
@@ -832,7 +832,7 @@ export function RSVPPage() {
                   {info.program_title || 'The evening'}
                 </h2>
                 {(info.event_date || info.event_time || info.event_location) && (
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-lg text-[var(--theme-text)] mb-8 pb-8 border-b border-[var(--theme-border)]/30">
+                  <div className="flex flex-col gap-2 text-lg text-[var(--theme-text)] mb-8 pb-8 border-b border-[var(--theme-border)]/30">
                     {(info.event_date || info.event_time) && (
                       <span className="uppercase font-mono tracking-wider text-xs">{[info.event_date, info.event_time].filter(Boolean).join('   \u2022   ')}</span>
                     )}
