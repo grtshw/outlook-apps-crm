@@ -76,8 +76,6 @@ export function GuestListDetailPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [showContactCols, setShowContactCols] = useState(false)
   const [rsvpDetailItem, setRsvpDetailItem] = useState<GuestListItem | null>(null)
-  const [rsvpDrawerOpen, setRsvpDrawerOpen] = useState(false)
-  const [rsvpRoundFilter, setRsvpRoundFilter] = useState<Set<string>>(new Set(['1st', '2nd']))
   const [cloneOpen, setCloneOpen] = useState(false)
   const [programOpen, setProgramOpen] = useState(false)
   const [damBrowserOpen, setDamBrowserOpen] = useState(false)
@@ -186,6 +184,7 @@ export function GuestListDetailPage() {
         case 'name': aVal = a.contact_name; bVal = b.contact_name; break
         case 'role': aVal = a.contact_job_title || ''; bVal = b.contact_job_title || ''; break
         case 'company': aVal = a.contact_organisation_name || ''; bVal = b.contact_organisation_name || ''; break
+        case 'email': aVal = a.contact_email || ''; bVal = b.contact_email || ''; break
         case 'invite_round': aVal = a.invite_round || ''; bVal = b.invite_round || ''; break
         case 'invite_status': aVal = a.invite_status || ''; bVal = b.invite_status || ''; break
         case 'city': aVal = a.contact_location || ''; bVal = b.contact_location || ''; break
@@ -209,8 +208,6 @@ export function GuestListDetailPage() {
       toast.success('Guest list updated')
       queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
       queryClient.invalidateQueries({ queryKey: ['guest-lists'] })
-      setEditOpen(false)
-      setProgramOpen(false)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -317,7 +314,9 @@ export function GuestListDetailPage() {
 
   const handleSaveProgram = (e: React.FormEvent) => {
     e.preventDefault()
-    updateListMutation.mutate(programForm)
+    updateListMutation.mutate(programForm, {
+      onSuccess: () => setProgramOpen(false),
+    })
   }
 
   const handleOpenEdit = () => {
@@ -342,7 +341,9 @@ export function GuestListDetailPage() {
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault()
-    updateListMutation.mutate(editForm)
+    updateListMutation.mutate(editForm, {
+      onSuccess: () => setEditOpen(false),
+    })
   }
 
   const handleOpenClone = () => {
@@ -464,12 +465,6 @@ export function GuestListDetailPage() {
             <Button variant="outline" onClick={handleOpenProgram}>
               <LayoutList className="w-4 h-4 mr-1" /> Program
             </Button>
-            <Button variant="outline" onClick={() => setRsvpDrawerOpen(true)}>
-              <Send className="w-4 h-4 mr-1" /> RSVP
-              {rsvpCounts.accepted > 0 && (
-                <Badge variant="secondary" className="ml-1">{rsvpCounts.accepted}</Badge>
-              )}
-            </Button>
             <Button onClick={() => setContactSearchOpen(true)}>
               <UserPlus className="w-4 h-4 mr-1" /> Guests
             </Button>
@@ -505,6 +500,11 @@ export function GuestListDetailPage() {
         <div className="flex items-center gap-2">
           <h2 className="text-lg">Guests</h2>
           <Badge variant="secondary">{items.length}</Badge>
+          {rsvpCounts.accepted > 0 && (
+            <span className="text-sm text-muted-foreground">
+              · {rsvpCounts.accepted} accepted{rsvpCounts.plusOnes > 0 && ` (+${rsvpCounts.plusOnes})`}{rsvpCounts.declined > 0 && `, ${rsvpCounts.declined} declined`}
+            </span>
+          )}
           {items.length > 0 && (
             <Button
               variant="ghost"
@@ -532,6 +532,7 @@ export function GuestListDetailPage() {
                   { key: 'role', label: 'Role', className: 'max-w-[140px]' },
                   { key: 'company', label: 'Company', className: 'max-w-[120px]' },
                   { key: null, label: '', className: 'w-[40px]' },
+                  { key: 'email', label: 'Email', className: 'max-w-[200px]' },
                   { key: 'invite_round', label: 'Invite round' },
                   { key: 'invite_status', label: 'Invite status' },
                   { key: null, label: 'RSVP' },
@@ -597,6 +598,9 @@ export function GuestListDetailPage() {
                           <ExternalLink className="w-4 h-4" />
                         </a>
                       ) : null}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                      {item.contact_email || '—'}
                     </TableCell>
                     <TableCell>
                       <Select
@@ -721,14 +725,45 @@ export function GuestListDetailPage() {
                     )}
                     <TableCell>
                       {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveItem(item)}
-                          disabled={deleteItemMutation.isPending}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="cursor-pointer">
+                              <EllipsisVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {!item.rsvp_status && item.contact_email && (
+                              <DropdownMenuItem
+                                disabled={sendInvitesMutation.isPending}
+                                onClick={() => sendInvitesMutation.mutate([item.id])}
+                              >
+                                <Send className="w-4 h-4 mr-2" />
+                                {item.invite_status === 'invited' ? 'Resend invite' : 'Send invite'}
+                              </DropdownMenuItem>
+                            )}
+                            {item.rsvp_token && (
+                              <DropdownMenuItem onClick={() => {
+                                navigator.clipboard.writeText(`${window.location.origin}/rsvp/${item.rsvp_token}`)
+                                toast.success('Invite link copied')
+                              }}>
+                                <Link className="w-4 h-4 mr-2" /> Copy invite link
+                              </DropdownMenuItem>
+                            )}
+                            {(item.invite_status === 'invited' || item.rsvp_status) && (
+                              <DropdownMenuItem onClick={() => setRsvpDetailItem(item)}>
+                                <Eye className="w-4 h-4 mr-2" /> View RSVP details
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => handleRemoveItem(item)}
+                              disabled={deleteItemMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" /> Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   </TableRow>
@@ -952,228 +987,6 @@ export function GuestListDetailPage() {
         </SheetContent>
       </Sheet>
 
-      {/* RSVP drawer */}
-      <Sheet open={rsvpDrawerOpen} onOpenChange={(o) => !o && setRsvpDrawerOpen(false)}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>RSVP</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <SheetSection title="RSVP links">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <span className="text-sm">{guestList.rsvp_enabled ? 'Links are active' : 'Links are paused'}</span>
-                </div>
-                <Switch
-                  checked={guestList.rsvp_enabled}
-                  onCheckedChange={(checked: boolean) => toggleRSVPMutation.mutate(checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Allow plus-ones</span>
-                <Switch
-                  checked={guestList.rsvp_plus_ones_enabled}
-                  onCheckedChange={(checked: boolean) =>
-                    updateListMutation.mutate({ rsvp_plus_ones_enabled: checked })
-                  }
-                />
-              </div>
-
-              {(rsvpCounts.accepted > 0 || rsvpCounts.declined > 0) && (
-                <p className="text-sm text-muted-foreground">
-                  {rsvpCounts.accepted} accepted{rsvpCounts.plusOnes > 0 && ` (+${rsvpCounts.plusOnes} plus-ones)`}
-                  {rsvpCounts.declined > 0 && `, ${rsvpCounts.declined} declined`}
-                </p>
-              )}
-
-              {guestList.rsvp_generic_url && (
-                <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
-                  <span className="text-sm text-muted-foreground truncate flex-1">{guestList.rsvp_generic_url}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      navigator.clipboard.writeText(guestList.rsvp_generic_url!)
-                      toast.success('Generic RSVP link copied')
-                    }}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </SheetSection>
-
-            <details className="group">
-              <summary className="flex items-center justify-between cursor-pointer py-3 border-b border-border list-none">
-                <span className="text-sm">Theme & hero image</span>
-                <svg className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
-              </summary>
-              <div className="space-y-4 pt-4">
-                <Select
-                  value={guestList.theme || ''}
-                  onValueChange={(value: string) => {
-                    updateListMutation.mutate({ theme: value })
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {themes.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full border border-border shrink-0"
-                            style={{ backgroundColor: t.color_primary }}
-                          />
-                          {t.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1.5">Hero image</label>
-                  {guestList.landing_image_url ? (
-                    <div className="space-y-2">
-                      <img src={guestList.landing_image_url} alt="" className="w-full h-32 object-cover rounded" />
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDamBrowserOpen(true)}
-                        >
-                          Replace
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteImageMutation.mutate()}
-                          disabled={deleteImageMutation.isPending}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="w-full h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
-                      onClick={() => setDamBrowserOpen(true)}
-                    >
-                      <Search className="w-4 h-4" />
-                      Browse DAM
-                    </button>
-                  )}
-                </div>
-              </div>
-            </details>
-
-            {guestList.rsvp_enabled && (
-              <SheetSection title="Personal invites">
-                <div className="flex items-center gap-1.5 mb-2">
-                  {([['1st', '1'], ['2nd', '2'], ['maybe', 'M']] as const).map(([value, label]) => {
-                    const active = rsvpRoundFilter.has(value)
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        className={cn(
-                          'px-2.5 py-1 text-xs rounded-full border cursor-pointer transition-colors',
-                          active
-                            ? 'bg-foreground text-background border-foreground'
-                            : 'bg-transparent text-muted-foreground border-border hover:border-foreground/50'
-                        )}
-                        onClick={() => {
-                          const next = new Set(rsvpRoundFilter)
-                          if (next.has(value)) next.delete(value)
-                          else next.add(value)
-                          setRsvpRoundFilter(next)
-                        }}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
-                {items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    No guests on this list yet.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {items
-                      .filter((item) => rsvpRoundFilter.size === 0 || rsvpRoundFilter.has(item.invite_round || ''))
-                      .map((item) => {
-                      const hasEmail = !!item.contact_email
-                      const wasSent = item.invite_status === 'invited' || item.rsvp_status !== ''
-                      const roundLabel = item.invite_round === '1st' ? '1' : item.invite_round === '2nd' ? '2' : item.invite_round === '3rd' ? '3' : item.invite_round === 'maybe' ? 'M' : '—'
-                      return (
-                        <div key={item.id} className="flex items-center gap-2 py-2.5 px-2">
-                          <span className="text-xs text-muted-foreground w-[16px] shrink-0 text-center">{roundLabel}</span>
-                          <span className="text-sm truncate w-[130px] shrink-0">{item.contact_name}</span>
-                          <span className="text-sm text-muted-foreground truncate w-[90px] shrink-0">{item.contact_organisation_name || '—'}</span>
-                          <span className="text-sm text-muted-foreground truncate min-w-0 flex-1">{item.contact_email || 'No email'}</span>
-                          {wasSent && !item.rsvp_status && (
-                            <span className="shrink-0 inline-flex items-center gap-1">
-                              <Eye className={cn("w-3.5 h-3.5", item.invite_opened ? "text-foreground" : "text-muted-foreground/30")} />
-                              <MousePointerClick className={cn("w-3.5 h-3.5", item.invite_clicked ? "text-foreground" : "text-muted-foreground/30")} />
-                            </span>
-                          )}
-                          {item.rsvp_status === 'accepted' ? (
-                            <span className="shrink-0 text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full">Accepted</span>
-                          ) : item.rsvp_status === 'declined' ? (
-                            <span className="shrink-0 text-xs text-red-600 bg-red-50 px-2.5 py-1 rounded-full">Declined</span>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="shrink-0 cursor-pointer"
-                              disabled={!hasEmail || sendInvitesMutation.isPending}
-                              onClick={() => sendInvitesMutation.mutate([item.id])}
-                            >
-                              <Send className="w-3.5 h-3.5 mr-1" />
-                              {wasSent ? 'Resend' : 'Send'}
-                            </Button>
-                          )}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 cursor-pointer">
-                                <EllipsisVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {item.rsvp_token && (
-                                <DropdownMenuItem onClick={() => {
-                                  navigator.clipboard.writeText(`${window.location.origin}/rsvp/${item.rsvp_token}`)
-                                  toast.success('Invite link copied')
-                                }}>
-                                  <Link className="w-4 h-4 mr-2" /> Copy invite link
-                                </DropdownMenuItem>
-                              )}
-                              {!item.rsvp_status && hasEmail && (
-                                <DropdownMenuItem
-                                  disabled={sendInvitesMutation.isPending}
-                                  onClick={() => sendInvitesMutation.mutate([item.id])}
-                                >
-                                  <Send className="w-3.5 h-3.5 mr-2" /> {wasSent ? 'Resend invite' : 'Send invite'}
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </SheetSection>
-            )}
-          </div>
-
-        </SheetContent>
-      </Sheet>
-
       {/* Edit sheet */}
       <Sheet open={editOpen} onOpenChange={(o) => !o && setEditOpen(false)}>
         <SheetContent>
@@ -1274,6 +1087,109 @@ export function GuestListDetailPage() {
                     onChange={(ids) => setEditForm({ ...editForm, rsvp_bcc_contacts: ids })}
                   />
                   <p className="text-xs text-muted-foreground mt-1.5">These contacts will be BCC'd on RSVP emails, and sent a note about plus-one requests.</p>
+                </div>
+              </div>
+            </SheetSection>
+
+            <SheetSection title="RSVP">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">{guestList.rsvp_enabled ? 'Links are active' : 'Links are paused'}</span>
+                  <Switch
+                    checked={guestList.rsvp_enabled}
+                    onCheckedChange={(checked: boolean) => toggleRSVPMutation.mutate(checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Allow plus-ones</span>
+                  <Switch
+                    checked={guestList.rsvp_plus_ones_enabled}
+                    onCheckedChange={(checked: boolean) =>
+                      updateListMutation.mutate({ rsvp_plus_ones_enabled: checked })
+                    }
+                  />
+                </div>
+
+                {guestList.rsvp_generic_url && (
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-1.5">Generic RSVP link</label>
+                    <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
+                      <span className="text-sm text-muted-foreground truncate flex-1">{guestList.rsvp_generic_url}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          navigator.clipboard.writeText(guestList.rsvp_generic_url!)
+                          toast.success('Generic RSVP link copied')
+                        }}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Theme</label>
+                  <Select
+                    value={guestList.theme || ''}
+                    onValueChange={(value: string) => {
+                      updateListMutation.mutate({ theme: value })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {themes.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full border border-border shrink-0"
+                              style={{ backgroundColor: t.color_primary }}
+                            />
+                            {t.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Hero image</label>
+                  {guestList.landing_image_url ? (
+                    <div className="space-y-2">
+                      <img src={guestList.landing_image_url} alt="" className="w-full h-32 object-cover rounded" />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDamBrowserOpen(true)}
+                        >
+                          Replace
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deleteImageMutation.mutate()}
+                          disabled={deleteImageMutation.isPending}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="w-full h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+                      onClick={() => setDamBrowserOpen(true)}
+                    >
+                      <Search className="w-4 h-4" />
+                      Browse DAM
+                    </button>
+                  )}
                 </div>
               </div>
             </SheetSection>
