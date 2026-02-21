@@ -356,13 +356,21 @@ let isOfficeReady = false;
 
 // ── Office.js init ──────────────────────────────────────────────────────
 Office.onReady(function(info) {
+  isOfficeReady = true;
   if (info.host === Office.HostType.Outlook) {
-    isOfficeReady = true;
     checkAuth();
+  } else {
+    // Office loaded but not Outlook (e.g. browser, other host)
+    if (getToken()) {
+      show('noOfficeView');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+    } else {
+      show('loginView');
+    }
   }
 });
 
-// Fallback: if Office.js doesn't load (browser testing)
+// Fallback: if Office.js doesn't initialise at all (plain browser testing)
 setTimeout(function() {
   if (!isOfficeReady) {
     if (getToken()) {
@@ -372,7 +380,7 @@ setTimeout(function() {
       show('loginView');
     }
   }
-}, 2000);
+}, 3000);
 
 // ── Auth ────────────────────────────────────────────────────────────────
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
