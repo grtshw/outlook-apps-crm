@@ -253,7 +253,7 @@ func securityHeadersMiddleware(e *core.RequestEvent) error {
 		h.Del("X-Frame-Options")
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' https://appsforoffice.microsoft.com; "+
+				"script-src 'self' 'unsafe-inline' https://appsforoffice.microsoft.com; "+
 				"style-src 'self' 'unsafe-inline'; "+
 				"img-src 'self' data: https:; "+
 				"connect-src 'self' https:; "+
