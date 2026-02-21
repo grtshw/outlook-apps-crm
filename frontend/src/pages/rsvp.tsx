@@ -674,7 +674,7 @@ export function RSVPPage() {
           </div>
           <div ref={heroContentRef} className="flex-1 lg:flex-[1] min-w-0 flex flex-col gap-5 items-center text-center lg:px-10">
             <div className="pt-10 lg:pt-8">
-              <img src={logoSrc} alt="The Outlook" className="h-8 opacity-80 mx-auto mb-10 lg:mb-14" />
+              <img src={logoSrc} alt="The Outlook" className="h-8 mx-auto mb-10 lg:mb-14" />
               {info.organisation_logo_url && (
                 <img
                   src={info.organisation_logo_url}
@@ -713,7 +713,7 @@ export function RSVPPage() {
 
         {/* Bottom bar — desktop only */}
         <div className="hidden lg:flex items-end justify-between mt-4">
-          <span className={`text-2xl font-[family-name:var(--font-display)] ${isDark ? 'text-[var(--theme-bg)]' : 'text-[var(--theme-hero-text)]/30'}`}>{brandName}</span>
+          <span className={`text-2xl font-[family-name:var(--font-display)] ${isDark ? 'text-[var(--theme-bg)]' : 'text-black'}`}>{brandName}</span>
           <span className="text-[var(--theme-hero-text)]/50 text-xs font-mono">{info.event_name}</span>
         </div>
       </div>
