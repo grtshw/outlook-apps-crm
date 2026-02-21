@@ -11,7 +11,6 @@ import {
   SheetFooter,
   SheetTitle,
   SheetSection,
-  useSheetClose,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,16 +74,17 @@ function OrgDrawerFooter({
   isNew,
   onDelete,
   onSubmit,
+  onClose,
   isDeleting,
   isSaving,
 }: {
   isNew: boolean
   onDelete: () => void
   onSubmit: (e: React.FormEvent) => void
+  onClose: () => void
   isDeleting: boolean
   isSaving: boolean
 }) {
-  const requestClose = useSheetClose()
   return (
     <SheetFooter>
       {!isNew && (
@@ -99,7 +99,7 @@ function OrgDrawerFooter({
         </Button>
       )}
       <div className="flex-1" />
-      <Button type="button" variant="outline" onClick={requestClose}>
+      <Button type="button" variant="outline" onClick={onClose}>
         Cancel
       </Button>
       <Button onClick={onSubmit} disabled={isSaving}>
@@ -125,8 +125,6 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
     status: 'active' as Organisation['status'],
   })
   const initialFormData = useRef(formData)
-
-  const isDirty = JSON.stringify(formData) !== JSON.stringify(initialFormData.current)
 
   useEffect(() => {
     let data: typeof formData
@@ -203,7 +201,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
   const hasSocial = !!(formData.website || formData.linkedin)
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()} isDirty={isDirty}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{isNew ? 'Add organisation' : 'Edit organisation'}</SheetTitle>
@@ -411,6 +409,7 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
             isNew={isNew}
             onDelete={handleDelete}
             onSubmit={handleSubmit}
+            onClose={onClose}
             isDeleting={deleteMutation.isPending}
             isSaving={saveMutation.isPending}
           />

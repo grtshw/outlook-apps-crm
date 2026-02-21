@@ -11,7 +11,6 @@ import {
   SheetFooter,
   SheetTitle,
   SheetSection,
-  useSheetClose,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -292,16 +291,17 @@ function ContactDrawerFooter({
   isNew,
   onDelete,
   onSubmit,
+  onClose,
   isDeleting,
   isSaving,
 }: {
   isNew: boolean
   onDelete: () => void
   onSubmit: (e: React.FormEvent) => void
+  onClose: () => void
   isDeleting: boolean
   isSaving: boolean
 }) {
-  const requestClose = useSheetClose()
   return (
     <SheetFooter>
       {!isNew && (
@@ -316,7 +316,7 @@ function ContactDrawerFooter({
         </Button>
       )}
       <div className="flex-1" />
-      <Button type="button" variant="outline" onClick={requestClose}>
+      <Button type="button" variant="outline" onClick={onClose}>
         Cancel
       </Button>
       <Button onClick={onSubmit} disabled={isSaving}>
@@ -356,8 +356,6 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const initialFormData = useRef(formData)
-
-  const isDirty = JSON.stringify(formData) !== JSON.stringify(initialFormData.current)
 
   // Load organisations for picker
   const { data: orgsData } = useQuery({
@@ -531,7 +529,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
   )
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()} isDirty={isDirty}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{isNew ? 'Add contact' : 'Edit contact'}</SheetTitle>
@@ -988,6 +986,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
             isNew={isNew}
             onDelete={handleDelete}
             onSubmit={handleSubmit}
+            onClose={onClose}
             isDeleting={deleteMutation.isPending}
             isSaving={saveMutation.isPending}
           />
