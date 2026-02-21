@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signing in...</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #fafafa;
+      color: #333;
+    }
+    .container { text-align: center; padding: 32px; }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #e8e8e8;
+      border-top-color: #0078d4;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { font-size: 14px; color: #666; }
+    .error { color: #dc2626; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="spinner" id="spinner"></div>
+  <p id="status">Signing in with Microsoft...</p>
+</div>
+
+<script>
+var API_BASE = window.location.origin;
+
+Office.onReady(function() {
+  startOAuth();
+});
+
+// Fallback if Office.js doesn't initialise (shouldn't happen in dialog)
+setTimeout(function() { startOAuth(); }, 3000);
+
+var oauthStarted = false;
+
+function startOAuth() {
+  if (oauthStarted) return;
+  oauthStarted = true;
+
+  // Step 1: Get the OAuth2 auth methods from PocketBase to find the Microsoft provider URL
+  fetch(API_BASE + '/api/collections/users/auth-methods')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var provider = null;
+      if (data.oauth2 && data.oauth2.providers) {
+        for (var i = 0; i < data.oauth2.providers.length; i++) {
+          if (data.oauth2.providers[i].name === 'microsoft') {
+            provider = data.oauth2.providers[i];
+            break;
+          }
+        }
+      }
+
+      if (!provider) {
+        showError('Microsoft login is not configured.');
+        return;
+      }
+
+      // Store the provider state and code verifier for the callback
+      sessionStorage.setItem('oauth_state', provider.state);
+      sessionStorage.setItem('oauth_code_verifier', provider.codeVerifier);
+
+      // Step 2: Redirect this dialog window to Microsoft login
+      var redirectUrl = API_BASE + '/outlook-addin/oauth-complete.html';
+      var authUrl = provider.authURL + encodeURIComponent(redirectUrl);
+
+      window.location.href = authUrl;
+    })
+    .catch(function(err) {
+      showError('Failed to start sign-in: ' + (err.message || 'Unknown error'));
+    });
+}
+
+function showError(msg) {
+  document.getElementById('spinner').style.display = 'none';
+  var statusEl = document.getElementById('status');
+  statusEl.textContent = msg;
+  statusEl.classList.add('error');
+}
+</script>
+</body>
+</html>

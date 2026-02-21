@@ -29,6 +29,7 @@
 
   <AppDomains>
     <AppDomain>https://crm.theoutlook.io</AppDomain>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
   </AppDomains>
 
   <Hosts>
