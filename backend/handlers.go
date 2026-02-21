@@ -679,6 +679,9 @@ func handleContactCreate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	} else {
 		record.Set("source", "manual")
 	}
+	if v, ok := input["domain"]; ok {
+		record.Set("domain", v)
+	}
 	if v, ok := input["degrees"].(string); ok {
 		record.Set("degrees", v)
 	}
@@ -800,6 +803,9 @@ func handleContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	}
 	if v, ok := input["status"].(string); ok {
 		record.Set("status", v)
+	}
+	if v, ok := input["domain"]; ok {
+		record.Set("domain", v)
 	}
 	if v, ok := input["degrees"].(string); ok {
 		record.Set("degrees", v)
@@ -1737,11 +1743,13 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	primaryRecord.Set("dietary_requirements", input.MergedDietaryRequirements)
 	primaryRecord.Set("accessibility_requirements", input.MergedAccessibilityRequirements)
 
-	// Deep merge source_ids from all contacts
+	// Deep merge source_ids from all contacts (PocketBase returns types.JSONRaw for JSON fields)
 	mergedSourceIDs := map[string]any{}
 	for _, record := range allContacts {
 		if sourceIDs := record.Get("source_ids"); sourceIDs != nil {
-			if m, ok := sourceIDs.(map[string]any); ok {
+			var m map[string]any
+			b, _ := json.Marshal(sourceIDs)
+			if err := json.Unmarshal(b, &m); err == nil {
 				for k, v := range m {
 					mergedSourceIDs[k] = v
 				}
@@ -1754,7 +1762,6 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 	activitiesReassigned := 0
 
 	err = app.RunInTransaction(func(txApp core.App) error {
-		// First: reassign activities and delete merged contacts
 		for _, mid := range input.MergedIDs {
 			record := allContacts[mid]
 
@@ -1772,13 +1779,77 @@ func handleContactsMerge(re *core.RequestEvent, app *pocketbase.PocketBase) erro
 				activitiesReassigned++
 			}
 
-			// Delete the merged contact
+			// Reassign or remove guest list items referencing the merged contact
+			guestListItems, _ := txApp.FindRecordsByFilter(
+				"guest_list_items",
+				"contact = {:contactId}", "", 0, 0,
+				map[string]any{"contactId": mid},
+			)
+			for _, item := range guestListItems {
+				guestListID := item.GetString("guest_list")
+				// Check if primary already has an item in this guest list (unique constraint)
+				existing, _ := txApp.FindRecordsByFilter(
+					"guest_list_items",
+					"guest_list = {:glId} && contact = {:primaryId}", "", 1, 0,
+					map[string]any{"glId": guestListID, "primaryId": input.PrimaryID},
+				)
+				if len(existing) > 0 {
+					// Primary already in this guest list — delete the duplicate
+					if err := txApp.Delete(item); err != nil {
+						return fmt.Errorf("failed to delete duplicate guest list item %s: %w", item.Id, err)
+					}
+				} else {
+					// Reassign to primary
+					item.Set("contact", input.PrimaryID)
+					if err := txApp.Save(item); err != nil {
+						return fmt.Errorf("failed to reassign guest list item %s: %w", item.Id, err)
+					}
+				}
+			}
+
+			// Reassign or remove contact links referencing the merged contact
+			contactLinks, _ := txApp.FindRecordsByFilter(
+				"contact_links",
+				"contact_a = {:contactId} || contact_b = {:contactId}", "", 0, 0,
+				map[string]any{"contactId": mid},
+			)
+			for _, link := range contactLinks {
+				contactA := link.GetString("contact_a")
+				contactB := link.GetString("contact_b")
+
+				// If the link connects to the primary (or another merged contact), just delete it
+				otherID := contactA
+				if contactA == mid {
+					otherID = contactB
+				}
+				if otherID == input.PrimaryID {
+					if err := txApp.Delete(link); err != nil {
+						return fmt.Errorf("failed to delete self-referencing link %s: %w", link.Id, err)
+					}
+					continue
+				}
+
+				// Reassign: point the merged contact's side to primary
+				if contactA == mid {
+					link.Set("contact_a", input.PrimaryID)
+				} else {
+					link.Set("contact_b", input.PrimaryID)
+				}
+				if err := txApp.Save(link); err != nil {
+					// May fail if a link between primary and otherID already exists — delete instead
+					if err2 := txApp.Delete(link); err2 != nil {
+						return fmt.Errorf("failed to handle contact link %s: %w", link.Id, err)
+					}
+				}
+			}
+
+			// Delete the merged contact (now safe — no more references)
 			if err := txApp.Delete(record); err != nil {
 				return fmt.Errorf("failed to delete contact %s: %w", mid, err)
 			}
 		}
 
-		// Second: decrypt PII fields on primary before save (encryption hooks re-encrypt)
+		// Decrypt PII fields on primary before save (encryption hooks re-encrypt)
 		for _, field := range []string{"email", "personal_email", "phone", "bio", "location"} {
 			if v := primaryRecord.GetString(field); v != "" {
 				primaryRecord.Set(field, utils.DecryptField(v))
@@ -1838,6 +1909,7 @@ func buildContactResponse(r *core.Record, app *pocketbase.PocketBase, baseURL st
 		"status":         r.GetString("status"),
 		"source":         r.GetString("source"),
 		"source_ids":     r.Get("source_ids"),
+		"domain":         r.Get("domain"),
 		"degrees":        r.GetString("degrees"),
 		"relationship":   r.GetInt("relationship"),
 		"notes":          r.GetString("notes"),
@@ -1915,6 +1987,7 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		"do_position":    r.GetString("do_position"),
 		"tags":           r.Get("tags"),
 		"roles":          r.Get("roles"),
+		"domain":         r.Get("domain"),
 		"dietary_requirements":              r.Get("dietary_requirements"),
 		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
 		"accessibility_requirements":        r.Get("accessibility_requirements"),

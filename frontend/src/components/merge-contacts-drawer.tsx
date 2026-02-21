@@ -4,23 +4,21 @@ import { toast } from 'sonner'
 import { getContact, getContactActivities, mergeContacts } from '@/lib/api'
 import type { Contact, ContactRole, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog'
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Check, Loader2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface MergeContactsDialogProps {
+interface MergeContactsDrawerProps {
   open: boolean
   onClose: () => void
   contactIds: string[]
@@ -80,7 +78,7 @@ function getDisplayValue(contact: Contact, field: string): string {
   return String(val)
 }
 
-export function MergeContactsDialog({ open, onClose, contactIds }: MergeContactsDialogProps) {
+export function MergeContactsDrawer({ open, onClose, contactIds }: MergeContactsDrawerProps) {
   const queryClient = useQueryClient()
 
   // Fetch full contact data for all selected IDs
@@ -273,22 +271,22 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
   if (!open) return null
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Merge contacts</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Merge contacts</SheetTitle>
+          <p className="text-sm text-muted-foreground">
             Select which values to keep for the merged contact. The primary contact's ID is preserved.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </SheetHeader>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6">
-            <div className="space-y-6 pb-4">
+          <div className="flex-1 overflow-y-auto px-6 pb-4">
+            <div className="space-y-6">
               {/* Primary contact selection */}
               <div>
                 <p className="text-sm text-muted-foreground mb-3">Primary contact (survives)</p>
@@ -539,10 +537,10 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
                 </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
         )}
 
-        <DialogFooter>
+        <SheetFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
@@ -553,8 +551,8 @@ export function MergeContactsDialog({ open, onClose, contactIds }: MergeContacts
           >
             {mergeMutation.isPending ? 'Merging...' : 'Merge contacts'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

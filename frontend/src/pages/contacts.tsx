@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router'
 import { getContacts, getContact, fetchJSON } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
-import type { Contact, ContactRole } from '@/lib/pocketbase'
+import type { Contact, ContactRole, ContactDomain } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,7 @@ import {
 import { Plus, Search, ChevronLeft, ChevronRight, Merge, X, LayoutGrid, List, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContactDrawer } from '@/components/contact-drawer'
-import { MergeContactsDialog } from '@/components/merge-contacts-dialog'
+import { MergeContactsDrawer } from '@/components/merge-contacts-drawer'
 import { EntityList } from '@/components/entity-list'
 import { PageHeader } from '@/components/ui/page-header'
 
@@ -32,6 +32,12 @@ const ROLE_VARIANTS: Record<ContactRole, 'default' | 'secondary' | 'destructive'
   attendee: 'secondary',
   staff: 'secondary',
   volunteer: 'secondary',
+}
+
+const DOMAIN_VARIANTS: Record<ContactDomain, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  design: 'outline',
+  product: 'outline',
+  leadership: 'outline',
 }
 
 function getStoredLayout(): 'list' | 'cards' {
@@ -313,6 +319,18 @@ export function ContactsPage() {
             ),
           },
           {
+            label: 'Domain',
+            render: (contact: Contact) => (
+              <div className="flex flex-wrap gap-1">
+                {contact.domain?.map((d) => (
+                  <Badge key={d} variant={DOMAIN_VARIANTS[d]}>
+                    {d}
+                  </Badge>
+                ))}
+              </div>
+            ),
+          },
+          {
             label: 'Relationship',
             className: 'w-[120px]',
             render: (contact: Contact) => (
@@ -409,7 +427,7 @@ export function ContactsPage() {
       />
 
       {mergeDialogOpen && (
-        <MergeContactsDialog
+        <MergeContactsDrawer
           open={mergeDialogOpen}
           onClose={handleMergeClose}
           contactIds={Array.from(selectedIds)}
