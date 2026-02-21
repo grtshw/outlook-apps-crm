@@ -498,84 +498,88 @@ export function RSVPPage() {
               <h3 className="text-2xl text-[var(--theme-text)] font-[family-name:var(--font-display)] mb-4">Invitation</h3>
               <div className="space-y-4">
                 {/* Plus one */}
-                <div
-                  className="flex items-start gap-3 cursor-pointer rounded-lg border border-[var(--theme-border)]/20 p-4"
-                  onClick={() => setPlusOne((v) => !v)}
-                >
-                  <Checkbox
-                    checked={plusOne}
-                    onCheckedChange={(checked) => setPlusOne(checked === true)}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <span className="text-sm text-[var(--theme-text)]">I'd like to bring a plus-one</span>
-                    <p className="text-xs text-[var(--theme-text-muted)] mt-1">We'll review each plus-one request and share an invite if we can squeeze them in.</p>
-                  </div>
-                </div>
+                {info.plus_ones_enabled && (
+                  <>
+                    <div
+                      className="flex items-start gap-3 cursor-pointer rounded-lg border border-[var(--theme-border)]/20 p-4"
+                      onClick={() => setPlusOne((v) => !v)}
+                    >
+                      <Checkbox
+                        checked={plusOne}
+                        onCheckedChange={(checked) => setPlusOne(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="text-sm text-[var(--theme-text)]">I'd like to bring a plus-one</span>
+                        <p className="text-xs text-[var(--theme-text-muted)] mt-1">We'll review each plus-one request and share an invite if we can squeeze them in.</p>
+                      </div>
+                    </div>
 
-                {plusOne && (
-                  <div className="space-y-4 pl-4 border-l-2 border-[var(--theme-border)]/30">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm text-[var(--theme-text)] mb-1.5">First name <span className="text-[var(--theme-primary)]">*</span></label>
-                        <Input
-                          value={plusOneName}
-                          onChange={(e) => setPlusOneName(e.target.value)}
-                          placeholder="First name"
-                          required
-                          className={inputClassName}
-                        />
+                    {plusOne && (
+                      <div className="space-y-4 pl-4 border-l-2 border-[var(--theme-border)]/30">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm text-[var(--theme-text)] mb-1.5">First name <span className="text-[var(--theme-primary)]">*</span></label>
+                            <Input
+                              value={plusOneName}
+                              onChange={(e) => setPlusOneName(e.target.value)}
+                              placeholder="First name"
+                              required
+                              className={inputClassName}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-[var(--theme-text)] mb-1.5">Last name</label>
+                            <Input
+                              value={plusOneLastName}
+                              onChange={(e) => setPlusOneLastName(e.target.value)}
+                              placeholder="Last name"
+                              className={inputClassName}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm text-[var(--theme-text)] mb-1.5">Job title</label>
+                          <Input
+                            value={plusOneJobTitle}
+                            onChange={(e) => setPlusOneJobTitle(e.target.value)}
+                            placeholder="Job title"
+                            className={inputClassName}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-[var(--theme-text)] mb-1.5">Company</label>
+                          <Input
+                            value={plusOneCompany}
+                            onChange={(e) => setPlusOneCompany(e.target.value)}
+                            placeholder="Company"
+                            className={inputClassName}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-[var(--theme-text)] mb-1.5">Email <span className="text-[var(--theme-primary)]">*</span></label>
+                          <Input
+                            type="email"
+                            value={plusOneEmail}
+                            onChange={(e) => setPlusOneEmail(e.target.value)}
+                            placeholder="their@email.com"
+                            required
+                            className={inputClassName}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-[var(--theme-text)] mb-1.5">Dietary requirements</label>
+                          <Textarea
+                            value={plusOneDietary}
+                            onChange={(e) => setPlusOneDietary(e.target.value)}
+                            placeholder="Any dietary requirements or allergies"
+                            rows={2}
+                            className={textareaClassName}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm text-[var(--theme-text)] mb-1.5">Last name</label>
-                        <Input
-                          value={plusOneLastName}
-                          onChange={(e) => setPlusOneLastName(e.target.value)}
-                          placeholder="Last name"
-                          className={inputClassName}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--theme-text)] mb-1.5">Job title</label>
-                      <Input
-                        value={plusOneJobTitle}
-                        onChange={(e) => setPlusOneJobTitle(e.target.value)}
-                        placeholder="Job title"
-                        className={inputClassName}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--theme-text)] mb-1.5">Company</label>
-                      <Input
-                        value={plusOneCompany}
-                        onChange={(e) => setPlusOneCompany(e.target.value)}
-                        placeholder="Company"
-                        className={inputClassName}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--theme-text)] mb-1.5">Email <span className="text-[var(--theme-primary)]">*</span></label>
-                      <Input
-                        type="email"
-                        value={plusOneEmail}
-                        onChange={(e) => setPlusOneEmail(e.target.value)}
-                        placeholder="their@email.com"
-                        required
-                        className={inputClassName}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-[var(--theme-text)] mb-1.5">Dietary requirements</label>
-                      <Textarea
-                        value={plusOneDietary}
-                        onChange={(e) => setPlusOneDietary(e.target.value)}
-                        placeholder="Any dietary requirements or allergies"
-                        rows={2}
-                        className={textareaClassName}
-                      />
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
 
                 {/* Who invited you — generic invites only */}

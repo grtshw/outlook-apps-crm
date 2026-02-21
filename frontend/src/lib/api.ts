@@ -425,6 +425,7 @@ export async function updateGuestList(
     event_date: string; event_time: string; event_location: string; event_location_address: string;
     organisation: string;
     rsvp_bcc_contacts: string[];
+    rsvp_plus_ones_enabled: boolean;
     theme: string;
   }>
 ): Promise<{ message: string }> {

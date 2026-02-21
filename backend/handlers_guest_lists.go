@@ -108,9 +108,10 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"created_by":          record.GetString("created_by"),
 		"item_count":          itemCount,
 		"share_count":         shareCount,
-		"rsvp_enabled":        record.GetBool("rsvp_enabled"),
-		"rsvp_generic_token":  record.GetString("rsvp_generic_token"),
-		"rsvp_generic_url":    rsvpGenericURL,
+		"rsvp_enabled":            record.GetBool("rsvp_enabled"),
+		"rsvp_plus_ones_enabled":  record.GetBool("rsvp_plus_ones_enabled"),
+		"rsvp_generic_token":      record.GetString("rsvp_generic_token"),
+		"rsvp_generic_url":        rsvpGenericURL,
 		"landing_enabled":     record.GetBool("landing_enabled"),
 		"landing_headline":    record.GetString("landing_headline"),
 		"landing_description": record.GetString("landing_description"),
@@ -194,6 +195,9 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 	}
 	if v, ok := input["rsvp_enabled"].(bool); ok {
 		record.Set("rsvp_enabled", v)
+	}
+	if v, ok := input["rsvp_plus_ones_enabled"].(bool); ok {
+		record.Set("rsvp_plus_ones_enabled", v)
 	}
 	if v, ok := input["landing_enabled"].(bool); ok {
 		record.Set("landing_enabled", v)
@@ -455,6 +459,7 @@ func handleGuestListClone(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	newList.Set("landing_content", source.GetString("landing_content"))
 	newList.Set("program_description", source.GetString("program_description"))
 	newList.Set("program_title", source.GetString("program_title"))
+	newList.Set("rsvp_plus_ones_enabled", source.GetBool("rsvp_plus_ones_enabled"))
 
 	if err := app.Save(newList); err != nil {
 		return utils.InternalErrorResponse(re, "Failed to create cloned list")

@@ -151,6 +151,7 @@ export interface GuestList extends RecordModel {
   item_count: number
   share_count: number
   rsvp_enabled: boolean
+  rsvp_plus_ones_enabled: boolean
   rsvp_generic_token: string
   rsvp_generic_url: string
   landing_enabled: boolean

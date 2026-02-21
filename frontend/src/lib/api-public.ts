@@ -90,6 +90,7 @@ export interface SharedGuestListView {
   landing_content: string
   program_description: string
   program_title: string
+  plus_ones_enabled: boolean
   // Event projection details
   event_date: string
   event_start_time: string
@@ -142,6 +143,7 @@ export interface RSVPInfo {
   landing_content: string
   program_description: string
   program_title: string
+  plus_ones_enabled: boolean
   // Event details (from guest list, with fallback to event projection)
   event_date: string
   event_time: string

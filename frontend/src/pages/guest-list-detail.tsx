@@ -970,6 +970,16 @@ export function GuestListDetailPage() {
                 />
               </div>
 
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Allow plus-ones</span>
+                <Switch
+                  checked={guestList.rsvp_plus_ones_enabled}
+                  onCheckedChange={(checked: boolean) =>
+                    updateListMutation.mutate({ rsvp_plus_ones_enabled: checked })
+                  }
+                />
+              </div>
+
               {(rsvpCounts.accepted > 0 || rsvpCounts.declined > 0) && (
                 <p className="text-sm text-muted-foreground">
                   {rsvpCounts.accepted} accepted{rsvpCounts.plusOnes > 0 && ` (+${rsvpCounts.plusOnes} plus-ones)`}
