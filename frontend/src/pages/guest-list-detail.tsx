@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/ui/page-header'
 import { ContactSearchDrawer } from '@/components/contact-search-dialog'
+import { DamBrowser } from '@/components/dam-browser'
 import { ContactDrawer } from '@/components/contact-drawer'
 import { ShareDialog } from '@/components/share-dialog'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -44,7 +45,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, ImagePlus } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, ImagePlus, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -80,6 +81,7 @@ export function GuestListDetailPage() {
   const [rsvpRoundFilter, setRsvpRoundFilter] = useState<Set<string>>(new Set(['1st', '2nd']))
   const [cloneOpen, setCloneOpen] = useState(false)
   const [programOpen, setProgramOpen] = useState(false)
+  const [damBrowserOpen, setDamBrowserOpen] = useState(false)
 
   // Program form state
   const [programForm, setProgramForm] = useState({
@@ -1002,8 +1004,12 @@ export function GuestListDetailPage() {
               )}
             </SheetSection>
 
-            <SheetSection title="Theme">
-              <div className="space-y-4">
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer py-3 border-b border-border list-none">
+                <span className="text-sm">Theme & hero image</span>
+                <svg className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+              </summary>
+              <div className="space-y-4 pt-4">
                 <Select
                   value={guestList.theme || ''}
                   onValueChange={(value: string) => {
@@ -1036,6 +1042,13 @@ export function GuestListDetailPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setDamBrowserOpen(true)}
+                        >
+                          Replace
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => {
                             const input = document.createElement('input')
                             input.type = 'file'
@@ -1048,7 +1061,7 @@ export function GuestListDetailPage() {
                           }}
                           disabled={uploadImageMutation.isPending}
                         >
-                          Replace
+                          Upload
                         </Button>
                         <Button
                           variant="outline"
@@ -1061,28 +1074,38 @@ export function GuestListDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="w-full h-24 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
-                      onClick={() => {
-                        const input = document.createElement('input')
-                        input.type = 'file'
-                        input.accept = 'image/jpeg,image/png,image/webp'
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0]
-                          if (file) uploadImageMutation.mutate(file)
-                        }
-                        input.click()
-                      }}
-                      disabled={uploadImageMutation.isPending}
-                    >
-                      <ImagePlus className="w-4 h-4" />
-                      {uploadImageMutation.isPending ? 'Uploading...' : 'Upload image'}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="flex-1 h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+                        onClick={() => setDamBrowserOpen(true)}
+                      >
+                        <Search className="w-4 h-4" />
+                        Browse DAM
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 h-20 border border-dashed border-border rounded flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 transition-colors cursor-pointer"
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = 'image/jpeg,image/png,image/webp'
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0]
+                            if (file) uploadImageMutation.mutate(file)
+                          }
+                          input.click()
+                        }}
+                        disabled={uploadImageMutation.isPending}
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        {uploadImageMutation.isPending ? 'Uploading...' : 'Upload'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
-            </SheetSection>
+            </details>
 
             {guestList.rsvp_enabled && (
               <SheetSection title="Personal invites">
@@ -1453,6 +1476,15 @@ export function GuestListDetailPage() {
         listId={id!}
         listName={guestList.name}
         eventName={guestList.event_name}
+      />
+
+      {/* DAM browser */}
+      <DamBrowser
+        open={damBrowserOpen}
+        onOpenChange={setDamBrowserOpen}
+        onSelect={(asset) => {
+          updateListMutation.mutate({ landing_image_url: asset.url })
+        }}
       />
     </div>
   )
