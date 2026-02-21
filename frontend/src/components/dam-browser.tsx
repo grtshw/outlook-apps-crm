@@ -29,7 +29,7 @@ export function DamBrowser({ open, onOpenChange, onSelect }: DamBrowserProps) {
   const [totalPages, setTotalPages] = useState(0)
   const [totalItems, setTotalItems] = useState(0)
   const [selected, setSelected] = useState<DamAsset | null>(null)
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const fetchAssets = useCallback(async (searchQuery?: string, pageNum = 1) => {
     setLoading(true)
