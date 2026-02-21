@@ -41,7 +41,7 @@ func defaultEmailTheme() EmailTheme {
 		ButtonText:   "#ffffff",
 		Primary:      "#E95139",
 		IsDark:       true,
-		LogoURL:      base + "/images/logo-white.svg",
+		LogoURL:      base + "/images/logo-email-white.png",
 		BrandLogoURL: base + "/images/to-after-dark-white.png",
 		HeroImageURL: base + "/images/rsvp-hero.jpg",
 	}
@@ -92,10 +92,18 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 	// Logos — use email-safe PNG version if the theme logo is an SVG
 	logoURL := getStr(theme, "logo_url", base+"/images/logo-white.svg")
 	if strings.HasSuffix(logoURL, ".svg") {
-		logoURL = base + "/images/logo-email.png"
+		if isDark {
+			logoURL = base + "/images/logo-email-white.png"
+		} else {
+			logoURL = base + "/images/logo-email.png"
+		}
 	}
 	et.LogoURL = logoURL
-	et.BrandLogoURL = getStr(theme, "logo_light_url", "")
+	brandURL := getStr(theme, "logo_light_url", "")
+	if strings.HasSuffix(brandURL, ".svg") {
+		brandURL = "" // drop SVG brand logos — no email support
+	}
+	et.BrandLogoURL = brandURL
 
 	// Hero image: guest list landing_image_url > theme hero_image_url > default
 	heroURL := guestList.GetString("landing_image_url")
@@ -228,9 +236,9 @@ func wrapEmailHTML(content string) string {
 // wrapRSVPEmailHTML wraps content in the themed RSVP email template.
 func wrapRSVPEmailHTML(content string, theme EmailTheme) string {
 	// Build logo section
-	logoHTML := fmt.Sprintf(`<td style="vertical-align: middle;"><img src="%s" alt="The Outlook" style="height: 20px; display: block; font-weight: bold;"></td>`, theme.LogoURL)
+	logoHTML := fmt.Sprintf(`<td style="vertical-align: middle;"><img src="%s" alt="The Outlook" style="height: 32px; display: block; font-weight: bold;"></td>`, theme.LogoURL)
 	if theme.BrandLogoURL != "" {
-		logoHTML = fmt.Sprintf(`<td style="padding-right: 16px; vertical-align: middle;"><img src="%s" alt="The Outlook" style="height: 20px; display: block; font-weight: bold;"></td>
+		logoHTML = fmt.Sprintf(`<td style="padding-right: 16px; vertical-align: middle;"><img src="%s" alt="The Outlook" style="height: 32px; display: block; font-weight: bold;"></td>
                 <td style="vertical-align: middle;"><img src="%s" alt="" style="height: 32px; display: block;"></td>`, theme.LogoURL, theme.BrandLogoURL)
 	}
 
@@ -244,7 +252,7 @@ func wrapRSVPEmailHTML(content string, theme EmailTheme) string {
 
     <div style="max-width: 600px; margin: 0 auto; background: %s;">
         <!-- Logos -->
-        <div style="padding: 32px 32px 24px 32px;">
+        <div style="padding: 20px 32px 16px 32px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
                 %s
             </tr></table>
