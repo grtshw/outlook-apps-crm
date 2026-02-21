@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { Contact, ContactLink, Activity, DietaryRequirement, AccessibilityRequirement } from '@/lib/pocketbase'
+import type { Contact, ContactLink, Activity, DietaryRequirement, AccessibilityRequirement, ContactDomain } from '@/lib/pocketbase'
 import { createContact, updateContact, deleteContact, getContactActivities, getOrganisations, createOrganisation, getContacts, createContactLink, deleteContactLink } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import {
@@ -346,6 +346,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
     location: '',
     status: 'active' as Contact['status'],
     organisation: '',
+    domain: [] as ContactDomain[],
     degrees: '' as Contact['degrees'] | '',
     relationship: 0,
     notes: '',
@@ -389,6 +390,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         location: contact.location || '',
         status: contact.status || 'active',
         organisation: contact.organisation || '',
+        domain: contact.domain || [],
         degrees: contact.degrees || '',
         relationship: contact.relationship || 0,
         notes: contact.notes || '',
@@ -413,6 +415,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
         location: '',
         status: 'active',
         organisation: '',
+        domain: [],
         degrees: '',
         relationship: 0,
         notes: '',
@@ -571,7 +574,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
           {/* Details section */}
           <SheetSection title="Details">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="first_name">First name *</FieldLabel>
                 <Input
@@ -597,7 +600,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="email">Email *</FieldLabel>
                 <Input
@@ -630,7 +633,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="phone">Phone</FieldLabel>
                 <Input
@@ -653,7 +656,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="job_title">Job title</FieldLabel>
                 <Input
@@ -728,6 +731,29 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
               />
             </div>
 
+            <div>
+              <FieldLabel>Domain</FieldLabel>
+              <div className="flex gap-4 mt-1.5">
+                {(['design', 'product', 'leadership'] as const).map((d) => (
+                  <label key={d} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={formData.domain.includes(d)}
+                      onCheckedChange={(checked) => {
+                        setFormData({
+                          ...formData,
+                          domain: checked
+                            ? [...formData.domain, d]
+                            : formData.domain.filter((v) => v !== d),
+                        })
+                      }}
+                      disabled={!isAdmin}
+                    />
+                    {d.charAt(0).toUpperCase() + d.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Status for new contacts only (existing contacts show it in header) */}
             {isNew && (
               <div>
@@ -753,7 +779,7 @@ export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
 
           {/* Relationship section */}
           <CollapsibleSection title="Relationship" defaultOpen={true}>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel htmlFor="degrees">Connection</FieldLabel>
                 <Select

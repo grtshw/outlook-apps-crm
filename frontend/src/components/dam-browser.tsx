@@ -133,7 +133,7 @@ export function DamBrowser({ open, onOpenChange, onSelect }: DamBrowserProps) {
                 </p>
               )}
               <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {assets.map((asset) => {
                     const isSelected = selected?.id === asset.id
                     return (
