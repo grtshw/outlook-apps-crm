@@ -2,7 +2,30 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import { getClearbitLogoUrl } from '@/lib/logo'
 import type { Organisation } from '@/lib/pocketbase'
+
+function ComboboxOrgIcon({ org, className, textSize = 'text-xs' }: { org: Organisation; className: string; textSize?: string }) {
+  const [failed, setFailed] = useState(false)
+  const imgSrc = org.logo_square_url || (!failed && org.website ? getClearbitLogoUrl(org.website) : null)
+
+  if (imgSrc) {
+    return (
+      <img
+        src={imgSrc}
+        alt=""
+        className={cn(className, 'rounded-full object-contain bg-white')}
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <span className={cn(className, 'inline-flex items-center justify-center rounded-full bg-muted text-muted-foreground', textSize)}>
+      {org.name[0]?.toUpperCase()}
+    </span>
+  )
+}
 
 interface OrganisationComboboxProps {
   value: string
@@ -105,17 +128,7 @@ export function OrganisationCombobox({
     return (
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-2 rounded-full border bg-muted/50 py-1 pl-1 pr-3 text-sm">
-          {selectedOrg.logo_square_url ? (
-            <img
-              src={selectedOrg.logo_square_url}
-              alt=""
-              className="size-6 rounded-full object-contain bg-white"
-            />
-          ) : (
-            <span className="inline-flex items-center justify-center size-6 rounded-full bg-muted text-muted-foreground text-xs">
-              {selectedOrg.name[0]?.toUpperCase()}
-            </span>
-          )}
+          <ComboboxOrgIcon org={selectedOrg} className="size-6" />
           <span>{selectedOrg.name}</span>
         </span>
         {!disabled && (
@@ -163,17 +176,7 @@ export function OrganisationCombobox({
               }}
               onMouseEnter={() => setHighlightIndex(index)}
             >
-              {org.logo_square_url ? (
-                <img
-                  src={org.logo_square_url}
-                  alt=""
-                  className="size-5 rounded-full object-contain bg-white"
-                />
-              ) : (
-                <span className="inline-flex items-center justify-center size-5 rounded-full bg-muted text-muted-foreground text-[10px]">
-                  {org.name[0]?.toUpperCase()}
-                </span>
-              )}
+              <ComboboxOrgIcon org={org} className="size-5" textSize="text-[10px]" />
               <span>{org.name}</span>
             </li>
           ))}
