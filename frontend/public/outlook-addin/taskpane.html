@@ -6,12 +6,27 @@
   <title>The Outlook CRM</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <style>
+    @font-face {
+      font-family: 'Monument Grotesk';
+      src: url('/fonts/ABCMonumentGrotesk-Medium.woff2') format('woff2');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Monument Grotesk Mono';
+      src: url('/fonts/ABCMonumentGroteskMono-Light.woff2') format('woff2');
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Monument Grotesk', sans-serif;
       font-size: 13px;
-      color: #333;
-      background: #fafafa;
+      color: #0D0D0D;
+      background: #F8F8F8;
       line-height: 1.4;
     }
     .container { padding: 16px; max-width: 100%; }
@@ -22,10 +37,10 @@
       align-items: center;
       justify-content: space-between;
       padding: 12px 16px;
-      background: #0d0d0d;
+      background: #0D0D0D;
       color: #fff;
     }
-    .header-title { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; }
+    .header-title { font-size: 13px; letter-spacing: 0.5px; }
     .header-btn {
       background: none;
       border: none;
@@ -33,6 +48,7 @@
       cursor: pointer;
       font-size: 12px;
       padding: 4px 8px;
+      font-family: inherit;
     }
     .header-btn:hover { color: #fff; }
 
@@ -42,7 +58,15 @@
     .login-form p { color: #666; font-size: 12px; margin-bottom: 20px; }
 
     /* Form elements */
-    label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500; }
+    label {
+      display: block;
+      font-family: 'Monument Grotesk Mono', monospace;
+      font-size: 10px;
+      color: #666;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
     input, textarea {
       width: 100%;
       padding: 8px 10px;
@@ -53,9 +77,9 @@
       background: #fff;
       transition: border-color 0.15s;
     }
-    input:focus, textarea:focus { outline: none; border-color: #0078d4; }
+    input:focus, textarea:focus { outline: none; border-color: #266A49; }
     textarea { resize: vertical; min-height: 60px; }
-    .field { margin-bottom: 12px; }
+    .field { margin-bottom: 12px; position: relative; }
 
     .btn {
       display: inline-flex;
@@ -67,17 +91,16 @@
       border-radius: 6px;
       font-size: 13px;
       font-family: inherit;
-      font-weight: 500;
       cursor: pointer;
       transition: background 0.15s;
       width: 100%;
     }
-    .btn-primary { background: #0078d4; color: #fff; }
-    .btn-primary:hover { background: #006cbe; }
+    .btn-primary { background: #266A49; color: #fff; }
+    .btn-primary:hover { background: #1E5539; }
     .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
     .btn-microsoft {
       background: #fff;
-      color: #333;
+      color: #0D0D0D;
       border: 1px solid #ddd;
       display: inline-flex;
       align-items: center;
@@ -106,7 +129,7 @@
       width: 100%;
       background: none;
       border: none;
-      color: #0078d4;
+      color: #266A49;
       font-size: 12px;
       cursor: pointer;
       padding: 4px 0;
@@ -114,15 +137,25 @@
       text-align: center;
     }
     .password-toggle:hover { text-decoration: underline; }
-    .btn-secondary { background: #f0f0f0; color: #333; }
+    .btn-secondary { background: #f0f0f0; color: #0D0D0D; }
     .btn-secondary:hover { background: #e4e4e4; }
     .btn-outline {
       background: none;
       border: 1px solid #ddd;
-      color: #333;
+      color: #0D0D0D;
     }
     .btn-outline:hover { background: #f5f5f5; }
     .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
+    .btn-link {
+      background: none;
+      border: none;
+      color: #266A49;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0;
+      font-family: inherit;
+    }
+    .btn-link:hover { text-decoration: underline; }
 
     /* Contact card */
     .contact-card { background: #fff; border-radius: 8px; border: 1px solid #e8e8e8; overflow: hidden; }
@@ -142,13 +175,12 @@
       align-items: center;
       justify-content: center;
       font-size: 15px;
-      font-weight: 600;
       color: #666;
       flex-shrink: 0;
       overflow: hidden;
     }
     .avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .contact-name { font-size: 15px; font-weight: 600; }
+    .contact-name { font-size: 15px; }
     .contact-title { font-size: 12px; color: #666; margin-top: 2px; }
     .contact-body { padding: 12px 16px; }
     .contact-field {
@@ -159,9 +191,17 @@
       border-bottom: 1px solid #f5f5f5;
     }
     .contact-field:last-child { border-bottom: none; }
-    .contact-field-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; min-width: 70px; padding-top: 2px; }
+    .contact-field-label {
+      font-family: 'Monument Grotesk Mono', monospace;
+      font-size: 10px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 70px;
+      padding-top: 2px;
+    }
     .contact-field-value { font-size: 13px; text-align: right; word-break: break-word; flex: 1; margin-left: 8px; }
-    .contact-field-value a { color: #0078d4; text-decoration: none; }
+    .contact-field-value a { color: #266A49; text-decoration: none; }
     .contact-field-value a:hover { text-decoration: underline; }
 
     .contact-actions {
@@ -176,7 +216,6 @@
       padding: 2px 8px;
       border-radius: 10px;
       font-size: 11px;
-      font-weight: 500;
     }
     .status-active { background: #e6f4ea; color: #1e7e34; }
     .status-pending { background: #fff3e0; color: #e65100; }
@@ -194,7 +233,7 @@
       width: 24px;
       height: 24px;
       border: 2px solid #e8e8e8;
-      border-top-color: #0078d4;
+      border-top-color: #266A49;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       margin: 0 auto 12px;
@@ -203,7 +242,7 @@
 
     .error-msg {
       background: #fef2f2;
-      color: #dc2626;
+      color: #c1121f;
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 12px;
@@ -223,17 +262,17 @@
       padding: 16px;
       color: #666;
     }
-    .empty-state h3 { font-size: 14px; color: #333; margin-bottom: 4px; }
+    .empty-state h3 { font-size: 14px; color: #0D0D0D; margin-bottom: 4px; }
     .empty-state p { font-size: 12px; margin-bottom: 16px; }
 
     .sender-info {
-      background: #f5f5f5;
+      background: #fff;
+      border: 1px solid #e8e8e8;
       border-radius: 6px;
       padding: 10px 12px;
       margin-bottom: 16px;
       font-size: 12px;
     }
-    .sender-info strong { font-weight: 600; }
 
     .crm-link {
       display: block;
@@ -241,10 +280,131 @@
       margin-top: 12px;
       font-size: 12px;
     }
-    .crm-link a { color: #0078d4; text-decoration: none; }
+    .crm-link a { color: #266A49; text-decoration: none; }
     .crm-link a:hover { text-decoration: underline; }
 
     .hidden { display: none !important; }
+
+    /* Typeahead */
+    .typeahead-wrap { position: relative; }
+    .typeahead-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .typeahead-item {
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .typeahead-item:last-child { border-bottom: none; }
+    .typeahead-item:hover { background: #F8F8F8; }
+    .typeahead-item-name { color: #0D0D0D; }
+    .typeahead-item-detail { color: #999; font-size: 11px; margin-top: 1px; }
+    .typeahead-create {
+      padding: 8px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #266A49;
+      border-top: 1px solid #e8e8e8;
+    }
+    .typeahead-create:hover { background: #F8F8F8; }
+
+    /* Section divider */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0 12px;
+      font-family: 'Monument Grotesk Mono', monospace;
+      font-size: 10px;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .section-divider::before,
+    .section-divider::after {
+      content: '';
+      flex: 1;
+      border-top: 1px solid #e8e8e8;
+    }
+
+    /* Link to existing */
+    .link-section { margin-top: 8px; }
+    .link-results { margin-top: 8px; }
+    .link-result-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .link-result-item:hover { border-color: #266A49; }
+    .link-result-name { font-size: 13px; }
+    .link-result-detail { font-size: 11px; color: #999; }
+
+    /* Org badge */
+    .org-selected {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e6f4ea;
+      color: #266A49;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .org-selected button {
+      background: none;
+      border: none;
+      color: #266A49;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    /* Tab toggle */
+    .tab-toggle {
+      display: flex;
+      gap: 0;
+      margin-bottom: 16px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .tab-toggle button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      color: #666;
+    }
+    .tab-toggle button.active {
+      background: #266A49;
+      color: #fff;
+    }
+    .tab-toggle button:not(:last-child) {
+      border-right: 1px solid #ddd;
+    }
   </style>
 </head>
 <body>
@@ -331,9 +491,26 @@
     <p id="notFoundEmail"></p>
   </div>
   <div class="sender-info" id="senderInfo"></div>
-  <div id="createError" class="error-msg hidden"></div>
-  <div id="createForm"></div>
-  <button class="btn btn-primary" id="createBtn" onclick="createContact()">Add to CRM</button>
+  <div id="notFoundTabs">
+    <div class="tab-toggle">
+      <button class="active" onclick="showNotFoundTab('create')">Add to CRM</button>
+      <button onclick="showNotFoundTab('link')">Link to existing</button>
+    </div>
+  </div>
+  <div id="createSection">
+    <div id="createError" class="error-msg hidden"></div>
+    <div id="createForm"></div>
+    <button class="btn btn-primary" id="createBtn" onclick="createContact()">Add to CRM</button>
+  </div>
+  <div id="linkSection" class="link-section hidden">
+    <div id="linkError" class="error-msg hidden"></div>
+    <div id="linkSuccess" class="success-msg hidden"></div>
+    <div class="field">
+      <label>Search contacts</label>
+      <input type="text" id="linkSearch" placeholder="Search by name or email..." oninput="debouncedSearchContacts()">
+    </div>
+    <div id="linkResults" class="link-results"></div>
+  </div>
 </div>
 
 <!-- No Office context (browser testing) -->
@@ -345,22 +522,27 @@
 </div>
 
 <script>
-const API_BASE = window.location.origin;
-const TOKEN_KEY = 'crm_pb_token';
-const USER_KEY = 'crm_pb_user';
+var API_BASE = window.location.origin;
+var TOKEN_KEY = 'crm_pb_token';
+var USER_KEY = 'crm_pb_user';
 
-let currentContact = null;
-let senderEmail = '';
-let senderName = '';
-let isOfficeReady = false;
+var currentContact = null;
+var senderEmail = '';
+var senderName = '';
+var isOfficeReady = false;
+var parsedSignature = null;
 
 // ── Office.js init ──────────────────────────────────────────────────────
-Office.onReady(function(info) {
+function officeReady(source) {
+  if (isOfficeReady) return;
   isOfficeReady = true;
-  if (info.host === Office.HostType.Outlook) {
+
+  var hasMailbox = false;
+  try { hasMailbox = !!(Office.context && Office.context.mailbox); } catch(e) {}
+
+  if (hasMailbox) {
     checkAuth();
   } else {
-    // Office loaded but not Outlook (e.g. browser, other host)
     if (getToken()) {
       show('noOfficeView');
       document.getElementById('logoutBtn').classList.remove('hidden');
@@ -368,11 +550,26 @@ Office.onReady(function(info) {
       show('loginView');
     }
   }
-});
+}
 
-// Fallback: if Office.js doesn't initialise at all (plain browser testing)
-setTimeout(function() {
-  if (!isOfficeReady) {
+try {
+  Office.initialize = function() { officeReady('initialize'); };
+  Office.onReady(function() { officeReady('onReady'); });
+} catch(e) {}
+
+var pollCount = 0;
+var pollInterval = setInterval(function() {
+  pollCount++;
+  if (isOfficeReady) { clearInterval(pollInterval); return; }
+
+  var hasMailbox = false;
+  try { hasMailbox = !!(Office.context && Office.context.mailbox); } catch(e) {}
+
+  if (hasMailbox) {
+    clearInterval(pollInterval);
+    officeReady('poll');
+  } else if (pollCount >= 10) {
+    clearInterval(pollInterval);
     if (getToken()) {
       show('noOfficeView');
       document.getElementById('logoutBtn').classList.remove('hidden');
@@ -380,7 +577,7 @@ setTimeout(function() {
       show('loginView');
     }
   }
-}, 3000);
+}, 500);
 
 // ── Auth ────────────────────────────────────────────────────────────────
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
@@ -404,12 +601,11 @@ function loginWithMicrosoft() {
   errEl.classList.add('hidden');
   btn.disabled = true;
   btn.querySelector('svg').style.display = 'none';
-  btn.insertAdjacentHTML('afterbegin', '<span class="sso-spinner" style="width:16px;height:16px;border:2px solid #e8e8e8;border-top-color:#0078d4;border-radius:50%;animation:spin 0.6s linear infinite;display:inline-block;"></span>');
+  btn.insertAdjacentHTML('afterbegin', '<span class="sso-spinner" style="width:16px;height:16px;border:2px solid #e8e8e8;border-top-color:#266A49;border-radius:50%;animation:spin 0.6s linear infinite;display:inline-block;"></span>');
 
   var dialogUrl = API_BASE + '/outlook-addin/oauth-callback.html';
 
   Office.context.ui.displayDialogAsync(dialogUrl, { height: 60, width: 40 }, function(result) {
-    // Remove spinner
     var spinner = btn.querySelector('.sso-spinner');
     if (spinner) spinner.remove();
     var svg = btn.querySelector('svg');
@@ -444,12 +640,8 @@ function loginWithMicrosoft() {
 
     dialog.addEventHandler(Office.EventType.DialogEventReceived, function(arg) {
       btn.disabled = false;
-      // User closed the dialog without completing sign-in
-      if (arg.error) {
-        // 12006 = dialog closed by user — not an error
-        if (arg.error !== 12006) {
-          showError(errEl, 'Sign-in was cancelled.');
-        }
+      if (arg.error && arg.error !== 12006) {
+        showError(errEl, 'Sign-in was cancelled.');
       }
     });
   });
@@ -459,7 +651,6 @@ function checkAuth() {
   var token = getToken();
   if (!token) { show('loginView'); return; }
 
-  // Validate token with a lightweight request
   fetch(API_BASE + '/api/contacts?search=__ping__&perPage=1', {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(function(r) {
@@ -525,9 +716,14 @@ function logout() {
 function lookupSender() {
   if (!isOfficeReady) return;
 
-  var item = Office.context.mailbox.item;
-  senderEmail = item.from.emailAddress;
-  senderName = item.from.displayName || '';
+  try {
+    var item = Office.context.mailbox.item;
+    senderEmail = item.from.emailAddress;
+    senderName = item.from.displayName || '';
+  } catch(e) {
+    show('noOfficeView');
+    return;
+  }
 
   if (!senderEmail) {
     show('noOfficeView');
@@ -559,17 +755,338 @@ function lookupSender() {
     show('notFoundView');
   });
 
-  // Listen for email changes
   try {
     Office.context.mailbox.addHandlerAsync(Office.EventType.ItemChanged, function() {
       lookupSender();
     });
-  } catch(e) { /* ItemChanged not supported in all clients */ }
+  } catch(e) {}
+}
+
+// ── Email signature parser ──────────────────────────────────────────────
+function parseSignature(bodyText) {
+  var result = { phone: '', jobTitle: '', company: '', linkedin: '', website: '' };
+  if (!bodyText) return result;
+
+  var lines = bodyText.split(/\r?\n/);
+
+  // Find signature start: look for separator or last block of short lines
+  var sigStart = -1;
+  for (var i = lines.length - 1; i >= 0; i--) {
+    var line = lines[i].trim();
+    if (line === '--' || line === '---' || /^[-_=]{3,}$/.test(line)) {
+      sigStart = i + 1;
+      break;
+    }
+  }
+
+  // If no separator found, take the last 15 non-empty lines
+  if (sigStart === -1) {
+    var nonEmpty = [];
+    for (var i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim()) nonEmpty.push(i);
+      if (nonEmpty.length >= 15) break;
+    }
+    sigStart = nonEmpty.length > 0 ? nonEmpty[nonEmpty.length - 1] : 0;
+  }
+
+  var sigLines = lines.slice(sigStart);
+  var sigText = sigLines.join('\n');
+
+  // Phone: international/AU formats
+  var phoneMatch = sigText.match(/(?:\+\d[\d\s\-().]{6,14}\d|\(0\d\)\s*\d[\d\s\-]{5,10}\d|0\d[\d\s\-]{7,10}\d)/);
+  if (phoneMatch) result.phone = phoneMatch[0].trim();
+
+  // LinkedIn URL
+  var linkedinMatch = sigText.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+\/?/i);
+  if (linkedinMatch) {
+    result.linkedin = linkedinMatch[0];
+    if (!/^https?:\/\//i.test(result.linkedin)) result.linkedin = 'https://' + result.linkedin;
+  }
+
+  // Website: URLs that aren't social media
+  var urlRegex = /https?:\/\/[^\s<>"']+/gi;
+  var urls = sigText.match(urlRegex) || [];
+  for (var i = 0; i < urls.length; i++) {
+    var u = urls[i].toLowerCase();
+    if (u.indexOf('linkedin.com') === -1 && u.indexOf('twitter.com') === -1 &&
+        u.indexOf('facebook.com') === -1 && u.indexOf('instagram.com') === -1 &&
+        u.indexOf('x.com') === -1) {
+      result.website = urls[i].replace(/[.,;:)\]]+$/, '');
+      break;
+    }
+  }
+
+  // Job title and company: look for short lines near the sender name
+  var senderFirst = (senderName || '').split(/\s+/)[0].toLowerCase();
+  var titleCandidates = [];
+  for (var i = 0; i < sigLines.length; i++) {
+    var line = sigLines[i].trim();
+    if (!line || line.length > 60 || line.length < 2) continue;
+    // Skip lines that look like email, phone, or URL
+    if (/@/.test(line) || /https?:\/\//.test(line)) continue;
+    if (/^[\d\s\-+().]+$/.test(line)) continue;
+    // Skip the sender's own name line
+    if (senderFirst && line.toLowerCase().indexOf(senderFirst) !== -1) continue;
+    titleCandidates.push(line);
+  }
+
+  // First candidate is likely job title, second is company
+  if (titleCandidates.length >= 2) {
+    // If line contains a | separator, split into title | company
+    var firstLine = titleCandidates[0];
+    if (firstLine.indexOf('|') !== -1) {
+      var parts = firstLine.split('|');
+      result.jobTitle = parts[0].trim();
+      result.company = parts[1].trim();
+    } else if (firstLine.indexOf(',') !== -1 && firstLine.split(',').length === 2) {
+      var parts = firstLine.split(',');
+      result.jobTitle = parts[0].trim();
+      result.company = parts[1].trim();
+    } else {
+      result.jobTitle = titleCandidates[0];
+      result.company = titleCandidates[1];
+    }
+  } else if (titleCandidates.length === 1) {
+    result.jobTitle = titleCandidates[0];
+  }
+
+  return result;
+}
+
+function getEmailBody(callback) {
+  try {
+    Office.context.mailbox.item.body.getAsync(
+      Office.CoercionType.Text,
+      function(asyncResult) {
+        if (asyncResult.status === Office.AsyncResultStatus.Succeeded) {
+          callback(asyncResult.value);
+        } else {
+          callback('');
+        }
+      }
+    );
+  } catch(e) {
+    callback('');
+  }
+}
+
+// ── Organisation search ─────────────────────────────────────────────────
+var orgSearchTimer = null;
+
+function searchOrganisations(query, callback) {
+  if (!query || query.length < 2) { callback([]); return; }
+
+  fetch(API_BASE + '/api/organisations?search=' + encodeURIComponent(query) + '&perPage=5', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    callback(data.items || []);
+  })
+  .catch(function() { callback([]); });
+}
+
+function renderOrgTypeahead(inputId, hiddenId, selectedId, prefill) {
+  var html = '<div class="field typeahead-wrap">';
+  html += '<label>Organisation</label>';
+  html += '<input type="text" id="' + inputId + '" placeholder="Search organisations..." value="' + esc(prefill || '') + '" autocomplete="off">';
+  html += '<input type="hidden" id="' + hiddenId + '">';
+  html += '<div id="' + inputId + '_dropdown" class="typeahead-dropdown hidden"></div>';
+  html += '<div id="' + selectedId + '" class="hidden"></div>';
+  html += '</div>';
+  return html;
+}
+
+function setupOrgTypeahead(inputId, hiddenId, selectedId, preSelectedId, preSelectedName) {
+  var input = document.getElementById(inputId);
+  var hidden = document.getElementById(hiddenId);
+  var dropdown = document.getElementById(inputId + '_dropdown');
+  var selectedEl = document.getElementById(selectedId);
+
+  if (preSelectedId && preSelectedName) {
+    selectOrg(preSelectedId, preSelectedName);
+  }
+
+  function selectOrg(orgId, orgName) {
+    hidden.value = orgId;
+    input.value = '';
+    input.classList.add('hidden');
+    dropdown.classList.add('hidden');
+    selectedEl.innerHTML = '<span class="org-selected">' + esc(orgName) +
+      ' <button onclick="clearOrg(\'' + inputId + '\',\'' + hiddenId + '\',\'' + selectedId + '\')" title="Remove">&times;</button></span>';
+    selectedEl.classList.remove('hidden');
+  }
+
+  input.addEventListener('input', function() {
+    clearTimeout(orgSearchTimer);
+    var query = input.value.trim();
+    if (query.length < 2) { dropdown.classList.add('hidden'); return; }
+
+    orgSearchTimer = setTimeout(function() {
+      searchOrganisations(query, function(orgs) {
+        var html = '';
+        for (var i = 0; i < orgs.length; i++) {
+          html += '<div class="typeahead-item" data-id="' + esc(orgs[i].id) + '" data-name="' + esc(orgs[i].name) + '">';
+          html += '<div class="typeahead-item-name">' + esc(orgs[i].name) + '</div>';
+          if (orgs[i].industry) html += '<div class="typeahead-item-detail">' + esc(orgs[i].industry) + '</div>';
+          html += '</div>';
+        }
+        html += '<div class="typeahead-create" data-action="create">+ Create "' + esc(query) + '"</div>';
+        dropdown.innerHTML = html;
+        dropdown.classList.remove('hidden');
+
+        // Bind click handlers
+        var items = dropdown.querySelectorAll('.typeahead-item');
+        for (var j = 0; j < items.length; j++) {
+          items[j].addEventListener('click', function() {
+            selectOrg(this.getAttribute('data-id'), this.getAttribute('data-name'));
+          });
+        }
+        dropdown.querySelector('.typeahead-create').addEventListener('click', function() {
+          createQuickOrg(query, function(org) {
+            if (org) selectOrg(org.id, org.name);
+          });
+        });
+      });
+    }, 300);
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.typeahead-wrap')) {
+      dropdown.classList.add('hidden');
+    }
+  });
+}
+
+function clearOrg(inputId, hiddenId, selectedId) {
+  document.getElementById(hiddenId).value = '';
+  document.getElementById(inputId).classList.remove('hidden');
+  document.getElementById(inputId).value = '';
+  document.getElementById(selectedId).classList.add('hidden');
+  document.getElementById(selectedId).innerHTML = '';
+}
+
+function createQuickOrg(name, callback) {
+  fetch(API_BASE + '/api/organisations', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + getToken(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ name: name })
+  })
+  .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+  .then(function(res) {
+    if (res.ok) {
+      callback(res.data);
+    } else {
+      callback(null);
+    }
+  })
+  .catch(function() { callback(null); });
+}
+
+// ── Contact search (for link to existing) ───────────────────────────────
+var linkSearchTimer = null;
+
+function debouncedSearchContacts() {
+  clearTimeout(linkSearchTimer);
+  var query = document.getElementById('linkSearch').value.trim();
+  if (query.length < 2) {
+    document.getElementById('linkResults').innerHTML = '';
+    return;
+  }
+  linkSearchTimer = setTimeout(function() {
+    searchContacts(query);
+  }, 300);
+}
+
+function searchContacts(query) {
+  var resultsEl = document.getElementById('linkResults');
+  resultsEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  fetch(API_BASE + '/api/contacts?search=' + encodeURIComponent(query) + '&perPage=5', {
+    headers: { 'Authorization': 'Bearer ' + getToken() }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var items = data.items || [];
+    if (items.length === 0) {
+      resultsEl.innerHTML = '<p style="font-size:12px;color:#999;text-align:center;">No contacts found</p>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+      var c = items[i];
+      var name = c.name || ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
+      var detail = [c.email, c.organisation_name].filter(Boolean).join(' · ');
+      html += '<div class="link-result-item" onclick="confirmLink(\'' + esc(c.id) + '\', \'' + esc(name) + '\')">';
+      html += '<div><div class="link-result-name">' + esc(name) + '</div>';
+      if (detail) html += '<div class="link-result-detail">' + esc(detail) + '</div>';
+      html += '</div></div>';
+    }
+    resultsEl.innerHTML = html;
+  })
+  .catch(function() {
+    resultsEl.innerHTML = '<p style="font-size:12px;color:#c1121f;">Search failed</p>';
+  });
+}
+
+function confirmLink(contactId, contactName) {
+  var errEl = document.getElementById('linkError');
+  var successEl = document.getElementById('linkSuccess');
+  errEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  if (!confirm('Add ' + senderEmail + ' as a secondary email for ' + contactName + '?')) return;
+
+  linkToExisting(contactId);
+}
+
+function linkToExisting(contactId) {
+  var errEl = document.getElementById('linkError');
+  var successEl = document.getElementById('linkSuccess');
+
+  fetch(API_BASE + '/api/contacts/' + contactId, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': 'Bearer ' + getToken(),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ personal_email: senderEmail })
+  })
+  .then(function(r) {
+    if (r.status === 401) { logout(); return null; }
+    return r.json().then(function(d) { return { ok: r.ok, data: d }; });
+  })
+  .then(function(res) {
+    if (!res) return;
+    if (!res.ok) {
+      showError(errEl, res.data.error || res.data.message || 'Failed to link contact.');
+      return;
+    }
+    currentContact = res.data;
+    renderContact(currentContact);
+    show('contactView');
+  })
+  .catch(function() {
+    showError(errEl, 'Connection failed.');
+  });
+}
+
+// ── Not found tabs ──────────────────────────────────────────────────────
+function showNotFoundTab(tab) {
+  var buttons = document.querySelectorAll('#notFoundTabs .tab-toggle button');
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].classList.toggle('active', i === (tab === 'create' ? 0 : 1));
+  }
+  document.getElementById('createSection').classList.toggle('hidden', tab !== 'create');
+  document.getElementById('linkSection').classList.toggle('hidden', tab !== 'link');
 }
 
 // ── Render contact ──────────────────────────────────────────────────────
 function renderContact(c) {
-  // Avatar
   var avatarEl = document.getElementById('contactAvatar');
   var avatarUrl = c.avatar_small_url || c.avatar_thumb_url || c.avatar_url;
   if (avatarUrl) {
@@ -585,12 +1102,16 @@ function renderContact(c) {
   if (c.organisation_name) titleParts.push(c.organisation_name);
   document.getElementById('contactTitle').textContent = titleParts.join(' at ');
 
-  // Fields
   var fields = [];
   if (c.email) fields.push({ label: 'Email', value: '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' });
+  if (c.personal_email) fields.push({ label: 'Personal', value: '<a href="mailto:' + esc(c.personal_email) + '">' + esc(c.personal_email) + '</a>' });
   if (c.phone) fields.push({ label: 'Phone', value: esc(c.phone) });
+  if (c.mobile) fields.push({ label: 'Mobile', value: esc(c.mobile) });
+  if (c.organisation_name) fields.push({ label: 'Org', value: esc(c.organisation_name) });
   if (c.linkedin) fields.push({ label: 'LinkedIn', value: '<a href="' + esc(c.linkedin) + '" target="_blank">Profile</a>' });
   if (c.location) fields.push({ label: 'Location', value: esc(c.location) });
+  if (c.degrees) fields.push({ label: 'Connection', value: esc(c.degrees) });
+  if (c.relationship) fields.push({ label: 'Relationship', value: renderStars(c.relationship) });
 
   var statusClass = c.status === 'active' ? 'status-active' : c.status === 'pending' ? 'status-pending' : 'status-inactive';
   fields.push({ label: 'Status', value: '<span class="status-badge ' + statusClass + '">' + esc(c.status || 'unknown') + '</span>' });
@@ -608,7 +1129,7 @@ function renderContact(c) {
 
   document.getElementById('crmLink').href = API_BASE + '/contacts/' + c.id;
   document.getElementById('contactMeta').innerHTML =
-    '<span style="color:#999;font-size:11px;">Source: ' + esc(c.source || '—') + ' &middot; Added: ' + formatDate(c.created) + '</span>';
+    '<span style="color:#999;font-size:11px;">Source: ' + esc(c.source || '\u2014') + ' \u00b7 Added: ' + formatDate(c.created) + '</span>';
 }
 
 // ── Edit contact ────────────────────────────────────────────────────────
@@ -619,14 +1140,24 @@ function startEdit() {
   var html = '';
   html += fieldInput('Job title', 'edit_job_title', c.job_title || '');
   html += fieldInput('Phone', 'edit_phone', c.phone || '');
+  html += fieldInput('Mobile', 'edit_mobile', c.mobile || '');
   html += fieldInput('Location', 'edit_location', c.location || '');
   html += fieldInput('LinkedIn', 'edit_linkedin', c.linkedin || '');
+  html += renderOrgTypeahead('edit_org_search', 'edit_organisation_id', 'edit_org_selected', '');
+  var degreesOptions = [{ value: '', label: 'None' }, { value: '1st', label: '1st' }, { value: '2nd', label: '2nd' }, { value: '3rd', label: '3rd' }];
+  html += fieldSelect('Connection', 'edit_degrees', c.degrees || '', degreesOptions);
+  html += fieldStarRating('Relationship', 'edit_relationship', c.relationship || 0);
   html += '<div class="field"><label>Notes</label><textarea id="edit_notes" rows="3">' + esc(c.notes || '') + '</textarea></div>';
 
   document.getElementById('editForm').innerHTML = html;
   document.getElementById('editError').classList.add('hidden');
   document.getElementById('editSuccess').classList.add('hidden');
   show('editView');
+
+  // Setup org typeahead and star rating after DOM is ready
+  setupOrgTypeahead('edit_org_search', 'edit_organisation_id', 'edit_org_selected',
+    c.organisation || '', c.organisation_name || '');
+  setupStarRating('edit_relationship');
 }
 
 function cancelEdit() {
@@ -641,10 +1172,16 @@ function saveEdit() {
   var payload = {
     job_title: document.getElementById('edit_job_title').value.trim(),
     phone: document.getElementById('edit_phone').value.trim(),
+    mobile: document.getElementById('edit_mobile').value.trim(),
     location: document.getElementById('edit_location').value.trim(),
     linkedin: document.getElementById('edit_linkedin').value.trim(),
+    degrees: document.getElementById('edit_degrees').value,
+    relationship: parseInt(document.getElementById('edit_relationship').value) || 0,
     notes: document.getElementById('edit_notes').value.trim()
   };
+
+  var orgId = document.getElementById('edit_organisation_id').value;
+  if (orgId) payload.organisation = orgId;
 
   btn.disabled = true;
   btn.textContent = 'Saving...';
@@ -668,10 +1205,9 @@ function saveEdit() {
     btn.textContent = 'Save';
     if (!res) return;
     if (!res.ok) {
-      showError(errEl, res.data.message || 'Failed to update contact.');
+      showError(errEl, res.data.error || res.data.message || 'Failed to update contact.');
       return;
     }
-    // Refresh contact data
     currentContact = Object.assign(currentContact, res.data);
     renderContact(currentContact);
     show('contactView');
@@ -691,15 +1227,37 @@ function renderNotFound() {
   document.getElementById('senderInfo').innerHTML =
     '<strong>' + esc(senderName || senderEmail) + '</strong><br>' + esc(senderEmail);
 
+  // Reset tabs
+  showNotFoundTab('create');
+
+  // Parse email signature for pre-fill
+  getEmailBody(function(bodyText) {
+    parsedSignature = parseSignature(bodyText);
+    renderCreateForm(parts, parsedSignature);
+  });
+
+  // Render form immediately with blank extra fields, update when signature parsed
+  renderCreateForm(parts, null);
+}
+
+function renderCreateForm(parts, sig) {
+  var s = sig || { phone: '', jobTitle: '', company: '', linkedin: '', website: '' };
+
   var html = '';
   html += fieldInput('First name', 'create_first_name', parts.first);
   html += fieldInput('Last name', 'create_last_name', parts.last);
   html += fieldInput('Email', 'create_email', senderEmail, true);
-  html += fieldInput('Job title', 'create_job_title', '');
-  html += fieldInput('Phone', 'create_phone', '');
+  html += fieldInput('Job title', 'create_job_title', s.jobTitle || '');
+  html += fieldInput('Phone', 'create_phone', s.phone || '');
+  html += fieldInput('Location', 'create_location', '');
+  html += fieldInput('LinkedIn', 'create_linkedin', s.linkedin || '');
+  html += renderOrgTypeahead('create_org_search', 'create_organisation_id', 'create_org_selected', s.company || '');
 
   document.getElementById('createForm').innerHTML = html;
   document.getElementById('createError').classList.add('hidden');
+
+  // Setup org typeahead
+  setupOrgTypeahead('create_org_search', 'create_organisation_id', 'create_org_selected', '', '');
 }
 
 function createContact() {
@@ -719,9 +1277,14 @@ function createContact() {
     email: email,
     job_title: document.getElementById('create_job_title').value.trim(),
     phone: document.getElementById('create_phone').value.trim(),
-    source: 'outlook',
+    location: document.getElementById('create_location').value.trim(),
+    linkedin: document.getElementById('create_linkedin').value.trim(),
+    source: 'outlook-addin',
     status: 'active'
   };
+
+  var orgId = document.getElementById('create_organisation_id').value;
+  if (orgId) payload.organisation = orgId;
 
   btn.disabled = true;
   btn.textContent = 'Adding...';
@@ -744,10 +1307,9 @@ function createContact() {
     btn.textContent = 'Add to CRM';
     if (!res) return;
     if (!res.ok) {
-      showError(errEl, res.data.message || 'Failed to create contact.');
+      showError(errEl, res.data.error || res.data.message || 'Failed to create contact.');
       return;
     }
-    // Show the new contact
     currentContact = res.data;
     renderContact(currentContact);
     show('contactView');
@@ -794,7 +1356,7 @@ function parseName(displayName) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—';
+  if (!dateStr) return '\u2014';
   try {
     var d = new Date(dateStr);
     return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -804,6 +1366,51 @@ function formatDate(dateStr) {
 function fieldInput(label, id, value, readonly) {
   return '<div class="field"><label>' + label + '</label>' +
     '<input id="' + id + '" value="' + esc(value) + '"' + (readonly ? ' readonly style="background:#f5f5f5;color:#666;"' : '') + '></div>';
+}
+
+function renderStars(count) {
+  var html = '';
+  for (var i = 1; i <= 5; i++) {
+    html += '<span style="color:' + (i <= count ? '#F59E0B' : '#ddd') + ';font-size:14px;">&#9733;</span>';
+  }
+  return html;
+}
+
+function fieldSelect(label, id, value, options) {
+  var html = '<div class="field"><label>' + label + '</label><select id="' + id + '" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-family:inherit;background:#fff;">';
+  for (var i = 0; i < options.length; i++) {
+    var opt = options[i];
+    html += '<option value="' + esc(opt.value) + '"' + (opt.value === value ? ' selected' : '') + '>' + esc(opt.label) + '</option>';
+  }
+  html += '</select></div>';
+  return html;
+}
+
+function fieldStarRating(label, id, value) {
+  var html = '<div class="field"><label>' + label + '</label><div id="' + id + '_wrap" style="display:flex;gap:4px;">';
+  for (var i = 1; i <= 5; i++) {
+    html += '<span class="star-btn" data-value="' + i + '" style="cursor:pointer;font-size:20px;color:' + (i <= value ? '#F59E0B' : '#ddd') + ';">&#9733;</span>';
+  }
+  html += '</div><input type="hidden" id="' + id + '" value="' + (value || 0) + '"></div>';
+  return html;
+}
+
+function setupStarRating(id) {
+  var wrap = document.getElementById(id + '_wrap');
+  var hidden = document.getElementById(id);
+  if (!wrap) return;
+  var stars = wrap.querySelectorAll('.star-btn');
+  for (var i = 0; i < stars.length; i++) {
+    stars[i].addEventListener('click', function() {
+      var val = parseInt(this.getAttribute('data-value'));
+      // Toggle off if clicking the same value
+      if (parseInt(hidden.value) === val) val = 0;
+      hidden.value = val;
+      for (var j = 0; j < stars.length; j++) {
+        stars[j].style.color = (j + 1) <= val ? '#F59E0B' : '#ddd';
+      }
+    });
+  }
 }
 </script>
 </body>
