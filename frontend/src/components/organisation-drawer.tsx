@@ -28,8 +28,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Trash2, ExternalLink, Building2, ChevronDown } from 'lucide-react'
+import { Trash2, ExternalLink, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { OrgLogo } from '@/components/org-logo'
+import { guessWebsiteUrls } from '@/lib/logo'
 
 interface OrganisationDrawerProps {
   open: boolean
@@ -213,17 +215,16 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
           {/* Header with logo for existing organisations */}
           {!isNew && (
             <div className="flex items-center gap-4 pb-2">
-              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-                {organisation?.logo_square_url || organisation?.logo_standard_url ? (
-                  <img
-                    src={organisation.logo_square_url || organisation.logo_standard_url}
-                    alt={organisation.name}
-                    className="max-w-full max-h-full object-contain p-1"
-                  />
-                ) : (
-                  <Building2 className="w-8 h-8 text-muted-foreground" />
-                )}
-              </div>
+              <OrgLogo
+                org={{
+                  ...organisation!,
+                  website: formData.website || organisation?.website || '',
+                }}
+                size={64}
+                iconSize={32}
+                rounded="rounded-lg"
+                className="p-1"
+              />
               <div>
                 <p className="text-lg">{organisation?.name}</p>
                 {organisation?.website && (
@@ -372,6 +373,25 @@ export function OrganisationDrawer({ open, onClose, organisation }: Organisation
                   </Button>
                 )}
               </div>
+              {!formData.website && formData.name && isAdmin && (() => {
+                const suggestions = guessWebsiteUrls(formData.name)
+                if (suggestions.length === 0) return null
+                return (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Try:</span>
+                    {suggestions.map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        className="text-primary hover:underline"
+                        onClick={() => setFormData({ ...formData, website: `https://${url}` })}
+                      >
+                        {url}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
             <div>
               <FieldLabel htmlFor="linkedin">LinkedIn</FieldLabel>

@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, ChevronLeft, ChevronRight, Building2, LayoutGrid, List } from 'lucide-react'
+import { Plus, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { OrgLogo } from '@/components/org-logo'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
 import { EntityList } from '@/components/entity-list'
 import { PageHeader } from '@/components/ui/page-header'
@@ -145,17 +146,7 @@ export function OrganisationsPage() {
             label: 'Organisation',
             render: (org: Organisation) => (
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                  {org.logo_square_url || org.logo_standard_url ? (
-                    <img
-                      src={org.logo_square_url || org.logo_standard_url}
-                      alt={org.name}
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  ) : (
-                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
+                <OrgLogo org={org} size={32} iconSize={16} />
                 <span>{org.name}</span>
               </div>
             ),
@@ -187,15 +178,7 @@ export function OrganisationsPage() {
         renderCard={(org) => (
           <CardContent className="flex flex-col items-center text-center">
             <div className="w-full aspect-square flex items-center justify-center mb-3 rounded-lg bg-muted overflow-hidden">
-              {org.logo_square_url || org.logo_standard_url ? (
-                <img
-                  src={org.logo_square_url || org.logo_standard_url}
-                  alt={org.name}
-                  className="max-w-full max-h-full object-contain p-2"
-                />
-              ) : (
-                <Building2 className="w-12 h-12 text-muted-foreground" />
-              )}
+              <OrgLogo org={org} size="full" iconSize={48} className="p-2" />
             </div>
             <p className="text-sm line-clamp-2">{org.name}</p>
             {org.status === 'archived' && (
