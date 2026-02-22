@@ -1371,7 +1371,7 @@ function fieldInput(label, id, value, readonly) {
 function renderStars(count) {
   var html = '';
   for (var i = 1; i <= 5; i++) {
-    html += '<span style="color:' + (i <= count ? '#F59E0B' : '#ddd') + ';font-size:14px;">&#9733;</span>';
+    html += '<span style="color:#0D0D0D;font-size:14px;">' + (i <= count ? '&#9733;' : '&#9734;') + '</span>';
   }
   return html;
 }
@@ -1389,7 +1389,7 @@ function fieldSelect(label, id, value, options) {
 function fieldStarRating(label, id, value) {
   var html = '<div class="field"><label>' + label + '</label><div id="' + id + '_wrap" style="display:flex;gap:4px;">';
   for (var i = 1; i <= 5; i++) {
-    html += '<span class="star-btn" data-value="' + i + '" style="cursor:pointer;font-size:20px;color:' + (i <= value ? '#F59E0B' : '#ddd') + ';">&#9733;</span>';
+    html += '<span class="star-btn" data-value="' + i + '" style="cursor:pointer;font-size:20px;color:#0D0D0D;">' + (i <= value ? '&#9733;' : '&#9734;') + '</span>';
   }
   html += '</div><input type="hidden" id="' + id + '" value="' + (value || 0) + '"></div>';
   return html;
@@ -1407,7 +1407,7 @@ function setupStarRating(id) {
       if (parseInt(hidden.value) === val) val = 0;
       hidden.value = val;
       for (var j = 0; j < stars.length; j++) {
-        stars[j].style.color = (j + 1) <= val ? '#F59E0B' : '#ddd';
+        stars[j].innerHTML = (j + 1) <= val ? '&#9733;' : '&#9734;';
       }
     });
   }
