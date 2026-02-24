@@ -26,12 +26,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { OrganisationCombobox } from '@/components/organisation-combobox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Trash2, ExternalLink, ChevronDown, Presentation, Trophy, Calendar, Image, Mail, Clock, Star, Plus, Link2, X, Search, Loader2, Ticket } from 'lucide-react'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { ContactProfileView } from '@/components/ui/contact-profile-view'
+import type { ContactProfileData } from '@/components/ui/contact-profile-view'
+import { Trash2, ExternalLink, Presentation, Trophy, Calendar, Image, Mail, Clock, Star, Plus, Link2, X, Search, Loader2, Ticket } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DIETARY_OPTIONS: { value: DietaryRequirement; label: string }[] = [
@@ -58,37 +56,6 @@ interface ContactDrawerProps {
   contact: Contact | null
 }
 
-interface CollapsibleSectionProps {
-  title: string
-  children: React.ReactNode
-  defaultOpen?: boolean
-  badge?: number
-}
-
-function CollapsibleSection({ title, children, defaultOpen = true, badge }: CollapsibleSectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="border border-border rounded-lg">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{title}</span>
-            {badge !== undefined && badge > 0 && (
-              <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{badge}</span>
-            )}
-          </div>
-          <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="p-4 pt-0 space-y-4">
-            {children}
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  )
-}
 
 function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
   return (
@@ -326,7 +293,191 @@ function ContactDrawerFooter({
   )
 }
 
+function mapContactToProfile(contact: Contact): ContactProfileData {
+  return {
+    avatar_url: contact.avatar_thumb_url || contact.avatar_small_url || contact.avatar_url || undefined,
+    name: contact.name || [contact.first_name, contact.last_name].filter(Boolean).join(' '),
+    job_title: contact.job_title || undefined,
+    organisation_name: contact.organisation_name || undefined,
+    pronouns: contact.pronouns || undefined,
+    location: contact.location || undefined,
+    email: contact.email || undefined,
+    phone: contact.phone || undefined,
+    bio: contact.bio || undefined,
+    linkedin: contact.linkedin || undefined,
+    instagram: contact.instagram || undefined,
+    website: contact.website || undefined,
+    domain: contact.domain && contact.domain.length > 0 ? contact.domain : undefined,
+    status: contact.status || undefined,
+  }
+}
+
+const CONNECTION_LABELS: Record<string, string> = {
+  '1st': '1st degree',
+  '2nd': '2nd degree',
+  '3rd': '3rd degree',
+}
+
+function ContactViewMode({ contact, open, onClose }: { contact: Contact; open: boolean; onClose: () => void }) {
+  const { isAdmin } = useAuth()
+
+  const { data: activities = [] } = useQuery({
+    queryKey: ['contact-activities', contact.id],
+    queryFn: () => getContactActivities(contact.id),
+    enabled: !!contact.id && open,
+  })
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Contact</SheetTitle>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <ContactProfileView contact={mapContactToProfile(contact)}>
+            {/* Relationship section */}
+            {(contact.degrees || contact.relationship || contact.notes) && (
+              <CollapsibleSection title="Relationship" defaultOpen>
+                <div className="space-y-2 text-sm">
+                  {contact.degrees && (
+                    <p className="text-muted-foreground">
+                      Connection: <span className="text-foreground">{CONNECTION_LABELS[contact.degrees] || contact.degrees}</span>
+                    </p>
+                  )}
+                  {contact.relationship !== undefined && contact.relationship > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">Relationship:</span>
+                      <StarRating value={contact.relationship} onChange={() => {}} disabled />
+                    </div>
+                  )}
+                  {contact.notes && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">Notes</p>
+                      <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: contact.notes }} />
+                    </div>
+                  )}
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {/* Requirements section */}
+            {(
+              (contact.dietary_requirements && contact.dietary_requirements.length > 0) ||
+              contact.dietary_requirements_other ||
+              (contact.accessibility_requirements && contact.accessibility_requirements.length > 0) ||
+              contact.accessibility_requirements_other
+            ) && (
+              <CollapsibleSection title="Requirements" defaultOpen>
+                {((contact.dietary_requirements && contact.dietary_requirements.length > 0) || contact.dietary_requirements_other) && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1.5">Dietary</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(contact.dietary_requirements ?? []).map((req) => {
+                        const option = DIETARY_OPTIONS.find((o) => o.value === req)
+                        return <Badge key={req} variant="secondary">{option?.label || req}</Badge>
+                      })}
+                      {contact.dietary_requirements_other && (
+                        <Badge variant="outline">{contact.dietary_requirements_other}</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {((contact.accessibility_requirements && contact.accessibility_requirements.length > 0) || contact.accessibility_requirements_other) && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1.5">Accessibility</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(contact.accessibility_requirements ?? []).map((req) => {
+                        const option = ACCESSIBILITY_OPTIONS.find((o) => o.value === req)
+                        return <Badge key={req} variant="secondary">{option?.label || req}</Badge>
+                      })}
+                      {contact.accessibility_requirements_other && (
+                        <Badge variant="outline">{contact.accessibility_requirements_other}</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CollapsibleSection>
+            )}
+
+            {/* Linked contacts */}
+            <LinkedContactsSection contact={contact} isAdmin={isAdmin} />
+
+            {/* Activity section */}
+            <CollapsibleSection title="Activity" defaultOpen={false} badge={activities.length}>
+              {activities.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No activities recorded yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {activities.map((activity: Activity) => {
+                    const Icon = getActivityIcon(activity.source_app)
+                    return (
+                      <div key={activity.id} className="flex gap-3 text-sm">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                          <Icon className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p>{activity.title || activity.type}</p>
+                          <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+                            <span>{activity.source_app}</span>
+                            {activity.occurred_at && (
+                              <span>{new Date(activity.occurred_at).toLocaleDateString()}</span>
+                            )}
+                            {activity.source_url && (
+                              <a
+                                href={activity.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                              >
+                                View
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* Created/updated */}
+            <CollapsibleSection title="Created/updated" defaultOpen={false}>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {contact.source && (
+                  <p>
+                    Source: <span className="text-foreground">{contact.source}</span>
+                  </p>
+                )}
+                <p>
+                  Created: <span className="text-foreground">{new Date(contact.created).toLocaleDateString()}</span>
+                </p>
+                <p>
+                  Updated: <span className="text-foreground">{new Date(contact.updated).toLocaleDateString()}</span>
+                </p>
+              </div>
+            </CollapsibleSection>
+          </ContactProfileView>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export function ContactDrawer({ open, onClose, contact }: ContactDrawerProps) {
+  const { isAdmin } = useAuth()
+
+  // Non-admin viewing existing contact: show read-only profile
+  if (!isAdmin && contact?.id) {
+    return <ContactViewMode contact={contact} open={open} onClose={onClose} />
+  }
+
+  // Admin or new contact: show edit form
+  return <ContactEditDrawer open={open} onClose={onClose} contact={contact} />
+}
+
+function ContactEditDrawer({ open, onClose, contact }: ContactDrawerProps) {
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const isNew = !contact?.id
