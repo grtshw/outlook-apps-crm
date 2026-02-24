@@ -458,6 +458,17 @@ DAM_PUBLIC_URL=https://outlook-apps-dam.fly.dev
 PROJECTION_WEBHOOK_SECRET=<shared-secret>
 ```
 
+## Contact Profile Drawer
+
+The contact drawer uses the shared `ContactProfileView` component from `outlook-apps-shadcn` for read-only profile display. **Do not build custom contact profile layouts.**
+
+- **Admin users** see the existing edit form (`ContactEditDrawer`)
+- **Viewer users** see `ContactProfileView` with CRM-specific children: relationship section, requirements (dietary/accessibility badges), linked contacts, activity timeline, and created/updated timestamps
+
+The drawer routes between these modes in `components/contact-drawer.tsx`. The `mapContactToProfile()` helper converts a `Contact` to the shared `ContactProfileData` interface.
+
+To add new sections to the viewer profile, add them as children of `ContactProfileView` inside `ContactViewMode` — do not modify the shared component.
+
 ## Activity Timeline
 
 CRM aggregates activities from all apps via webhooks.
