@@ -376,7 +376,6 @@ e.Router.POST("/api/contacts", handler).BindFunc(utils.RequireAdmin)
 | `activities` | Timeline of events from all apps |
 | `app_settings` | App configuration (required for initAppShell) |
 | `audit_logs` | Security audit trail (admin read-only, no API write/delete) |
-| `projection_consumers` | Webhook endpoint registry for COPE consumers |
 
 ## COPE Provider Pattern
 
@@ -431,8 +430,8 @@ json.Unmarshal(b, &items)
 
 1. Contact/Organisation created/updated in CRM
 2. Webhook hook fires (`webhooks.go`)
-3. Payload sent to all configured consumers (Presentations, DAM, Website)
-4. HMAC-SHA256 signature in `X-Webhook-Signature` header
+3. Payload sent to the Hub (`hub.theoutlook.io`) via `hubClient.Send()`
+4. Hub routes to all configured consumer apps (Presentations, DAM, Website, Awards)
 5. Consumers store in `contact_projections`/`org_projections` collections
 
 ### Projected Statuses
@@ -446,16 +445,13 @@ json.Unmarshal(b, &items)
 ### Environment Variables (Projection)
 
 ```bash
-# Webhook URLs for consumers
-PRESENTATIONS_WEBHOOK_URL=https://outlook-apps-presentations.fly.dev/api/webhooks/contact-projection
-DAM_WEBHOOK_URL=https://outlook-apps-dam.fly.dev/api/webhooks/contact-projection
-WEBSITE_WEBHOOK_URL=https://outlook-apps-website.fly.dev/api/webhooks/contact-projection
+# Hub configuration (all projections route through the hub)
+HUB_ENABLED=true
+HUB_URL=https://hub.theoutlook.io
+HUB_SECRET=<hub-secret>
 
 # DAM integration (for avatar/logo proxy uploads)
 DAM_PUBLIC_URL=https://outlook-apps-dam.fly.dev
-
-# Shared HMAC secret
-PROJECTION_WEBHOOK_SECRET=<shared-secret>
 ```
 
 ## Contact Profile Drawer

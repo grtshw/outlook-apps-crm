@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -63,17 +62,6 @@ func handleProjectionCallback(app core.App, re *core.RequestEvent) error {
 	if err := app.Save(record); err != nil {
 		log.Printf("[ProjectionCallback] Failed to save callback: %v", err)
 		return re.JSON(500, map[string]string{"error": "failed to save callback"})
-	}
-
-	// Update the consumer's last_* fields
-	consumer, err := app.FindFirstRecordByData("projection_consumers", "app_id", payload.Consumer)
-	if err == nil && consumer != nil {
-		consumer.Set("last_consumption", time.Now().UTC())
-		consumer.Set("last_status", payload.Status)
-		consumer.Set("last_message", payload.Message)
-		if err := app.Save(consumer); err != nil {
-			log.Printf("[ProjectionCallback] Warning: failed to update consumer: %v", err)
-		}
 	}
 
 	log.Printf("[ProjectionCallback] Received from %s: %s (projection: %s)", payload.Consumer, payload.Status, payload.ProjectionID)
@@ -210,73 +198,3 @@ func handleProjectionProgress(app core.App, re *core.RequestEvent) error {
 	})
 }
 
-// handleListProjectionConsumers returns all consumers.
-func handleListProjectionConsumers(app core.App, re *core.RequestEvent) error {
-	consumers, err := app.FindRecordsByFilter(
-		"projection_consumers",
-		"",
-		"name",
-		0, 0,
-	)
-	if err != nil {
-		return re.JSON(500, map[string]string{"error": "failed to fetch consumers"})
-	}
-
-	type ConsumerResponse struct {
-		ID              string `json:"id"`
-		Name            string `json:"name"`
-		AppID           string `json:"app_id"`
-		EndpointURL     string `json:"endpoint_url"`
-		Enabled         bool   `json:"enabled"`
-		LastConsumption string `json:"last_consumption,omitempty"`
-		LastStatus      string `json:"last_status,omitempty"`
-		LastMessage     string `json:"last_message,omitempty"`
-	}
-
-	result := make([]ConsumerResponse, len(consumers))
-	for i, c := range consumers {
-		lastConsumption := ""
-		if lc := c.GetDateTime("last_consumption"); !lc.IsZero() {
-			lastConsumption = lc.String()
-		}
-
-		result[i] = ConsumerResponse{
-			ID:              c.Id,
-			Name:            c.GetString("name"),
-			AppID:           c.GetString("app_id"),
-			EndpointURL:     c.GetString("endpoint_url"),
-			Enabled:         c.GetBool("enabled"),
-			LastConsumption: lastConsumption,
-			LastStatus:      c.GetString("last_status"),
-			LastMessage:     c.GetString("last_message"),
-		}
-	}
-
-	return re.JSON(200, map[string]any{"consumers": result})
-}
-
-// handleToggleProjectionConsumer toggles the enabled status of a consumer.
-func handleToggleProjectionConsumer(app core.App, re *core.RequestEvent) error {
-	id := re.Request.PathValue("id")
-	if id == "" {
-		return re.JSON(400, map[string]string{"error": "id is required"})
-	}
-
-	record, err := app.FindRecordById("projection_consumers", id)
-	if err != nil {
-		return re.JSON(404, map[string]string{"error": "consumer not found"})
-	}
-
-	currentEnabled := record.GetBool("enabled")
-	record.Set("enabled", !currentEnabled)
-
-	if err := app.Save(record); err != nil {
-		log.Printf("[ProjectionConsumer] Failed to toggle: %v", err)
-		return re.JSON(500, map[string]string{"error": "failed to toggle consumer"})
-	}
-
-	return re.JSON(200, map[string]any{
-		"message": "Consumer toggled",
-		"enabled": !currentEnabled,
-	})
-}

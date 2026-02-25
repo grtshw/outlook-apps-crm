@@ -210,6 +210,9 @@ func main() {
 		return e.Next()
 	})
 
+	// Initialize hub client (if HUB_ENABLED=true)
+	initHubClient()
+
 	// Register webhook hooks for COPE sync to consumers (Presentations, DAM, Website)
 	registerWebhookHooks(app)
 
@@ -525,14 +528,6 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/api/projections/{id}/progress", func(re *core.RequestEvent) error {
 		return handleProjectionProgress(app, re)
 	}).BindFunc(utils.RequireAuth)
-
-	e.Router.GET("/api/projection-consumers", func(re *core.RequestEvent) error {
-		return handleListProjectionConsumers(app, re)
-	}).BindFunc(utils.RequireAuth)
-
-	e.Router.PATCH("/api/projection-consumers/{id}/toggle", func(re *core.RequestEvent) error {
-		return handleToggleProjectionConsumer(app, re)
-	}).BindFunc(utils.RequireAdmin)
 
 	// Projection callback endpoint (public - consumers report status)
 	e.Router.POST("/api/projections/callback", func(re *core.RequestEvent) error {

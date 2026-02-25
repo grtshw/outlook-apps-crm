@@ -1469,7 +1469,7 @@ func handleProjectAll(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 		"projection_id": result.ProjectionID,
 		"counts":        result.Counts,
 		"total":         result.Total,
-		"consumers":     result.ConsumerNames,
+		"consumers":     []string{"hub"},
 	})
 }
 

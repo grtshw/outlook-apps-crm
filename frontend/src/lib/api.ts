@@ -345,24 +345,6 @@ export async function getProjectionLogs(): Promise<{
   return fetchJSON('/api/projections/logs')
 }
 
-export async function getProjectionConsumers(): Promise<{
-  consumers: Array<{
-    id: string
-    name: string
-    app_id: string
-    enabled: boolean
-    last_consumption?: string
-    last_status?: string
-    last_message?: string
-  }>
-}> {
-  return fetchJSON('/api/projection-consumers')
-}
-
-export async function toggleProjectionConsumer(id: string): Promise<{ message: string; enabled: boolean }> {
-  return fetchJSON(`/api/projection-consumers/${id}/toggle`, { method: 'PATCH' })
-}
-
 export async function getProjectionProgress(projectionId: string): Promise<{
   projection_id: string
   total: number
