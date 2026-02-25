@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commit Preferences
 
-When the user says `commit`, `push`, or `c+p` after making changes, skip verification steps (status, diff, log) and just commit with a sensible message and push. When the user says `deploy` or `d`, just run `fly deploy` without extra checks. Only do full verification for complex or ambiguous situations.
+When the user says `commit`, `push`, or `c+p` after making changes, skip verification steps (status, diff, log) and just commit with a sensible message and push. When the user says `deploy` or `d`, run `git tag -f deploy && git push origin deploy --force` to trigger GitHub Actions deploy. Only do full verification for complex or ambiguous situations.
 
 ## Shared UI Rules (STRICTLY ENFORCE)
 
@@ -65,14 +65,12 @@ go build -o crm ./backend
 Deploys are triggered via GitHub Actions — push a `deploy` tag or use the GitHub Actions UI.
 
 ```bash
-# Deploy from CLI
 git tag -f deploy && git push origin deploy --force
-
-# Or manual fallback
-fly deploy
 ```
 
 The workflow notifies Hub before/after deploy so the outbox pauses webhook delivery during the deploy window. See `.github/workflows/deploy.yml`.
+
+**Do not use `fly deploy` directly** — it bypasses hub deploy-pause notifications, risking missed webhooks during the deploy window.
 
 ## Style guide
 
