@@ -16,6 +16,7 @@ import (
 	"github.com/grtshw/outlook-apps-crm/utils"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	hub "outlook-apps-hub-client"
 )
 
 // WebhookPayload represents the payload sent to webhook receivers
@@ -431,40 +432,24 @@ func sendGenericWebhookToURL(payload any, url, secret, destination string) error
 	return lastErr
 }
 
-// buildDAMContactPayload builds the payload for DAM's presenter-projection endpoint
-// DAM expects contacts as "presenters" with presenter_id field
+// buildDAMContactPayload builds the payload for DAM's presenter-projection endpoint.
+// DAM only needs identity, professional, and avatar fields — no PII like email/phone/bio.
 func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) WebhookPayload {
 	data := map[string]any{
-		"id":             r.Id, // DAM maps this to presenter_id
-		"email":          utils.DecryptField(r.GetString("email")),
-		"first_name":     r.GetString("first_name"),
-		"last_name":      r.GetString("last_name"),
-		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
-		"personal_email": utils.DecryptField(r.GetString("personal_email")),
-		"phone":          utils.DecryptField(r.GetString("phone")),
-		"pronouns":       r.GetString("pronouns"),
-		"bio":            utils.DecryptField(r.GetString("bio")),
-		"job_title":      r.GetString("job_title"),
-		"linkedin":       r.GetString("linkedin"),
-		"instagram":      r.GetString("instagram"),
-		"website":        r.GetString("website"),
-		"location":       utils.DecryptField(r.GetString("location")),
-		"preferred_name": r.GetString("preferred_name"),
-		"do_position":    r.GetString("do_position"),
-		"dietary_requirements":              r.Get("dietary_requirements"),
-		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
-		"accessibility_requirements":        r.Get("accessibility_requirements"),
-		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
-		"created":        r.GetString("created"),
-		"updated":        r.GetString("updated"),
+		"id":        r.Id,
+		"name":      strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
+		"pronouns":  r.GetString("pronouns"),
+		"job_title": r.GetString("job_title"),
+		"linkedin":  r.GetString("linkedin"),
+		"instagram": r.GetString("instagram"),
+		"website":   r.GetString("website"),
+		"location":  utils.DecryptField(r.GetString("location")),
 	}
 
-	// Avatar URL (stored by DAM, not local file)
 	if avatarURL := r.GetString("avatar_url"); avatarURL != "" {
 		data["avatar_url"] = avatarURL
 	}
 
-	// Organisation relation
 	if orgID := r.GetString("organisation"); orgID != "" {
 		org, err := app.FindRecordById(utils.CollectionOrganisations, orgID)
 		if err == nil {
@@ -517,6 +502,17 @@ func getConsumerByAppID(app *pocketbase.PocketBase, appID string) *ProjectionCon
 
 // sendContactToDAM sends a contact to DAM's presenter-projection endpoint
 func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
+	// If hub is enabled, send through hub as presenter-projection
+	if hubClient != nil {
+		payload := buildDAMContactPayload(r, app, baseURL, action)
+		if err := hubClient.Send("presenter-projection", action, payload); err != nil {
+			log.Printf("[Webhook] Hub send failed for presenter-projection/%s: %v", action, err)
+		} else {
+			log.Printf("[Webhook] Sent presenter-projection/%s to hub", action)
+		}
+		return
+	}
+
 	consumer := getConsumerByAppID(app, "dam")
 	if consumer == nil || consumer.EndpointURL == "" {
 		return
@@ -532,6 +528,17 @@ func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, actio
 
 // sendOrganisationToDAM sends an organisation to DAM's organization-projection endpoint
 func sendOrganisationToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
+	// If hub is enabled, send through hub as organization-projection
+	if hubClient != nil {
+		payload := buildDAMOrganisationPayload(r, baseURL, action)
+		if err := hubClient.Send("organization-projection", action, payload); err != nil {
+			log.Printf("[Webhook] Hub send failed for organization-projection/%s: %v", action, err)
+		} else {
+			log.Printf("[Webhook] Sent organization-projection/%s to hub", action)
+		}
+		return
+	}
+
 	consumer := getConsumerByAppID(app, "dam")
 	if consumer == nil || consumer.EndpointURL == "" {
 		return
@@ -545,8 +552,36 @@ func sendOrganisationToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, 
 	go sendGenericWebhookToConsumer(app, payload, consumer.ID, orgURL, consumer.WebhookSecret, "DAM-Org")
 }
 
+// hubClient is initialized once at startup if HUB_ENABLED is set.
+var hubClient *hub.Client
+
+func initHubClient() {
+	if os.Getenv("HUB_ENABLED") != "true" {
+		return
+	}
+	hubURL := os.Getenv("HUB_URL")
+	hubSecret := os.Getenv("HUB_SECRET")
+	if hubURL == "" || hubSecret == "" {
+		log.Printf("[Webhook] HUB_ENABLED=true but HUB_URL or HUB_SECRET missing, hub disabled")
+		return
+	}
+	hubClient = hub.NewClient(hubURL, "crm", hubSecret)
+	log.Printf("[Webhook] Hub client initialized: %s", hubURL)
+}
+
 // sendWebhookToAllConsumers sends a webhook to all enabled consumers from the database
 func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayload) {
+	// If hub is enabled, send through hub instead of direct webhooks
+	if hubClient != nil {
+		projType := payload.Collection + "-projection" // e.g. "contact-projection", "organisation-projection"
+		if err := hubClient.Send(projType, payload.Action, payload); err != nil {
+			log.Printf("[Webhook] Hub send failed for %s/%s: %v", projType, payload.Action, err)
+		} else {
+			log.Printf("[Webhook] Sent %s/%s to hub", projType, payload.Action)
+		}
+		return
+	}
+
 	consumers := getProjectionConsumers(app)
 	for _, consumer := range consumers {
 		// Skip DAM for standard contact/org webhooks - it uses a different format
@@ -559,6 +594,19 @@ func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayloa
 
 // sendWebhookToAllConsumersSync is like sendWebhookToAllConsumers but uses a WaitGroup for synchronization
 func sendWebhookToAllConsumersSync(app *pocketbase.PocketBase, payload WebhookPayload, wg *sync.WaitGroup) {
+	// If hub is enabled, send through hub instead of direct webhooks
+	if hubClient != nil {
+		projType := payload.Collection + "-projection"
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := hubClient.Send(projType, payload.Action, payload); err != nil {
+				log.Printf("[Webhook] Hub send failed for %s/%s: %v", projType, payload.Action, err)
+			}
+		}()
+		return
+	}
+
 	consumers := getProjectionConsumers(app)
 	for _, consumer := range consumers {
 		// Skip DAM for standard contact/org webhooks - it uses a different format
@@ -575,6 +623,19 @@ func sendWebhookToAllConsumersSync(app *pocketbase.PocketBase, payload WebhookPa
 
 // sendContactToDAMSync is like sendContactToDAM but uses a WaitGroup for synchronization
 func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
+	// If hub is enabled, send through hub as presenter-projection
+	if hubClient != nil {
+		payload := buildDAMContactPayload(r, app, baseURL, action)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := hubClient.Send("presenter-projection", action, payload); err != nil {
+				log.Printf("[Webhook] Hub send failed for presenter-projection/%s: %v", action, err)
+			}
+		}()
+		return
+	}
+
 	consumer := getConsumerByAppID(app, "dam")
 	if consumer == nil || consumer.EndpointURL == "" {
 		return
@@ -593,6 +654,19 @@ func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, a
 
 // sendOrganisationToDAMSync is like sendOrganisationToDAM but uses a WaitGroup for synchronization
 func sendOrganisationToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
+	// If hub is enabled, send through hub as organization-projection
+	if hubClient != nil {
+		payload := buildDAMOrganisationPayload(r, baseURL, action)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := hubClient.Send("organization-projection", action, payload); err != nil {
+				log.Printf("[Webhook] Hub send failed for organization-projection/%s: %v", action, err)
+			}
+		}()
+		return
+	}
+
 	consumer := getConsumerByAppID(app, "dam")
 	if consumer == nil || consumer.EndpointURL == "" {
 		return
@@ -617,7 +691,7 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		"first_name":     r.GetString("first_name"),
 		"last_name":      r.GetString("last_name"),
 		"name":           strings.TrimSpace(r.GetString("first_name") + " " + r.GetString("last_name")),
-		"personal_email": utils.DecryptField(r.GetString("personal_email")),
+		"preferred_name": r.GetString("preferred_name"),
 		"phone":          utils.DecryptField(r.GetString("phone")),
 		"pronouns":       r.GetString("pronouns"),
 		"bio":            utils.DecryptField(r.GetString("bio")),
@@ -626,14 +700,7 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		"instagram":      r.GetString("instagram"),
 		"website":        r.GetString("website"),
 		"location":       utils.DecryptField(r.GetString("location")),
-		"preferred_name": r.GetString("preferred_name"),
 		"do_position":    r.GetString("do_position"),
-		"dietary_requirements":              r.Get("dietary_requirements"),
-		"dietary_requirements_other":        r.GetString("dietary_requirements_other"),
-		"accessibility_requirements":        r.Get("accessibility_requirements"),
-		"accessibility_requirements_other":  r.GetString("accessibility_requirements_other"),
-		"created":        r.GetString("created"),
-		"updated":        r.GetString("updated"),
 	}
 
 	// Avatar URL (stored by DAM, not local file)

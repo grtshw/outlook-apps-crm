@@ -216,6 +216,8 @@ func handleExternalContactUpdate(re *core.RequestEvent, app *pocketbase.PocketBa
 	allowedFields := []string{
 		"first_name", "last_name", "preferred_name", "phone", "pronouns", "bio", "job_title",
 		"linkedin", "instagram", "website", "location",
+		"dietary_requirements", "dietary_requirements_other",
+		"accessibility_requirements", "accessibility_requirements_other",
 	}
 
 	for _, field := range allowedFields {

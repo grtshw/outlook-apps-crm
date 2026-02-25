@@ -4,3 +4,6 @@
 [submodule "projections/events"]
 	path = projections/events
 	url = https://github.com/grtshw/outlook-apps-projections-events.git
+[submodule "hub-client"]
+	path = hub-client
+	url = https://github.com/grtshw/outlook-apps-hub-client.git
