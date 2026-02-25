@@ -779,6 +779,9 @@ func buildRSVPPageWithOGTags(app *pocketbase.PocketBase, indexHTML, token string
 			if description == "" {
 				description = ep.GetString("description")
 			}
+			if imageURL == "" {
+				imageURL = ep.GetString("og_image_url")
+			}
 		}
 	}
 
