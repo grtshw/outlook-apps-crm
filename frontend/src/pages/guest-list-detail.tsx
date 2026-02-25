@@ -724,7 +724,7 @@ export function GuestListDetailPage() {
                           <DropdownMenuContent align="end">
                             {item.rsvp_token && (
                               <DropdownMenuItem onClick={() => {
-                                navigator.clipboard.writeText(`${window.location.origin}/rsvp/${item.rsvp_token}`)
+                                navigator.clipboard.writeText(`https://rsvp.theoutlook.io/${item.rsvp_token}`)
                                 toast.success('Invite link copied')
                               }}>
                                 <Link className="w-4 h-4 mr-2" /> Copy invite link
