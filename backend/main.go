@@ -724,16 +724,19 @@ func serveFrontend(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		}
 
 		// RSVP pages — inject OG meta tags for social previews
+		// Matches both /rsvp/{token} (CRM domain) and /{token} (rsvp.theoutlook.io domain)
+		rsvpToken := ""
 		if strings.HasPrefix(path, "rsvp/") {
-			token := strings.TrimPrefix(path, "rsvp/")
-			if token != "" && len(indexHTML) > 0 {
-				if html := buildRSVPPageWithOGTags(app, string(indexHTML), token); html != "" {
-					re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-					re.Response.Write([]byte(html))
-					return nil
-				}
+			rsvpToken = strings.TrimPrefix(path, "rsvp/")
+		} else if isRSVPDomain(re) && path != "" && !strings.Contains(path, "/") && !strings.Contains(path, ".") {
+			rsvpToken = path
+		}
+		if rsvpToken != "" && len(indexHTML) > 0 {
+			if html := buildRSVPPageWithOGTags(app, string(indexHTML), rsvpToken); html != "" {
+				re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+				re.Response.Write([]byte(html))
+				return nil
 			}
-			return re.FileFS(os.DirFS(staticDir), "index.html")
 		}
 
 		// Root path or empty - serve index.html
@@ -800,6 +803,16 @@ func buildRSVPPageWithOGTags(app *pocketbase.PocketBase, indexHTML, token string
 	html := strings.Replace(indexHTML, "<title>CRM</title>", "", 1)
 	html = strings.Replace(html, "</head>", og.String()+"</head>", 1)
 	return html
+}
+
+// isRSVPDomain checks if the request is on the public RSVP domain (not the CRM domain)
+func isRSVPDomain(re *core.RequestEvent) bool {
+	rsvpURL := os.Getenv("PUBLIC_RSVP_URL")
+	if rsvpURL == "" {
+		return false
+	}
+	rsvpHost := strings.TrimPrefix(strings.TrimPrefix(rsvpURL, "https://"), "http://")
+	return re.Request.Host == rsvpHost
 }
 
 // escapeHTML escapes strings for safe use in HTML attributes
