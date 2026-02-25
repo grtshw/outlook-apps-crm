@@ -785,6 +785,15 @@ func buildRSVPPageWithOGTags(app *pocketbase.PocketBase, indexHTML, token string
 		}
 	}
 
+	// Fallback to theme hero image
+	if imageURL == "" {
+		if themeID := result.GuestList.GetString("theme"); themeID != "" {
+			if theme, err := app.FindRecordById(utils.CollectionThemes, themeID); err == nil {
+				imageURL = theme.GetString("hero_image_url")
+			}
+		}
+	}
+
 	if title == "" {
 		return ""
 	}
