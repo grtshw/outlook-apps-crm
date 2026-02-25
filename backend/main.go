@@ -191,7 +191,7 @@ func main() {
 		registerRoutes(e, app)
 
 		// Serve frontend SPA
-		serveFrontend(e)
+		serveFrontend(e, app)
 
 		// Start the backup scheduler (runs at 3 AM AEST daily)
 		go scheduleBackups(app)
@@ -248,16 +248,19 @@ func securityHeadersMiddleware(e *core.RequestEvent) error {
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 
-	// Outlook Add-in routes need iframe embedding by Office hosts
+	// Outlook Add-in routes need iframe embedding by Office hosts.
+	// Office.js requires: 'unsafe-eval' (MicrosoftAjax.js uses eval()), scripts from
+	// Microsoft CDNs, and frame-ancestors covering all Outlook host domains.
 	if strings.HasPrefix(path, "/outlook-addin/") {
 		h.Del("X-Frame-Options")
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-inline' https://appsforoffice.microsoft.com; "+
+				"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://appsforoffice.microsoft.com https://ajax.aspnetcdn.com; "+
 				"style-src 'self' 'unsafe-inline'; "+
 				"img-src 'self' data: https:; "+
 				"connect-src 'self' https:; "+
-				"frame-ancestors https://*.office.com https://*.office365.com https://*.outlook.com https://*.microsoft.com")
+				"frame-src 'self' https://login.microsoftonline.com https://login.live.com; "+
+				"frame-ancestors 'self' https://outlook.office.com https://outlook.office365.com https://outlook.live.com https://outlook.cloud.microsoft https://outlook-sdf.office.com https://outlook-sdf.office365.com https://*.officeapps.live.com https://*.microsoft365.com https://*.office.com https://*.office365.com https://*.microsoft.com")
 	} else {
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'")
@@ -384,6 +387,14 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 
 	e.Router.POST("/api/admin/humanitix/sync", func(re *core.RequestEvent) error {
 		return handleHumanitixSync(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/admin/humanitix/sync-all", func(re *core.RequestEvent) error {
+		return handleHumanitixSyncAll(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/admin/humanitix/import-csv", func(re *core.RequestEvent) error {
+		return handleHumanitixCSVImport(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
 	e.Router.GET("/api/admin/humanitix/sync-logs", func(re *core.RequestEvent) error {
@@ -693,12 +704,15 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 }
 
 // serveFrontend serves the SPA frontend
-func serveFrontend(e *core.ServeEvent) {
+func serveFrontend(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	// Check if frontend dist exists
 	staticDir := "./pb_public"
 	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
 		staticDir = "../frontend/dist"
 	}
+
+	// Read index.html once at startup for OG tag injection
+	indexHTML, _ := os.ReadFile(staticDir + "/index.html")
 
 	// Serve static files
 	e.Router.GET("/{path...}", func(re *core.RequestEvent) error {
@@ -707,6 +721,19 @@ func serveFrontend(e *core.ServeEvent) {
 		// Don't handle API routes - let them 404 if not matched
 		if len(path) >= 4 && path[:4] == "api/" {
 			return re.JSON(http.StatusNotFound, map[string]string{"error": "Not found"})
+		}
+
+		// RSVP pages — inject OG meta tags for social previews
+		if strings.HasPrefix(path, "rsvp/") {
+			token := strings.TrimPrefix(path, "rsvp/")
+			if token != "" && len(indexHTML) > 0 {
+				if html := buildRSVPPageWithOGTags(app, string(indexHTML), token); html != "" {
+					re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
+					re.Response.Write([]byte(html))
+					return nil
+				}
+			}
+			return re.FileFS(os.DirFS(staticDir), "index.html")
 		}
 
 		// Root path or empty - serve index.html
@@ -724,6 +751,64 @@ func serveFrontend(e *core.ServeEvent) {
 		// SPA fallback - serve index.html for client-side routing
 		return re.FileFS(os.DirFS(staticDir), "index.html")
 	})
+}
+
+// buildRSVPPageWithOGTags looks up event data for an RSVP token and injects OG tags into index.html
+func buildRSVPPageWithOGTags(app *pocketbase.PocketBase, indexHTML, token string) string {
+	result, err := lookupRSVPToken(app, token)
+	if err != nil {
+		return ""
+	}
+
+	// Get event name and description
+	title := result.GuestList.GetString("name")
+	description := result.GuestList.GetString("landing_description")
+	if description == "" {
+		description = result.GuestList.GetString("description")
+	}
+	imageURL := result.GuestList.GetString("landing_image_url")
+
+	if epID := result.GuestList.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			if eventName := ep.GetString("name"); eventName != "" {
+				title = eventName
+			}
+			if description == "" {
+				description = ep.GetString("description")
+			}
+		}
+	}
+
+	if title == "" {
+		return ""
+	}
+
+	// Build OG meta tags
+	var og strings.Builder
+	og.WriteString(fmt.Sprintf(`<title>%s</title>`, escapeHTML(title)))
+	og.WriteString(fmt.Sprintf(`<meta property="og:title" content="%s" />`, escapeHTML(title)))
+	if description != "" {
+		og.WriteString(fmt.Sprintf(`<meta name="description" content="%s" />`, escapeHTML(description)))
+		og.WriteString(fmt.Sprintf(`<meta property="og:description" content="%s" />`, escapeHTML(description)))
+	}
+	if imageURL != "" {
+		og.WriteString(fmt.Sprintf(`<meta property="og:image" content="%s" />`, escapeHTML(imageURL)))
+	}
+	og.WriteString(`<meta property="og:type" content="website" />`)
+
+	// Replace the existing <title> and inject OG tags before </head>
+	html := strings.Replace(indexHTML, "<title>CRM</title>", "", 1)
+	html = strings.Replace(html, "</head>", og.String()+"</head>", 1)
+	return html
+}
+
+// escapeHTML escapes strings for safe use in HTML attributes
+func escapeHTML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, `"`, "&quot;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
 }
 
 // registerEncryptionHooks sets up PII field encryption for contacts
