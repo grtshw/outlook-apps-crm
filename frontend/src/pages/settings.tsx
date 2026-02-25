@@ -32,7 +32,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/ui/page-header'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Loader2, RefreshCw, Mail } from 'lucide-react'
+import { Loader2, RefreshCw, Mail, Upload } from 'lucide-react'
 
 // ── Humanitix types ──
 
@@ -60,6 +60,7 @@ interface SyncLog {
 }
 
 // Known field mappings for The Outlook events on Humanitix
+// Question IDs can be found in the Humanitix ticket additionalFields
 const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   default: {
     first_name: '65599f1116aac86ec758fcc7',
@@ -68,6 +69,8 @@ const FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     phone: '65599f1116aac86ec758fcca',
     organisation: '65599f1116aac86ec758fccb',
     job_title: '6559a4046aa6091b396e00c8',
+    dietary_requirements: '65599f1116aac86ec758fccc',
+    accessibility_requirements: '65599f1116aac86ec758fccd',
   },
 }
 
@@ -133,6 +136,16 @@ export default function SettingsPage() {
 
 // ── Humanitix tab ──
 
+interface CSVImportResult {
+  sync_log_id: string
+  processed: number
+  created: number
+  updated: number
+  skipped: number
+  orgs_created: number
+  errors: number
+}
+
 function HumanitixTab() {
   const queryClient = useQueryClient()
   const [selectedEvent, setSelectedEvent] = useState('')
@@ -172,6 +185,49 @@ function HumanitixTab() {
       return
     }
     syncMutation.mutate(selectedEvent)
+  }
+
+  const syncAllMutation = useMutation({
+    mutationFn: () =>
+      fetchJSON<{ events_count: number; message: string }>('/api/admin/humanitix/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          field_mapping: FIELD_MAPPINGS.default,
+        }),
+      }),
+    onSuccess: (data) => {
+      toast.success(data.message)
+      queryClient.invalidateQueries({ queryKey: ['humanitix-sync-logs'] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const csvMutation = useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return fetchJSON<CSVImportResult>('/api/admin/humanitix/import-csv', {
+        method: 'POST',
+        body: formData,
+      })
+    },
+    onSuccess: (data) => {
+      const parts = [`${data.created} created`, `${data.updated} updated`]
+      if (data.orgs_created > 0) parts.push(`${data.orgs_created} orgs created`)
+      if (data.skipped > 0) parts.push(`${data.skipped} skipped`)
+      toast.success(`Import complete: ${parts.join(', ')}`)
+      queryClient.invalidateQueries({ queryKey: ['humanitix-sync-logs'] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      csvMutation.mutate(file)
+      e.target.value = ''
+    }
   }
 
   const isAnySyncRunning = syncLogs.some((l) => l.status === 'running')
@@ -218,7 +274,59 @@ function HumanitixTab() {
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2" /> Sync attendees
+                  <RefreshCw className="w-4 h-4 mr-2" /> Sync event
+                </>
+              )}
+            </Button>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => syncAllMutation.mutate()}
+              disabled={syncAllMutation.isPending || isAnySyncRunning}
+            >
+              {syncAllMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" /> Syncing all...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Sync all events
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Import CSV</CardTitle>
+          <CardDescription>
+            Import attendees from a Humanitix attendee report CSV export
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept=".csv"
+              id="humanitix-csv-upload"
+              className="hidden"
+              onChange={handleCSVUpload}
+            />
+            <Button
+              onClick={() => document.getElementById('humanitix-csv-upload')?.click()}
+              disabled={csvMutation.isPending}
+              variant="outline"
+            >
+              {csvMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" /> Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" /> Upload CSV
                 </>
               )}
             </Button>

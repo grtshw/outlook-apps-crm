@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    tags: ['deploy']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  HUB_APP_ID: crm
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Notify hub - deploy starting
+        if: vars.HUB_URL != ''
+        run: |
+          BODY='{"app_id":"'"$HUB_APP_ID"'"}'
+          SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "${{ secrets.HUB_SECRET }}" | awk '{print $2}')
+          curl -sf -X POST "${{ vars.HUB_URL }}/api/deploys/start" \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Signature: $SIG" \
+            -d "$BODY" || true
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Notify hub - deploy complete
+        if: always() && vars.HUB_URL != ''
+        run: |
+          BODY='{"app_id":"'"$HUB_APP_ID"'"}'
+          SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "${{ secrets.HUB_SECRET }}" | awk '{print $2}')
+          curl -sf -X POST "${{ vars.HUB_URL }}/api/deploys/complete" \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Signature: $SIG" \
+            -d "$BODY" || true
+
+      - name: Clean up deploy tag
+        if: github.ref_type == 'tag'
+        run: git push origin :refs/tags/deploy || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

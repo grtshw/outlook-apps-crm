@@ -62,9 +62,17 @@ go build -o crm ./backend
 
 ## Deploy to Fly.io
 
+Deploys are triggered via GitHub Actions — push a `deploy` tag or use the GitHub Actions UI.
+
 ```bash
+# Deploy from CLI
+git tag -f deploy && git push origin deploy --force
+
+# Or manual fallback
 fly deploy
 ```
+
+The workflow notifies Hub before/after deploy so the outbox pauses webhook delivery during the deploy window. See `.github/workflows/deploy.yml`.
 
 ## Style guide
 

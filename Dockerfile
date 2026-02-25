@@ -14,14 +14,14 @@ COPY frontend ./frontend
 RUN rm -f frontend/src/components/ui && cp -r shadcn/ui frontend/src/components/ui
 WORKDIR /build/frontend
 
-# Install dependencies
-RUN npm install
+# Install dependencies from lockfile
+RUN npm ci
 
 # Build the frontend application
 RUN npm run build
 
 # Backend build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git
 
@@ -60,6 +60,10 @@ COPY frontend/public/ ./pb_public/
 
 # Expose port
 EXPOSE 8080
+
+# Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Run the app
 CMD ["/app/crm", "serve", "--http=0.0.0.0:8080"]
