@@ -505,10 +505,10 @@ func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, actio
 	// If hub is enabled, send through hub as presenter-projection
 	if hubClient != nil {
 		payload := buildDAMContactPayload(r, app, baseURL, action)
-		if err := hubClient.Send("presenter-projection", action, payload); err != nil {
-			log.Printf("[Webhook] Hub send failed for presenter-projection/%s: %v", action, err)
+		if err := hubClient.Send("contact", action, payload); err != nil {
+			log.Printf("[Webhook] Hub send failed for contact/%s: %v", action, err)
 		} else {
-			log.Printf("[Webhook] Sent presenter-projection/%s to hub", action)
+			log.Printf("[Webhook] Sent contact/%s to hub", action)
 		}
 		return
 	}
@@ -531,10 +531,10 @@ func sendOrganisationToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, 
 	// If hub is enabled, send through hub as organization-projection
 	if hubClient != nil {
 		payload := buildDAMOrganisationPayload(r, baseURL, action)
-		if err := hubClient.Send("organization-projection", action, payload); err != nil {
-			log.Printf("[Webhook] Hub send failed for organization-projection/%s: %v", action, err)
+		if err := hubClient.Send("organisation", action, payload); err != nil {
+			log.Printf("[Webhook] Hub send failed for organisation/%s: %v", action, err)
 		} else {
-			log.Printf("[Webhook] Sent organization-projection/%s to hub", action)
+			log.Printf("[Webhook] Sent organisation/%s to hub", action)
 		}
 		return
 	}
@@ -569,11 +569,23 @@ func initHubClient() {
 	log.Printf("[Webhook] Hub client initialized: %s", hubURL)
 }
 
+// collectionToProjectionType maps CRM collection names to hub projection types.
+func collectionToProjectionType(collection string) string {
+	switch collection {
+	case "contacts":
+		return "contact"
+	case "organisations":
+		return "organisation"
+	default:
+		return collection
+	}
+}
+
 // sendWebhookToAllConsumers sends a webhook to all enabled consumers from the database
 func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayload) {
 	// If hub is enabled, send through hub instead of direct webhooks
 	if hubClient != nil {
-		projType := payload.Collection + "-projection" // e.g. "contact-projection", "organisation-projection"
+		projType := collectionToProjectionType(payload.Collection)
 		if err := hubClient.Send(projType, payload.Action, payload); err != nil {
 			log.Printf("[Webhook] Hub send failed for %s/%s: %v", projType, payload.Action, err)
 		} else {
@@ -596,7 +608,7 @@ func sendWebhookToAllConsumers(app *pocketbase.PocketBase, payload WebhookPayloa
 func sendWebhookToAllConsumersSync(app *pocketbase.PocketBase, payload WebhookPayload, wg *sync.WaitGroup) {
 	// If hub is enabled, send through hub instead of direct webhooks
 	if hubClient != nil {
-		projType := payload.Collection + "-projection"
+		projType := collectionToProjectionType(payload.Collection)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -629,8 +641,8 @@ func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, a
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := hubClient.Send("presenter-projection", action, payload); err != nil {
-				log.Printf("[Webhook] Hub send failed for presenter-projection/%s: %v", action, err)
+			if err := hubClient.Send("contact", action, payload); err != nil {
+				log.Printf("[Webhook] Hub send failed for contact/%s: %v", action, err)
 			}
 		}()
 		return
@@ -660,8 +672,8 @@ func sendOrganisationToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseU
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := hubClient.Send("organization-projection", action, payload); err != nil {
-				log.Printf("[Webhook] Hub send failed for organization-projection/%s: %v", action, err)
+			if err := hubClient.Send("organisation", action, payload); err != nil {
+				log.Printf("[Webhook] Hub send failed for organisation/%s: %v", action, err)
 			}
 		}()
 		return
