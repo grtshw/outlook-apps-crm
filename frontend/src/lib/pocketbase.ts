@@ -175,6 +175,8 @@ export interface GuestList extends RecordModel {
   organisation_logo_url: string
   rsvp_bcc_contacts: Array<{ id: string; name: string; email: string }>
   theme: string
+  event_host: string
+  ms_calendar_event_id: string
 }
 
 export interface GuestListItem extends RecordModel {

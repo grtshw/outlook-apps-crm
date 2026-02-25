@@ -129,6 +129,8 @@ func handleGuestListGet(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"organisation_logo_url":    record.GetString("organisation_logo_url"),
 		"rsvp_bcc_contacts":        record.Get("rsvp_bcc_contacts"),
 		"theme":                    record.GetString("theme"),
+		"event_host":               record.GetString("event_host"),
+		"ms_calendar_event_id":     record.GetString("ms_calendar_event_id"),
 		"created":                  record.GetString("created"),
 		"updated":             record.GetString("updated"),
 	})
@@ -281,6 +283,10 @@ func handleGuestListUpdate(re *core.RequestEvent, app *pocketbase.PocketBase) er
 
 	if v, ok := input["theme"].(string); ok {
 		record.Set("theme", v)
+	}
+
+	if v, ok := input["event_host"].(string); ok {
+		record.Set("event_host", v)
 	}
 
 	// Handle BCC contacts: receive array of contact IDs, denormalize to [{id, name, email}]

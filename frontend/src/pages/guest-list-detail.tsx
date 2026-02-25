@@ -15,6 +15,9 @@ import {
   sendRSVPInvites,
   getThemes,
   deleteGuestListImage,
+  getAdminUsers,
+  createCalendarEvent,
+  sendCalendarInvitesAll,
 } from '@/lib/api'
 import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
@@ -44,7 +47,7 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, Search } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, Search, CalendarPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
@@ -103,6 +106,7 @@ export function GuestListDetailPage() {
     program_description: '',
     organisation: '',
     rsvp_bcc_contacts: [] as string[],
+    event_host: '',
   })
 
   // Clone form state
@@ -160,11 +164,19 @@ export function GuestListDetailPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: adminUsersData } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: getAdminUsers,
+    enabled: editOpen,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const items = itemsData?.items ?? []
   const shares = sharesData?.items ?? []
   const events = eventsData?.items ?? []
   const organisations = orgsData?.items ?? []
   const themes = themesData?.items ?? []
+  const adminUsers = adminUsersData?.items ?? []
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -291,6 +303,23 @@ export function GuestListDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const createCalendarMutation = useMutation({
+    mutationFn: () => createCalendarEvent(id!),
+    onSuccess: () => {
+      toast.success('Calendar event created')
+      queryClient.invalidateQueries({ queryKey: ['guest-list', id] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const sendCalendarAllMutation = useMutation({
+    mutationFn: () => sendCalendarInvitesAll(id!),
+    onSuccess: (data) => {
+      toast.success(`Added ${data.added} attendee${data.added !== 1 ? 's' : ''} to calendar event${data.skipped ? ` (${data.skipped} already added)` : ''}`)
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
   // RSVP summary counts
   const rsvpCounts = useMemo(() => {
     const accepted = items.filter((i) => i.rsvp_status === 'accepted').length
@@ -335,6 +364,7 @@ export function GuestListDetailPage() {
       program_description: guestList.program_description || '',
       organisation: guestList.organisation || '',
       rsvp_bcc_contacts: (guestList.rsvp_bcc_contacts || []).map((c: { id: string }) => c.id),
+      event_host: guestList.event_host || '',
     })
     setEditOpen(true)
   }
@@ -1167,6 +1197,67 @@ export function GuestListDetailPage() {
                     </button>
                   )}
                 </div>
+              </div>
+            </SheetSection>
+
+            <SheetSection title="Calendar">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1.5">Event host</label>
+                  <Select
+                    value={editForm.event_host || '_none'}
+                    onValueChange={(v) => setEditForm({ ...editForm, event_host: v === '_none' ? '' : v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a host" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">No host</SelectItem>
+                      {adminUsers.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          <div className="flex items-center gap-2">
+                            {u.name || u.email}
+                            {!u.has_tokens && (
+                              <span className="text-xs text-muted-foreground">(needs login)</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    The host's Microsoft account creates the Outlook calendar event.
+                  </p>
+                </div>
+
+                {guestList.event_host && !guestList.ms_calendar_event_id && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => createCalendarMutation.mutate()}
+                    disabled={createCalendarMutation.isPending}
+                  >
+                    <CalendarPlus className="w-4 h-4 mr-2" />
+                    {createCalendarMutation.isPending ? 'Creating...' : 'Create calendar event'}
+                  </Button>
+                )}
+
+                {guestList.ms_calendar_event_id && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">Calendar event active</Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => sendCalendarAllMutation.mutate()}
+                      disabled={sendCalendarAllMutation.isPending}
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      {sendCalendarAllMutation.isPending ? 'Sending...' : 'Send to all accepted'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </SheetSection>
           </div>

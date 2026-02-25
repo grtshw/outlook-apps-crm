@@ -227,6 +227,12 @@ func main() {
 	app.OnRecordAuthWithOAuth2Request("users").BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
 		if e.OAuth2User != nil && e.OAuth2User.AccessToken != "" {
 			syncMicrosoftProfilePhoto(app, e.Record, e.OAuth2User.AccessToken)
+
+			// Persist Microsoft OAuth tokens for calendar integration
+			if e.OAuth2User.RefreshToken != "" {
+				persistMicrosoftTokens(app, e.Record.Id, e.OAuth2User.AccessToken, e.OAuth2User.RefreshToken, e.OAuth2User.Expiry.Time())
+			}
+
 			if fresh, err := app.FindRecordById("users", e.Record.Id); err == nil {
 				e.Record = fresh
 			}
@@ -694,6 +700,24 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.POST("/api/guest-lists/{id}/rsvp/send-invites", func(re *core.RequestEvent) error {
 		return handleGuestListRSVPSendInvites(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Admin users list (for event host selection)
+	e.Router.GET("/api/admin-users", func(re *core.RequestEvent) error {
+		return handleListAdminUsers(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Calendar integration
+	e.Router.POST("/api/guest-lists/{id}/calendar/create", func(re *core.RequestEvent) error {
+		return handleCalendarCreate(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.POST("/api/guest-lists/{id}/calendar/send-all", func(re *core.RequestEvent) error {
+		return handleCalendarSendAll(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	e.Router.GET("/api/guest-lists/{id}/calendar/status", func(re *core.RequestEvent) error {
+		return handleCalendarStatus(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
 
 	log.Printf("[Routes] Registered API endpoints")
 }

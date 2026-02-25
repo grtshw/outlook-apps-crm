@@ -554,19 +554,27 @@ func extractBCCEmails(guestList *core.Record) []string {
 }
 
 // sendRSVPConfirmationAsync sends a confirmation email in the background if the response is "accepted".
+// Also adds the attendee to the Outlook calendar event if one is configured.
 func sendRSVPConfirmationAsync(app *pocketbase.PocketBase, result *rsvpLookupResult, input *rsvpInput, fullName string) {
 	if input.Response != "accepted" {
 		return
 	}
 	gl := result.GuestList
 
-	// Resolve event name from projection or fall back to list name
+	// Resolve event details from projection or guest list
 	eventName := gl.GetString("name")
+	var startDate, endDate, startTime, endTime, timezone, eventDescription string
 	if epID := gl.GetString("event_projection"); epID != "" {
 		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
 			if n := ep.GetString("name"); n != "" {
 				eventName = n
 			}
+			startDate = ep.GetString("start_date")
+			endDate = ep.GetString("end_date")
+			startTime = ep.GetString("start_time")
+			endTime = ep.GetString("end_time")
+			timezone = ep.GetString("timezone")
+			eventDescription = ep.GetString("description")
 		}
 	}
 
@@ -576,9 +584,40 @@ func sendRSVPConfirmationAsync(app *pocketbase.PocketBase, result *rsvpLookupRes
 	bccEmails := extractBCCEmails(gl)
 	emailTheme := buildEmailTheme(app, gl)
 
+	// Build .ics calendar attachment
+	icsStartDate := startDate
+	if icsStartDate == "" {
+		icsStartDate = eventDate
+	}
+	icsStartTime := startTime
+	if icsStartTime == "" {
+		icsStartTime = eventTime
+	}
+	icsEndDate := endDate
+	if icsEndDate == "" {
+		icsEndDate = icsStartDate
+	}
+
+	var icsData []byte
+	icsEvent := buildICSEventFromGuestList(gl.Id, eventName, eventDescription, icsStartDate, icsEndDate, icsStartTime, endTime, timezone, eventLocation)
+	if icsEvent != nil {
+		icsData = generateICS(*icsEvent)
+	}
+
+	// Capture calendar event details for async goroutine
+	calendarEventID := gl.GetString("ms_calendar_event_id")
+	hostUserID := gl.GetString("event_host")
+
 	go func() {
-		if err := sendRSVPConfirmationEmail(app, input.Email, fullName, eventName, eventDate, eventTime, eventLocation, bccEmails, emailTheme); err != nil {
+		if err := sendRSVPConfirmationEmail(app, input.Email, fullName, eventName, eventDate, eventTime, eventLocation, bccEmails, emailTheme, icsData); err != nil {
 			log.Printf("[RSVP] Failed to send confirmation email to %s: %v", input.Email, err)
+		}
+
+		// Add attendee to Outlook calendar event if configured
+		if calendarEventID != "" && hostUserID != "" {
+			if err := addAttendeeToCalendarEvent(app, hostUserID, calendarEventID, input.Email, fullName); err != nil {
+				log.Printf("[Calendar] Failed to add attendee %s to event: %v", input.Email, err)
+			}
 		}
 	}()
 }

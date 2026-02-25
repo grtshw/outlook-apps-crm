@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/mail"
 	"net/url"
@@ -656,7 +658,8 @@ func sendRSVPForwardEmail(app *pocketbase.PocketBase, recipientEmail, recipientN
 
 // sendRSVPConfirmationEmail sends a confirmation email when someone accepts an RSVP.
 // Always BCCs hello@wearetheoutlook.com.au plus any additional BCC emails from the guest list config.
-func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, eventName, eventDate, eventTime, eventLocation string, bccEmails []string, theme EmailTheme) error {
+// If icsData is non-nil, attaches it as an invite.ics calendar file.
+func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, eventName, eventDate, eventTime, eventLocation string, bccEmails []string, theme EmailTheme, icsData []byte) error {
 	name := recipientName
 	if name == "" {
 		name = "there"
@@ -697,6 +700,12 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 		Bcc:     bccList,
 		Subject: subject,
 		HTML:    wrapRSVPEmailHTML(content, theme),
+	}
+
+	if len(icsData) > 0 {
+		msg.Attachments = map[string]io.Reader{
+			"invite.ics": bytes.NewReader(icsData),
+		}
 	}
 
 	if err := app.NewMailClient().Send(msg); err != nil {

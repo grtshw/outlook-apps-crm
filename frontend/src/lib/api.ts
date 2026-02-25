@@ -409,6 +409,7 @@ export async function updateGuestList(
     rsvp_bcc_contacts: string[];
     rsvp_plus_ones_enabled: boolean;
     theme: string;
+    event_host: string;
   }>
 ): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-lists/${id}`, {
@@ -522,6 +523,41 @@ export async function sendRSVPInvites(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ item_ids: itemIds || [] }),
   })
+}
+
+// ── Calendar Integration ──
+
+export interface AdminUser {
+  id: string
+  name: string
+  email: string
+  has_tokens: boolean
+}
+
+export async function getAdminUsers(): Promise<{ items: AdminUser[] }> {
+  return fetchJSON('/api/admin-users')
+}
+
+export async function createCalendarEvent(
+  listId: string
+): Promise<{ calendar_event_id: string }> {
+  return fetchJSON(`/api/guest-lists/${listId}/calendar/create`, {
+    method: 'POST',
+  })
+}
+
+export async function sendCalendarInvitesAll(
+  listId: string
+): Promise<{ added: number; skipped: number }> {
+  return fetchJSON(`/api/guest-lists/${listId}/calendar/send-all`, {
+    method: 'POST',
+  })
+}
+
+export async function getCalendarStatus(
+  listId: string
+): Promise<{ status: string; calendar_event_id: string; host_user_id: string; host_status: string }> {
+  return fetchJSON(`/api/guest-lists/${listId}/calendar/status`)
 }
 
 // ── Mailchimp Settings ──
