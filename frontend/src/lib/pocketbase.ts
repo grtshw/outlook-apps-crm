@@ -12,6 +12,7 @@ export interface User extends RecordModel {
 }
 
 export type ContactRole = 'presenter' | 'speaker' | 'sponsor' | 'judge' | 'attendee' | 'staff' | 'volunteer'
+export type ContactDomain = 'design' | 'product' | 'leadership'
 export type DietaryRequirement = 'vegetarian' | 'vegan' | 'gluten_free' | 'dairy_free' | 'nut_allergy' | 'halal' | 'kosher'
 export type AccessibilityRequirement = 'wheelchair_access' | 'hearing_assistance' | 'vision_assistance' | 'sign_language_interpreter' | 'mobility_assistance'
 
@@ -40,6 +41,7 @@ export interface Contact extends RecordModel {
   organisation_name?: string
   tags?: string[]
   roles?: ContactRole[]
+  domain?: ContactDomain[]
   status: 'active' | 'inactive' | 'pending' | 'archived'
   source?: string
   source_ids?: Record<string, string>
@@ -137,6 +139,7 @@ export interface Theme extends RecordModel {
   color_button: string
   logo_url: string
   logo_light_url: string
+  email_logo_url: string
   hero_image_url: string
   is_dark: boolean
   sort_order: number

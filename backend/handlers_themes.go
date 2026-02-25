@@ -117,6 +117,7 @@ func buildThemeResponse(r *core.Record) map[string]any {
 		"color_button":     r.GetString("color_button"),
 		"logo_url":         r.GetString("logo_url"),
 		"logo_light_url":   r.GetString("logo_light_url"),
+		"email_logo_url":   r.GetString("email_logo_url"),
 		"hero_image_url":   r.GetString("hero_image_url"),
 		"is_dark":          r.GetBool("is_dark"),
 		"sort_order":       r.GetInt("sort_order"),
@@ -194,6 +195,9 @@ func applyThemeFields(record *core.Record, input map[string]any) {
 	}
 	if v, ok := input["logo_light_url"].(string); ok {
 		record.Set("logo_light_url", v)
+	}
+	if v, ok := input["email_logo_url"].(string); ok {
+		record.Set("email_logo_url", v)
 	}
 	if v, ok := input["hero_image_url"].(string); ok {
 		record.Set("hero_image_url", v)

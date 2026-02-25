@@ -39,6 +39,7 @@ export default function ThemesPage() {
   const [colorButton, setColorButton] = useState('#ffffff')
   const [logoUrl, setLogoUrl] = useState('')
   const [logoLightUrl, setLogoLightUrl] = useState('')
+  const [emailLogoUrl, setEmailLogoUrl] = useState('')
   const [heroImageUrl, setHeroImageUrl] = useState('')
   const [isDark, setIsDark] = useState(true)
 
@@ -93,6 +94,7 @@ export default function ThemesPage() {
     setColorButton('#ffffff')
     setLogoUrl('')
     setLogoLightUrl('')
+    setEmailLogoUrl('')
     setHeroImageUrl('')
     setIsDark(true)
     setEditOpen(true)
@@ -112,6 +114,7 @@ export default function ThemesPage() {
     setColorButton(theme.color_button || theme.color_text)
     setLogoUrl(theme.logo_url)
     setLogoLightUrl(theme.logo_light_url)
+    setEmailLogoUrl(theme.email_logo_url || '')
     setHeroImageUrl(theme.hero_image_url)
     setIsDark(theme.is_dark)
     setEditOpen(true)
@@ -131,6 +134,7 @@ export default function ThemesPage() {
       color_button: colorButton,
       logo_url: logoUrl,
       logo_light_url: logoLightUrl,
+      email_logo_url: emailLogoUrl,
       hero_image_url: heroImageUrl,
       is_dark: isDark,
     }
@@ -293,6 +297,12 @@ export default function ThemesPage() {
                       <img src={logoLightUrl} alt="" className="h-6 object-contain" />
                     </div>
                   )}
+                </div>
+                <div>
+                  <label className="block text-sm mb-1.5">Email logo</label>
+                  <Input value={emailLogoUrl} onChange={(e) => setEmailLogoUrl(e.target.value)} placeholder="/images/logo-email-white.png" />
+                  <p className="text-xs text-muted-foreground mt-1">Used in RSVP emails. Must be PNG (no SVG). Leave blank to auto-derive from logo URL.</p>
+                  {emailLogoUrl && <img src={emailLogoUrl} alt="" className="h-6 mt-2 object-contain" />}
                 </div>
               </div>
             </SheetSection>

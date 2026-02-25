@@ -89,16 +89,21 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 		et.ButtonText = "#ffffff"
 	}
 
-	// Logos — use email-safe PNG version if the theme logo is an SVG
-	logoURL := getStr(theme, "logo_url", base+"/images/logo-white.svg")
-	if strings.HasSuffix(logoURL, ".svg") {
-		if isDark {
-			logoURL = base + "/images/logo-email-white.png"
-		} else {
-			logoURL = base + "/images/logo-email.png"
+	// Logos — prefer dedicated email_logo_url, fall back to logo_url with SVG→PNG conversion
+	emailLogo := getStr(theme, "email_logo_url", "")
+	if emailLogo != "" {
+		et.LogoURL = emailLogo
+	} else {
+		logoURL := getStr(theme, "logo_url", base+"/images/logo-white.svg")
+		if strings.HasSuffix(logoURL, ".svg") {
+			if isDark {
+				logoURL = base + "/images/logo-email-white.png"
+			} else {
+				logoURL = base + "/images/logo-email.png"
+			}
 		}
+		et.LogoURL = logoURL
 	}
-	et.LogoURL = logoURL
 	brandURL := getStr(theme, "logo_light_url", "")
 	if strings.HasSuffix(brandURL, ".svg") {
 		brandURL = "" // drop SVG brand logos — no email support
