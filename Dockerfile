@@ -29,6 +29,7 @@ WORKDIR /build
 
 # Copy local module dependencies
 COPY projections ./projections
+COPY hub-client ./hub-client
 
 # Copy go mod files from backend
 COPY backend/go.mod backend/go.sum ./backend/
