@@ -13,6 +13,7 @@ import {
   getOrganisations,
   toggleGuestListRSVP,
   sendRSVPInvites,
+  sendRSVPFollowups,
   getThemes,
   deleteGuestListImage,
   getAdminUsers,
@@ -299,6 +300,14 @@ export function GuestListDetailPage() {
     onSuccess: (data) => {
       toast.success(`Sent ${data.sent} invite${data.sent !== 1 ? 's' : ''}${data.skipped ? `, ${data.skipped} skipped` : ''}`)
       queryClient.invalidateQueries({ queryKey: ['guest-list-items', id] })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const sendFollowupsMutation = useMutation({
+    mutationFn: () => sendRSVPFollowups(id!),
+    onSuccess: (data) => {
+      toast.success(`Sent ${data.sent} follow-up${data.sent !== 1 ? 's' : ''}${data.skipped ? `, ${data.skipped} skipped` : ''}`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -1116,6 +1125,19 @@ export function GuestListDetailPage() {
                     }
                   />
                 </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => sendFollowupsMutation.mutate()}
+                  disabled={sendFollowupsMutation.isPending}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {sendFollowupsMutation.isPending ? 'Sending...' : 'Send follow-ups'}
+                </Button>
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Sends a reminder to invited guests who haven't responded yet.
+                </p>
 
                 {guestList.rsvp_generic_url && (
                   <div>

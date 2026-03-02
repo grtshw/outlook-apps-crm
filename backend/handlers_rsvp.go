@@ -1291,6 +1291,89 @@ func handleGuestListRSVPSendInvites(re *core.RequestEvent, app *pocketbase.Pocke
 	})
 }
 
+func handleGuestListRSVPSendFollowups(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	id := re.Request.PathValue("id")
+	guestList, err := app.FindRecordById(utils.CollectionGuestLists, id)
+	if err != nil {
+		return utils.NotFoundResponse(re, "Guest list not found")
+	}
+
+	if !guestList.GetBool("rsvp_enabled") {
+		return utils.BadRequestResponse(re, "RSVP is not enabled for this guest list")
+	}
+
+	// Get event name for email
+	eventName := ""
+	if epID := guestList.GetString("event_projection"); epID != "" {
+		if ep, err := app.FindRecordById(utils.CollectionEventProjections, epID); err == nil {
+			eventName = ep.GetString("name")
+		}
+	}
+	listName := guestList.GetString("name")
+	listDescription := guestList.GetString("description")
+	eventDate := guestList.GetString("event_date")
+	eventTime := guestList.GetString("event_time")
+	eventLocation := guestList.GetString("event_location")
+	emailTheme := buildEmailTheme(app, guestList)
+
+	// Find items that were invited but haven't responded
+	items, err := app.FindRecordsByFilter(
+		utils.CollectionGuestListItems,
+		"guest_list = {:id} && invite_status = 'invited' && rsvp_status = ''",
+		"sort_order,created",
+		0, 0,
+		map[string]any{"id": id},
+	)
+	if err != nil {
+		items = nil
+	}
+
+	sent := 0
+	skipped := 0
+
+	for _, item := range items {
+		contactID := item.GetString("contact")
+		if contactID == "" {
+			skipped++
+			continue
+		}
+
+		contact, err := app.FindRecordById(utils.CollectionContacts, contactID)
+		if err != nil {
+			skipped++
+			continue
+		}
+
+		email := utils.DecryptField(contact.GetString("email"))
+		if email == "" || !strings.Contains(email, "@") {
+			skipped++
+			continue
+		}
+
+		rsvpToken := item.GetString("rsvp_token")
+		if rsvpToken == "" {
+			skipped++
+			continue
+		}
+
+		rsvpURL := fmt.Sprintf("%s/rsvp/%s", getPublicBaseURL(), rsvpToken)
+		recipientName := contact.GetString("name")
+
+		go sendRSVPFollowUpEmail(app, email, recipientName, rsvpURL, rsvpToken, listName, listDescription, eventName, eventDate, eventTime, eventLocation, emailTheme)
+		sent++
+	}
+
+	utils.LogFromRequest(app, re, "rsvp_send_followups", utils.CollectionGuestLists, id, "success", map[string]any{
+		"sent":    sent,
+		"skipped": skipped,
+	}, "")
+
+	return re.JSON(http.StatusOK, map[string]any{
+		"sent":    sent,
+		"skipped": skipped,
+	})
+}
+
 // handlePublicRSVPEmailPreview renders a browser-viewable preview of the RSVP invite email
 func handlePublicRSVPEmailPreview(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	token := re.Request.PathValue("token")

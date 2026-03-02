@@ -717,6 +717,125 @@ func sendRSVPConfirmationEmail(app *pocketbase.PocketBase, recipientEmail, recip
 	return nil
 }
 
+// buildRSVPFollowUpContent builds the inner content for an RSVP follow-up email.
+func buildRSVPFollowUpContent(theme EmailTheme, eventContext, firstName, listDescription, eventDate, eventTime, eventLocation, rsvpURL string) string {
+	detailsHTML := buildEventDetailsHTML(theme, eventDate, eventTime, eventLocation)
+
+	descriptionHTML := ""
+	if listDescription != "" {
+		descriptionHTML = fmt.Sprintf(`<p style="color: %s; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">%s</p>`,
+			textWithOpacity(theme.Text, "0.8"), listDescription)
+	}
+
+	subtleText := textWithOpacity(theme.Text, "0.5")
+	bodyText := textWithOpacity(theme.Text, "0.8")
+	mutedText := textWithOpacity(theme.Text, "0.6")
+	faintText := textWithOpacity(theme.Text, "0.3")
+	faintBg := textWithOpacity(theme.Text, "0.05")
+
+	return fmt.Sprintf(`
+            <p style="color: %s; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 16px 0;">Just a reminder</p>
+            <h1 style="color: %s; font-size: 32px; line-height: 1.1; margin: 0 0 20px 0;">%s</h1>
+            <p style="color: %s; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">Hey %s,</p>
+            <p style="color: %s; font-size: 16px; line-height: 1.6; margin: 0 0 8px 0;">We'd still love to see you at %s. If you haven't had a chance to RSVP yet, we'd love to hear from you.</p>
+            %s
+            %s
+            <p style="color: %s; font-size: 15px; line-height: 1.6; margin: 0 0 32px 0;">
+                Spaces are limited, so please let us know if you can make it.
+            </p>
+            <!--[if mso]>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%%"><tr>
+            <td width="50%%" style="padding-right: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: %s; color: %s; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid %s;">
+                    I can make it
+                </a>
+            </div>
+            <!--[if mso]>
+            </td><td width="50%%" style="padding-left: 6px;">
+            <![endif]-->
+            <div style="display: inline-block; width: 48%%; vertical-align: top;">
+                <a href="%s" style="display: block; background: transparent; color: %s; padding: 16px 12px; text-decoration: none; font-size: 14px; text-align: center; border: 1px solid %s;">
+                    I can't make it
+                </a>
+            </div>
+            <!--[if mso]>
+            </td></tr></table>
+            <![endif]-->
+            <p style="color: %s; font-size: 13px; margin: 16px 0 24px 0;">
+                This link is personal to you. Please don't share it.
+            </p>
+            <p style="color: %s; font-size: 13px; margin: 0 0 8px 0;">
+                Copy and paste if the link doesn't work:
+            </p>
+            <div style="background: %s; padding: 12px 16px; margin: 0;">
+                <p style="color: %s; font-size: 12px; font-family: 'Courier New', Courier, monospace; word-break: break-all; margin: 0;">
+                    %s
+                </p>
+            </div>
+`,
+		subtleText, theme.Text, eventContext,
+		bodyText, firstName,
+		bodyText, eventContext,
+		descriptionHTML,
+		detailsHTML,
+		mutedText,
+		rsvpURL, theme.Button, theme.ButtonText, theme.Button,
+		rsvpURL, theme.Text, theme.Border,
+		bodyText,
+		faintText,
+		faintBg,
+		textWithOpacity(theme.Text, "0.4"),
+		rsvpURL,
+	)
+}
+
+// sendRSVPFollowUpEmail sends a follow-up reminder to a guest who hasn't RSVP'd yet.
+func sendRSVPFollowUpEmail(app *pocketbase.PocketBase, recipientEmail, recipientName, rsvpURL, rsvpToken, listName, listDescription, eventName, eventDate, eventTime, eventLocation string, theme EmailTheme) error {
+	name := recipientName
+	if name == "" {
+		name = "there"
+	}
+
+	firstName := strings.Fields(name)[0]
+
+	eventContext := listName
+	if eventName != "" {
+		eventContext = eventName
+	}
+
+	subject := fmt.Sprintf("%s, we'd still love to see you at %s", firstName, eventContext)
+	content := buildRSVPFollowUpContent(theme, eventContext, firstName, listDescription, eventDate, eventTime, eventLocation, rsvpURL)
+
+	// Add invite tracking (open pixel + click-wrapped links)
+	if rsvpToken != "" {
+		baseURL := getPublicBaseURL()
+		trackBase := fmt.Sprintf("%s/api/public/t/%s", baseURL, rsvpToken)
+		clickURL := fmt.Sprintf("%s/click?url=%s", trackBase, url.QueryEscape(rsvpURL))
+		pixelURL := fmt.Sprintf("%s/open.gif", trackBase)
+
+		content = strings.ReplaceAll(content, fmt.Sprintf(`href="%s"`, rsvpURL), fmt.Sprintf(`href="%s"`, clickURL))
+		content += fmt.Sprintf(`<img src="%s" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`, pixelURL)
+	}
+
+	msg := &mailer.Message{
+		From:    mail.Address{Address: app.Settings().Meta.SenderAddress, Name: app.Settings().Meta.SenderName},
+		To:      []mail.Address{{Address: recipientEmail, Name: recipientName}},
+		Bcc:     []mail.Address{{Address: "hello@wearetheoutlook.com.au"}},
+		Subject: subject,
+		HTML:    wrapRSVPEmailHTML(content, theme),
+	}
+
+	if err := app.NewMailClient().Send(msg); err != nil {
+		log.Printf("[Email] Failed to send RSVP follow-up to %s: %v", recipientEmail, err)
+		return err
+	}
+
+	log.Printf("[Email] RSVP follow-up sent to %s for %s", recipientEmail, eventContext)
+	return nil
+}
+
 // sendPlusOneNotificationEmail sends an internal notification when someone requests a plus-one.
 // Recipients are hello@ + configured BCC contacts, all as direct To recipients.
 func sendPlusOneNotificationEmail(app *pocketbase.PocketBase, requesterName, plusOneName, plusOneJobTitle, plusOneCompany, plusOneEmail, eventName, guestListID string, toEmails []string) error {

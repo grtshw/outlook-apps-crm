@@ -701,6 +701,10 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleGuestListRSVPSendInvites(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
+	e.Router.POST("/api/guest-lists/{id}/rsvp/send-followups", func(re *core.RequestEvent) error {
+		return handleGuestListRSVPSendFollowups(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
 	// Admin users list (for event host selection)
 	e.Router.GET("/api/admin-users", func(re *core.RequestEvent) error {
 		return handleListAdminUsers(re, app)

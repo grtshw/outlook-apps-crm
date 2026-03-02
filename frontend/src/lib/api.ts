@@ -525,6 +525,14 @@ export async function sendRSVPInvites(
   })
 }
 
+export async function sendRSVPFollowups(
+  listId: string
+): Promise<{ sent: number; skipped: number }> {
+  return fetchJSON(`/api/guest-lists/${listId}/rsvp/send-followups`, {
+    method: 'POST',
+  })
+}
+
 // ── Calendar Integration ──
 
 export interface AdminUser {
