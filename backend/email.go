@@ -94,7 +94,7 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 	// Logos — prefer dedicated email_logo_url, fall back to logo_url with SVG→PNG conversion
 	emailLogo := getStr(theme, "email_logo_url", "")
 	if emailLogo != "" {
-		et.LogoURL = emailLogo
+		et.LogoURL = resolveURL(base, emailLogo)
 	} else {
 		logoURL := getStr(theme, "logo_url", base+"/images/logo-white.svg")
 		if strings.HasSuffix(logoURL, ".svg") {
@@ -104,13 +104,13 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 				logoURL = base + "/images/logo-email.png"
 			}
 		}
-		et.LogoURL = logoURL
+		et.LogoURL = resolveURL(base, logoURL)
 	}
 	brandURL := getStr(theme, "logo_light_url", "")
 	if strings.HasSuffix(brandURL, ".svg") {
 		brandURL = "" // drop SVG brand logos — no email support
 	}
-	et.BrandLogoURL = brandURL
+	et.BrandLogoURL = resolveURL(base, brandURL)
 
 	// Hero image: guest list landing_image_url > theme hero_image_url > default
 	heroURL := guestList.GetString("landing_image_url")
@@ -120,9 +120,20 @@ func buildEmailTheme(app *pocketbase.PocketBase, guestList *core.Record) EmailTh
 	if heroURL == "" {
 		heroURL = base + "/images/rsvp-hero.jpg"
 	}
-	et.HeroImageURL = heroURL
+	et.HeroImageURL = resolveURL(base, heroURL)
 
 	return et
+}
+
+// resolveURL prepends baseURL to relative paths (starting with /) for use in emails.
+func resolveURL(baseURL, u string) string {
+	if u == "" {
+		return ""
+	}
+	if strings.HasPrefix(u, "/") {
+		return baseURL + u
+	}
+	return u
 }
 
 func getStr(m map[string]any, key, fallback string) string {

@@ -141,6 +141,7 @@ func buildThemePublicResponse(r *core.Record) map[string]any {
 		"color_button":     r.GetString("color_button"),
 		"logo_url":         r.GetString("logo_url"),
 		"logo_light_url":   r.GetString("logo_light_url"),
+		"email_logo_url":   r.GetString("email_logo_url"),
 		"hero_image_url":   r.GetString("hero_image_url"),
 		"is_dark":          r.GetBool("is_dark"),
 	}
