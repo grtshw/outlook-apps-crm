@@ -45,7 +45,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o crm .
 # Final stage
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ca-certificates gosu && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -58,12 +58,14 @@ COPY --from=frontend-builder /build/frontend/dist ./pb_public/
 # Copy public assets
 COPY frontend/public/ ./pb_public/
 
+# Copy entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+
 # Expose port
 EXPOSE 8080
 
-# Run as non-root user
+# Create non-root user (entrypoint runs as root, then drops to appuser via gosu)
 RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser && chown -R appuser:appuser /app
-USER appuser
 
-# Run the app
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/app/crm", "serve", "--http=0.0.0.0:8080"]
