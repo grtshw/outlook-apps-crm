@@ -362,6 +362,14 @@ func createOrganisationsCollection(app core.App) error {
 		MimeTypes: []string{"image/jpeg", "image/png", "image/svg+xml", "image/webp"},
 	})
 
+	// Logo URLs synced from DAM (array of {name, url})
+	collection.Fields.Add(&core.JSONField{
+		Id:       "org_logo_urls",
+		Name:     "logo_urls",
+		Required: false,
+		MaxSize:  10000,
+	})
+
 	// Contacts JSON (array of {name, linkedin, email})
 	collection.Fields.Add(&core.JSONField{
 		Id:       "org_contacts",

@@ -1658,6 +1658,92 @@ func handleSyncAvatarURLs(re *core.RequestEvent, app *pocketbase.PocketBase) err
 	})
 }
 
+// syncLogoURLsResult holds the result of a DAM logo URL sync
+type syncLogoURLsResult struct {
+	Updated int
+	Skipped int
+	Total   int
+}
+
+// syncLogoURLsFromDAM pulls logo URLs from DAM for all organisations.
+// Mirrors syncAvatarURLsFromDAM but for organisation logos.
+func syncLogoURLsFromDAM(app *pocketbase.PocketBase) (*syncLogoURLsResult, error) {
+	damURL := os.Getenv("DAM_PUBLIC_URL")
+	if damURL == "" {
+		damURL = "https://outlook-apps-dam.fly.dev"
+	}
+
+	resp, err := http.Get(damURL + "/api/public/organisations")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch organisations from DAM: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("DAM returned status %d", resp.StatusCode)
+	}
+
+	var damResp struct {
+		Items []struct {
+			ID       string           `json:"id"`
+			OrgID    string           `json:"org_id"`
+			Name     string           `json:"name"`
+			LogoURLs []map[string]any `json:"logo_urls"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&damResp); err != nil {
+		return nil, fmt.Errorf("failed to parse DAM response: %w", err)
+	}
+
+	updated := 0
+	skipped := 0
+	for _, org := range damResp.Items {
+		if org.OrgID == "" || len(org.LogoURLs) == 0 {
+			skipped++
+			continue
+		}
+
+		record, err := app.FindRecordById(utils.CollectionOrganisations, org.OrgID)
+		if err != nil {
+			skipped++
+			continue
+		}
+
+		// Check if logo_urls have changed by comparing JSON
+		existingJSON, _ := json.Marshal(record.Get("logo_urls"))
+		newJSON, _ := json.Marshal(org.LogoURLs)
+		if string(existingJSON) == string(newJSON) {
+			skipped++
+			continue
+		}
+
+		record.Set("logo_urls", org.LogoURLs)
+
+		if err := app.Save(record); err != nil {
+			log.Printf("[SyncLogoURLs] Failed to save org %s: %v", org.OrgID, err)
+			continue
+		}
+		updated++
+	}
+
+	log.Printf("[SyncLogoURLs] Updated %d orgs, skipped %d", updated, skipped)
+	return &syncLogoURLsResult{Updated: updated, Skipped: skipped, Total: len(damResp.Items)}, nil
+}
+
+// handleSyncLogoURLs is the HTTP handler wrapper for syncLogoURLsFromDAM
+func handleSyncLogoURLs(re *core.RequestEvent, app *pocketbase.PocketBase) error {
+	result, err := syncLogoURLsFromDAM(app)
+	if err != nil {
+		return utils.InternalErrorResponse(re, err.Error())
+	}
+	return utils.DataResponse(re, map[string]any{
+		"updated": result.Updated,
+		"skipped": result.Skipped,
+		"total":   result.Total,
+	})
+}
+
 // --- Merge Handler ---
 
 // MergeContactsInput is the request payload for merging contacts
@@ -2069,7 +2155,10 @@ func buildOrganisationProjection(r *core.Record, baseURL string) map[string]any 
 		"updated":            r.GetString("updated"),
 	}
 
-	// Logo URLs are managed by DAM — CRM does not store logo files
+	// Logo URLs synced from DAM and stored as JSON array of {name, url}
+	if logoURLs := r.Get("logo_urls"); logoURLs != nil {
+		data["logo_urls"] = logoURLs
+	}
 
 	return data
 }

@@ -207,6 +207,16 @@ func main() {
 			}
 		}()
 
+		// Sync logo URLs from DAM to organisation records
+		go func() {
+			time.Sleep(7 * time.Second)
+			if result, err := syncLogoURLsFromDAM(app); err != nil {
+				log.Printf("[Startup] Logo URL sync failed: %v", err)
+			} else {
+				log.Printf("[Startup] Logo URL sync: updated %d, skipped %d", result.Updated, result.Skipped)
+			}
+		}()
+
 		return e.Next()
 	})
 
@@ -519,6 +529,11 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	// Sync avatar URLs from DAM (admin only - one-time pull)
 	e.Router.POST("/api/admin/sync-avatar-urls", func(re *core.RequestEvent) error {
 		return handleSyncAvatarURLs(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
+
+	// Sync logo URLs from DAM (admin only - one-time pull)
+	e.Router.POST("/api/admin/sync-logo-urls", func(re *core.RequestEvent) error {
+		return handleSyncLogoURLs(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAdmin)
 
 	// Project all endpoint - push all contacts and organisations to consumers

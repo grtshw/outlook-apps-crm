@@ -264,6 +264,7 @@ func buildOrganisationWebhookPayload(r *core.Record, baseURL string) map[string]
 		"description_medium": r.GetString("description_medium"),
 		"description_long":   r.GetString("description_long"),
 		"contacts":           r.Get("contacts"),
+		"logo_urls":          r.Get("logo_urls"),
 		"created":            r.GetString("created"),
 		"updated":            r.GetString("updated"),
 	}
