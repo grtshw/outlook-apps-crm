@@ -3,9 +3,6 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /build
 
-# Copy ui-kit submodule (dependency for frontend)
-COPY ui-kit ./ui-kit
-
 # Copy shadcn shared components
 COPY shadcn ./shadcn
 
