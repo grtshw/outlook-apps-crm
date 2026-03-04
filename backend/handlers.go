@@ -2156,9 +2156,7 @@ func buildOrganisationProjection(r *core.Record, baseURL string) map[string]any 
 	}
 
 	// Logo URLs synced from DAM and stored as JSON array of {name, url}
-	if logoURLs := r.Get("logo_urls"); logoURLs != nil {
-		data["logo_urls"] = logoURLs
-	}
+	data["logo_urls"] = r.Get("logo_urls")
 
 	return data
 }
