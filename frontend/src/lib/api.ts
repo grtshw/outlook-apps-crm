@@ -468,7 +468,7 @@ export async function bulkAddGuestListItems(
 
 export async function updateGuestListItem(
   itemId: string,
-  data: Partial<{ invite_round: string; invite_status: string; notes: string; sort_order: number }>
+  data: Partial<{ invite_round: string; invite_status: string; rsvp_status: string; notes: string; sort_order: number }>
 ): Promise<{ message: string }> {
   return fetchJSON(`/api/guest-list-items/${itemId}`, {
     method: 'PATCH',

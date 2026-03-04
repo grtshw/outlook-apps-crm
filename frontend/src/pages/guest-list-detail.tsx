@@ -248,7 +248,7 @@ export function GuestListDetailPage() {
   })
 
   const updateItemMutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: string; data: Partial<{ invite_round: string; invite_status: string; notes: string }> }) =>
+    mutationFn: ({ itemId, data }: { itemId: string; data: Partial<{ invite_round: string; invite_status: string; rsvp_status: string; notes: string }> }) =>
       updateGuestListItem(itemId, data),
     onSuccess: () => {
       toast.success('Updated')
@@ -651,53 +651,45 @@ export function GuestListDetailPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <div className="inline-flex items-center gap-2">
-                        {item.rsvp_status === 'accepted' ? (
-                          <button
-                            type="button"
-                            className="cursor-pointer inline-flex items-center gap-1 text-green-600"
-                            onClick={() => setRsvpDetailItem(item)}
-                          >
-                            <CircleCheck className="h-4 w-4" />
-                            <span className="text-sm">Accepted</span>
-                          </button>
-                        ) : item.rsvp_status === 'declined' ? (
-                          <button
-                            type="button"
-                            className="cursor-pointer inline-flex items-center gap-1 text-muted-foreground"
-                            onClick={() => setRsvpDetailItem(item)}
-                          >
-                            <XCircle className="h-4 w-4" />
-                            <span className="text-sm">Declined</span>
-                          </button>
-                        ) : item.invite_status === 'no_show' ? (
-                          <span className="text-sm text-muted-foreground">No show</span>
-                        ) : item.invite_status === 'invited' ? (
-                          <span className="text-sm">Invited</span>
-                        ) : item.invite_status === 'to_invite' ? (
-                          <span className="text-sm text-muted-foreground">To invite</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                        {(item.invite_status === 'invited' || item.rsvp_status) && (
-                          <span className="inline-flex items-center gap-1">
-                            <Eye className={cn("h-3.5 w-3.5", item.invite_opened ? "text-foreground" : "text-muted-foreground/30")} />
-                            <MousePointerClick className={cn("h-3.5 w-3.5", item.invite_clicked ? "text-foreground" : "text-muted-foreground/30")} />
-                          </span>
-                        )}
-                        {isAdmin && !item.rsvp_status && item.contact_email && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs cursor-pointer"
-                            disabled={sendInvitesMutation.isPending}
-                            onClick={() => sendInvitesMutation.mutate([item.id])}
-                          >
-                            <Send className="w-3.5 h-3.5 mr-1" />
-                            {item.invite_status === 'invited' ? 'Resend' : 'Send'}
-                          </Button>
-                        )}
-                      </div>
+                      {item.rsvp_status === 'accepted' ? (
+                        <button
+                          type="button"
+                          className="cursor-pointer inline-flex items-center gap-1 text-green-600"
+                          onClick={() => setRsvpDetailItem(item)}
+                        >
+                          <CircleCheck className="h-4 w-4" />
+                          <span className="text-sm">Accepted</span>
+                        </button>
+                      ) : item.rsvp_status === 'declined' ? (
+                        <button
+                          type="button"
+                          className="cursor-pointer inline-flex items-center gap-1 text-muted-foreground"
+                          onClick={() => setRsvpDetailItem(item)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          <span className="text-sm">Declined</span>
+                        </button>
+                      ) : item.invite_status === 'no_show' ? (
+                        <button
+                          type="button"
+                          className="cursor-pointer inline-flex items-center gap-1 text-sm text-muted-foreground"
+                          onClick={() => setRsvpDetailItem(item)}
+                        >
+                          No show
+                        </button>
+                      ) : item.invite_status === 'invited' ? (
+                        <button
+                          type="button"
+                          className="cursor-pointer text-sm"
+                          onClick={() => setRsvpDetailItem(item)}
+                        >
+                          Invited
+                        </button>
+                      ) : item.invite_status === 'to_invite' ? (
+                        <span className="text-sm text-muted-foreground">To invite</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     {showContactCols && (
                       <>
@@ -761,6 +753,14 @@ export function GuestListDetailPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {!item.rsvp_status && item.contact_email && (
+                              <DropdownMenuItem
+                                disabled={sendInvitesMutation.isPending}
+                                onClick={() => sendInvitesMutation.mutate([item.id])}
+                              >
+                                <Send className="w-4 h-4 mr-2" /> {item.invite_status === 'invited' ? 'Resend invite' : 'Send invite'}
+                              </DropdownMenuItem>
+                            )}
                             {item.rsvp_token && (
                               <DropdownMenuItem onClick={() => {
                                 navigator.clipboard.writeText(`https://rsvp.theoutlook.io/${item.rsvp_token}`)
@@ -769,7 +769,20 @@ export function GuestListDetailPage() {
                                 <Link className="w-4 h-4 mr-2" /> Copy invite link
                               </DropdownMenuItem>
                             )}
-                            {item.rsvp_token && <DropdownMenuSeparator />}
+                            {(item.invite_status === 'invited' || item.rsvp_status) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <div className="px-2 py-1.5 text-sm flex items-center gap-2 text-muted-foreground">
+                                  <Eye className={cn("h-3.5 w-3.5", item.invite_opened && "text-foreground")} />
+                                  {item.invite_opened ? 'Opened' : 'Not opened'}
+                                </div>
+                                <div className="px-2 py-1.5 text-sm flex items-center gap-2 text-muted-foreground">
+                                  <MousePointerClick className={cn("h-3.5 w-3.5", item.invite_clicked && "text-foreground")} />
+                                  {item.invite_clicked ? 'Clicked' : 'Not clicked'}
+                                </div>
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               variant="destructive"
                               onClick={() => handleRemoveItem(item)}
@@ -910,7 +923,33 @@ export function GuestListDetailPage() {
 
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Status</p>
-                {rsvpDetailItem.rsvp_status === 'accepted' ? (
+                {isAdmin ? (
+                  <Select
+                    value={rsvpDetailItem.invite_status || 'to_invite'}
+                    onValueChange={(value) => {
+                      updateItemMutation.mutate({
+                        itemId: rsvpDetailItem.id,
+                        data: { invite_status: value },
+                      })
+                      setRsvpDetailItem({
+                        ...rsvpDetailItem,
+                        invite_status: value as GuestListItem['invite_status'],
+                        rsvp_status: (value === 'accepted' || value === 'declined') ? value as GuestListItem['rsvp_status'] : '' as GuestListItem['rsvp_status'],
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="to_invite">To invite</SelectItem>
+                      <SelectItem value="invited">Invited</SelectItem>
+                      <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="declined">Declined</SelectItem>
+                      <SelectItem value="no_show">No show</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : rsvpDetailItem.rsvp_status === 'accepted' ? (
                   <span className="inline-flex items-center gap-1 text-green-600">
                     <CircleCheck className="h-4 w-4" />
                     Accepted

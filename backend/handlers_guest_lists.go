@@ -814,12 +814,32 @@ func handleGuestListItemUpdate(re *core.RequestEvent, app *pocketbase.PocketBase
 		}
 		record.Set("invite_round", v)
 	}
+	var inviteStatusChanged bool
+	var newInviteStatus string
 	if v, ok := input["invite_status"].(string); ok {
 		allowed := map[string]bool{"": true, "to_invite": true, "invited": true, "accepted": true, "declined": true, "no_show": true}
 		if !allowed[v] {
 			return utils.BadRequestResponse(re, "Invalid invite_status value")
 		}
 		record.Set("invite_status", v)
+		inviteStatusChanged = true
+		newInviteStatus = v
+	}
+	_, rsvpExplicit := input["rsvp_status"]
+	if v, ok := input["rsvp_status"].(string); ok {
+		allowed := map[string]bool{"": true, "accepted": true, "declined": true}
+		if !allowed[v] {
+			return utils.BadRequestResponse(re, "Invalid rsvp_status value")
+		}
+		record.Set("rsvp_status", v)
+	}
+	// Sync rsvp_status when admin changes invite_status manually
+	if inviteStatusChanged && !rsvpExplicit {
+		if newInviteStatus == "accepted" || newInviteStatus == "declined" {
+			record.Set("rsvp_status", newInviteStatus)
+		} else {
+			record.Set("rsvp_status", "")
+		}
 	}
 	if v, ok := input["notes"].(string); ok {
 		record.Set("notes", v)
