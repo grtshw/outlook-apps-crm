@@ -83,6 +83,8 @@ export async function getContacts(params: {
   status?: string
   sort?: string
   humanitix_event?: string
+  alpha_start?: string
+  alpha_end?: string
 } = {}): Promise<PaginatedResult<Contact>> {
   const queryParams = new URLSearchParams()
   queryParams.set('page', String(params.page || 1))
@@ -96,6 +98,12 @@ export async function getContacts(params: {
   }
   if (params.humanitix_event) {
     queryParams.set('humanitix_event', params.humanitix_event)
+  }
+  if (params.alpha_start) {
+    queryParams.set('alpha_start', params.alpha_start)
+  }
+  if (params.alpha_end) {
+    queryParams.set('alpha_end', params.alpha_end)
   }
 
   return fetchJSON<PaginatedResult<Contact>>(`/api/contacts?${queryParams}`)
@@ -187,6 +195,8 @@ export async function getOrganisations(params: {
   search?: string
   status?: string
   sort?: string
+  alpha_start?: string
+  alpha_end?: string
 } = {}): Promise<PaginatedResult<Organisation>> {
   const queryParams = new URLSearchParams()
   queryParams.set('page', String(params.page || 1))
@@ -200,6 +210,11 @@ export async function getOrganisations(params: {
   if (params.search) {
     const search = params.search.replace(/'/g, "\\'")
     filters.push(`name~'${search}'`)
+  }
+  if (params.alpha_start && params.alpha_end) {
+    const us = params.alpha_start.toUpperCase()
+    const ue = params.alpha_end.toUpperCase()
+    filters.push(`((name>='${us}'&&name<'${ue}')||(name>='${params.alpha_start}'&&name<'${params.alpha_end}'))`)
   }
   if (filters.length > 0) {
     queryParams.set('filter', filters.join('&&'))

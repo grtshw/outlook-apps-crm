@@ -509,6 +509,16 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 			filter = searchFilter
 		}
 	}
+	if alphaStart := re.Request.URL.Query().Get("alpha_start"); alphaStart != "" {
+		if alphaEnd := re.Request.URL.Query().Get("alpha_end"); alphaEnd != "" {
+			alphaFilter := "((name >= {:alpha_upper_start} && name < {:alpha_upper_end}) || (name >= {:alpha_start} && name < {:alpha_end}))"
+			if filter != "" {
+				filter = filter + " && " + alphaFilter
+			} else {
+				filter = alphaFilter
+			}
+		}
+	}
 	if len(humanitixContactIDs) > 0 {
 		// Build an IN clause with parameterized IDs
 		idPlaceholders := make([]string, len(humanitixContactIDs))
@@ -527,6 +537,14 @@ func handleContactsList(re *core.RequestEvent, app *pocketbase.PocketBase) error
 		"status":   status,
 		"search":   search,
 		"emailIdx": utils.BlindIndex(strings.ToLower(strings.TrimSpace(search))),
+	}
+	if alphaStart := re.Request.URL.Query().Get("alpha_start"); alphaStart != "" {
+		if alphaEnd := re.Request.URL.Query().Get("alpha_end"); alphaEnd != "" {
+			params["alpha_start"] = alphaStart
+			params["alpha_end"] = alphaEnd
+			params["alpha_upper_start"] = strings.ToUpper(alphaStart)
+			params["alpha_upper_end"] = strings.ToUpper(alphaEnd)
+		}
 	}
 	for i, cid := range humanitixContactIDs {
 		params[fmt.Sprintf("hid%d", i)] = cid
@@ -1044,10 +1062,28 @@ func handleOrganisationsList(re *core.RequestEvent, app *pocketbase.PocketBase) 
 			filter = searchFilter
 		}
 	}
+	if alphaStart := re.Request.URL.Query().Get("alpha_start"); alphaStart != "" {
+		if alphaEnd := re.Request.URL.Query().Get("alpha_end"); alphaEnd != "" {
+			alphaFilter := "((name >= {:alpha_upper_start} && name < {:alpha_upper_end}) || (name >= {:alpha_start} && name < {:alpha_end}))"
+			if filter != "" {
+				filter = filter + " && " + alphaFilter
+			} else {
+				filter = alphaFilter
+			}
+		}
+	}
 
 	params := map[string]any{
 		"status": status,
 		"search": search,
+	}
+	if alphaStart := re.Request.URL.Query().Get("alpha_start"); alphaStart != "" {
+		if alphaEnd := re.Request.URL.Query().Get("alpha_end"); alphaEnd != "" {
+			params["alpha_start"] = alphaStart
+			params["alpha_end"] = alphaEnd
+			params["alpha_upper_start"] = strings.ToUpper(alphaStart)
+			params["alpha_upper_end"] = strings.ToUpper(alphaEnd)
+		}
 	}
 
 	// Get total count

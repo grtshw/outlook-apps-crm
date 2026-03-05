@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate, useSearchParams } from 'react-router'
 import { getOrganisations, getOrganisation } from '@/lib/api'
@@ -19,6 +19,7 @@ import { OrgLogo } from '@/components/org-logo'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
 import { PageHeader } from '@/components/ui/page-header'
 import { ListView } from '@/components/ui/list-view'
+import { RANGE_BOUNDS, type AlphabetRange } from '@/components/ui/alphabet-filter'
 
 const PER_PAGE = 24
 
@@ -31,6 +32,14 @@ export function OrganisationsPage() {
   const page = Number(searchParams.get('page')) || 1
   const search = searchParams.get('search') || ''
   const status = searchParams.get('status') || 'active'
+  const alphaFilter = (searchParams.get('alpha') as AlphabetRange) || 'all'
+
+  const alphaParams = useMemo(() => {
+    if (alphaFilter === 'all') return { start: undefined, end: undefined }
+    const [start, end] = RANGE_BOUNDS[alphaFilter]
+    const nextChar = String.fromCharCode(end.charCodeAt(0) + 1)
+    return { start, end: nextChar }
+  }, [alphaFilter])
 
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedOrg, setSelectedOrg] = useState<Organisation | null>(null)
@@ -47,8 +56,8 @@ export function OrganisationsPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['organisations', page, search, status],
-    queryFn: () => getOrganisations({ page, perPage: PER_PAGE, search, status }),
+    queryKey: ['organisations', page, search, status, alphaFilter],
+    queryFn: () => getOrganisations({ page, perPage: PER_PAGE, search, status, alpha_start: alphaParams.start, alpha_end: alphaParams.end }),
   })
 
   const { data: deepLinkedOrg } = useQuery({
@@ -137,6 +146,8 @@ export function OrganisationsPage() {
         search={search}
         onSearchChange={(v) => updateParams({ search: v || undefined, page: undefined })}
         searchPlaceholder="Search organisations..."
+        alphabetValue={alphaFilter}
+        onAlphabetChange={(v) => updateParams({ alpha: v === 'all' ? undefined : v, page: undefined })}
         extraFilters={
           <Select value={status} onValueChange={(v) => updateParams({ status: v === 'active' ? undefined : v, page: undefined })}>
             <SelectTrigger className="w-[140px]">

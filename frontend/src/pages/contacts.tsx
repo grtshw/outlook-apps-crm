@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useNavigate, useSearchParams } from 'react-router'
 import { getContacts, getContact, fetchJSON } from '@/lib/api'
@@ -22,6 +22,7 @@ import { ContactDrawer } from '@/components/contact-drawer'
 import { MergeContactsDrawer } from '@/components/merge-contacts-drawer'
 import { PageHeader } from '@/components/ui/page-header'
 import { ListView } from '@/components/ui/list-view'
+import { RANGE_BOUNDS, type AlphabetRange } from '@/components/ui/alphabet-filter'
 
 const PER_PAGE = 25
 
@@ -51,6 +52,14 @@ export function ContactsPage() {
   const search = searchParams.get('search') || ''
   const status = searchParams.get('status') || 'active'
   const humanitixEvent = searchParams.get('event') || ''
+  const alphaFilter = (searchParams.get('alpha') as AlphabetRange) || 'all'
+
+  const alphaParams = useMemo(() => {
+    if (alphaFilter === 'all') return { start: undefined, end: undefined }
+    const [start, end] = RANGE_BOUNDS[alphaFilter]
+    const nextChar = String.fromCharCode(end.charCodeAt(0) + 1)
+    return { start, end: nextChar }
+  }, [alphaFilter])
 
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
@@ -78,8 +87,8 @@ export function ContactsPage() {
   })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', page, search, status, humanitixEvent],
-    queryFn: () => getContacts({ page, perPage: PER_PAGE, search, status, humanitix_event: humanitixEvent || undefined }),
+    queryKey: ['contacts', page, search, status, humanitixEvent, alphaFilter],
+    queryFn: () => getContacts({ page, perPage: PER_PAGE, search, status, humanitix_event: humanitixEvent || undefined, alpha_start: alphaParams.start, alpha_end: alphaParams.end }),
   })
 
   const { data: deepLinkedContact } = useQuery({
@@ -306,6 +315,8 @@ export function ContactsPage() {
         search={search}
         onSearchChange={(v) => updateParams({ search: v || undefined, page: undefined })}
         searchPlaceholder="Search contacts..."
+        alphabetValue={alphaFilter}
+        onAlphabetChange={(v) => updateParams({ alpha: v === 'all' ? undefined : v, page: undefined })}
         extraFilters={
           <>
             <Select value={status} onValueChange={(v) => updateParams({ status: v === 'active' ? undefined : v, page: undefined })}>
