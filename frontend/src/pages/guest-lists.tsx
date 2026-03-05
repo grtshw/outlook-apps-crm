@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/use-pocketbase'
 import { getGuestLists, createGuestList, getEventProjections } from '@/lib/api'
@@ -11,8 +11,10 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
-import { Plus, Search } from 'lucide-react'
-import { EntityList } from '@/components/entity-list'
+import { Plus } from 'lucide-react'
+import { EntityList } from '@/components/ui/entity-list'
+import { SearchInput } from '@/components/ui/search-input'
+import { FilterBar } from '@/components/ui/filter-bar'
 import { PageHeader } from '@/components/ui/page-header'
 
 const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline'> = {
@@ -31,12 +33,32 @@ function formatDate(dateString: string) {
 
 export function GuestListsPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { isAdmin } = useAuth()
 
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<string>('all')
+  const search = searchParams.get('search') || ''
+  const status = searchParams.get('status') || 'all'
   const [sheetOpen, setSheetOpen] = useState(false)
+
+  function updateParams(updates: Record<string, string | undefined>) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === undefined || val === '') next.delete(key)
+        else next.set(key, val)
+      }
+      return next
+    }, { replace: true })
+  }
+
+  function setSearch(value: string) {
+    updateParams({ search: value || undefined })
+  }
+
+  function setStatus(value: string) {
+    updateParams({ status: value === 'all' ? undefined : value })
+  }
 
   // Form state
   const [formName, setFormName] = useState('')
@@ -107,17 +129,14 @@ export function GuestListsPage() {
         )}
       </PageHeader>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search guest lists..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={status} onValueChange={setStatus}>
+      <FilterBar>
+        <SearchInput
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Search guest lists..."
+          className="flex-1 max-w-sm"
+        />
+        <Select value={status} onValueChange={(v) => setStatus(v)}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -128,14 +147,14 @@ export function GuestListsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </FilterBar>
 
       <EntityList
         items={data?.items ?? []}
         isLoading={isLoading}
         layout="list"
         onItemClick={(item) => navigate(`/guest-lists/${item.id}`)}
-        emptyMessage="No guest lists found"
+        emptyTitle="No guest lists found"
         columns={[
           {
             label: 'Name',

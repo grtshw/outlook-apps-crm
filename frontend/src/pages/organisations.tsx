@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useParams, useNavigate } from 'react-router'
+import { useParams, useNavigate, useSearchParams } from 'react-router'
 import { getOrganisations, getOrganisation } from '@/lib/api'
 import { useAuth } from '@/hooks/use-pocketbase'
 import type { Organisation } from '@/lib/pocketbase'
 import { CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -15,14 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Plus } from 'lucide-react'
 import { OrgLogo } from '@/components/org-logo'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
-import { EntityList } from '@/components/entity-list'
 import { PageHeader } from '@/components/ui/page-header'
+import { SearchInput } from '@/components/ui/search-input'
+import { FilterBar, FilterBarSpacer } from '@/components/ui/filter-bar'
+import { ViewToggle, type ViewLayout } from '@/components/ui/view-toggle'
+import { EntityList } from '@/components/ui/entity-list'
+import { ListPagination } from '@/components/ui/list-pagination'
 
-function getStoredLayout(): 'list' | 'cards' {
+const PER_PAGE = 24
+
+function getStoredLayout(): ViewLayout {
   try {
     const v = localStorage.getItem('crm-orgs-layout')
     if (v === 'list' || v === 'cards') return v
@@ -33,22 +37,48 @@ function getStoredLayout(): 'list' | 'cards' {
 export function OrganisationsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { isAdmin } = useAuth()
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<string>('active')
-  const [layout, setLayoutState] = useState<'list' | 'cards'>(getStoredLayout)
+
+  const page = Number(searchParams.get('page')) || 1
+  const search = searchParams.get('search') || ''
+  const status = searchParams.get('status') || 'active'
+
+  const [layout, setLayoutState] = useState<ViewLayout>(getStoredLayout)
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedOrg, setSelectedOrg] = useState<Organisation | null>(null)
 
-  const setLayout = (v: 'list' | 'cards') => {
+  function updateParams(updates: Record<string, string | undefined>) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === undefined || val === '') next.delete(key)
+        else next.set(key, val)
+      }
+      return next
+    }, { replace: true })
+  }
+
+  function setSearch(value: string) {
+    updateParams({ search: value || undefined, page: undefined })
+  }
+
+  function setStatus(value: string) {
+    updateParams({ status: value === 'active' ? undefined : value, page: undefined })
+  }
+
+  function setPage(p: number) {
+    updateParams({ page: p === 1 ? undefined : String(p) })
+  }
+
+  const setLayout = (v: ViewLayout) => {
     setLayoutState(v)
     try { localStorage.setItem('crm-orgs-layout', v) } catch { /* ignore */ }
   }
 
   const { data, isLoading } = useQuery({
     queryKey: ['organisations', page, search, status],
-    queryFn: () => getOrganisations({ page, perPage: 24, search, status }),
+    queryFn: () => getOrganisations({ page, perPage: PER_PAGE, search, status }),
   })
 
   const { data: deepLinkedOrg } = useQuery({
@@ -84,26 +114,14 @@ export function OrganisationsPage() {
         )}
       </PageHeader>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search organisations..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            className="pl-9"
-          />
-        </div>
-        <Select
-          value={status}
-          onValueChange={(v) => {
-            setStatus(v)
-            setPage(1)
-          }}
-        >
+      <FilterBar>
+        <SearchInput
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Search organisations..."
+          className="flex-1 max-w-sm"
+        />
+        <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -113,34 +131,16 @@ export function OrganisationsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1 border rounded-md p-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('h-7 w-7', layout === 'list' && 'bg-accent')}
-            onClick={() => setLayout('list')}
-            title="List view"
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('h-7 w-7', layout === 'cards' && 'bg-accent')}
-            onClick={() => setLayout('cards')}
-            title="Card view"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        <FilterBarSpacer />
+        <ViewToggle value={layout} onValueChange={setLayout} />
+      </FilterBar>
 
       <EntityList
         items={data?.items ?? []}
         isLoading={isLoading}
         layout={layout}
         onItemClick={openOrg}
-        emptyMessage="No organisations found"
+        emptyTitle="No organisations found"
         columns={[
           {
             label: 'Organisation',
@@ -190,35 +190,14 @@ export function OrganisationsPage() {
         )}
       />
 
-      {data && data.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * 24 + 1} to {Math.min(page * 24, data.totalItems)} of{' '}
-            {data.totalItems} organisations
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="text-sm">
-              Page {page} of {data.totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
-              disabled={page === data.totalPages}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <ListPagination
+        page={page}
+        totalPages={data?.totalPages ?? 0}
+        totalItems={data?.totalItems ?? 0}
+        perPage={PER_PAGE}
+        onPageChange={setPage}
+        noun="organisations"
+      />
 
       <OrganisationDrawer
         open={drawerOpen}
