@@ -18,21 +18,9 @@ import { Plus } from 'lucide-react'
 import { OrgLogo } from '@/components/org-logo'
 import { OrganisationDrawer } from '@/components/organisation-drawer'
 import { PageHeader } from '@/components/ui/page-header'
-import { SearchInput } from '@/components/ui/search-input'
-import { FilterBar, FilterBarSpacer } from '@/components/ui/filter-bar'
-import { ViewToggle, type ViewLayout } from '@/components/ui/view-toggle'
-import { EntityList } from '@/components/ui/entity-list'
-import { ListPagination } from '@/components/ui/list-pagination'
+import { ListView } from '@/components/ui/list-view'
 
 const PER_PAGE = 24
-
-function getStoredLayout(): ViewLayout {
-  try {
-    const v = localStorage.getItem('crm-orgs-layout')
-    if (v === 'list' || v === 'cards') return v
-  } catch { /* ignore */ }
-  return 'list'
-}
 
 export function OrganisationsPage() {
   const { id } = useParams()
@@ -44,7 +32,6 @@ export function OrganisationsPage() {
   const search = searchParams.get('search') || ''
   const status = searchParams.get('status') || 'active'
 
-  const [layout, setLayoutState] = useState<ViewLayout>(getStoredLayout)
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedOrg, setSelectedOrg] = useState<Organisation | null>(null)
 
@@ -57,23 +44,6 @@ export function OrganisationsPage() {
       }
       return next
     }, { replace: true })
-  }
-
-  function setSearch(value: string) {
-    updateParams({ search: value || undefined, page: undefined })
-  }
-
-  function setStatus(value: string) {
-    updateParams({ status: value === 'active' ? undefined : value, page: undefined })
-  }
-
-  function setPage(p: number) {
-    updateParams({ page: p === 1 ? undefined : String(p) })
-  }
-
-  const setLayout = (v: ViewLayout) => {
-    setLayoutState(v)
-    try { localStorage.setItem('crm-orgs-layout', v) } catch { /* ignore */ }
   }
 
   const { data, isLoading } = useQuery({
@@ -114,33 +84,9 @@ export function OrganisationsPage() {
         )}
       </PageHeader>
 
-      <FilterBar>
-        <SearchInput
-          value={search}
-          onValueChange={setSearch}
-          placeholder="Search organisations..."
-          className="flex-1 max-w-sm"
-        />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-          </SelectContent>
-        </Select>
-        <FilterBarSpacer />
-        <ViewToggle value={layout} onValueChange={setLayout} />
-      </FilterBar>
-
-      <EntityList
+      <ListView
         items={data?.items ?? []}
         isLoading={isLoading}
-        layout={layout}
-        onItemClick={openOrg}
-        emptyTitle="No organisations found"
         columns={[
           {
             label: 'Organisation',
@@ -188,15 +134,30 @@ export function OrganisationsPage() {
             )}
           </CardContent>
         )}
-      />
-
-      <ListPagination
+        search={search}
+        onSearchChange={(v) => updateParams({ search: v || undefined, page: undefined })}
+        searchPlaceholder="Search organisations..."
+        extraFilters={
+          <Select value={status} onValueChange={(v) => updateParams({ status: v === 'active' ? undefined : v, page: undefined })}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+        }
         page={page}
         totalPages={data?.totalPages ?? 0}
         totalItems={data?.totalItems ?? 0}
         perPage={PER_PAGE}
-        onPageChange={setPage}
+        onPageChange={(p) => updateParams({ page: p === 1 ? undefined : String(p) })}
         noun="organisations"
+        storageKey="crm-orgs-layout"
+        onItemClick={openOrg}
+        emptyTitle="No organisations found"
       />
 
       <OrganisationDrawer

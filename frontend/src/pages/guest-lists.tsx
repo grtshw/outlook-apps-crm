@@ -12,10 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet'
 import { Plus } from 'lucide-react'
-import { EntityList } from '@/components/ui/entity-list'
-import { SearchInput } from '@/components/ui/search-input'
-import { FilterBar } from '@/components/ui/filter-bar'
 import { PageHeader } from '@/components/ui/page-header'
+import { ListView } from '@/components/ui/list-view'
 
 const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline'> = {
   draft: 'outline',
@@ -50,14 +48,6 @@ export function GuestListsPage() {
       }
       return next
     }, { replace: true })
-  }
-
-  function setSearch(value: string) {
-    updateParams({ search: value || undefined })
-  }
-
-  function setStatus(value: string) {
-    updateParams({ status: value === 'all' ? undefined : value })
   }
 
   // Form state
@@ -129,32 +119,9 @@ export function GuestListsPage() {
         )}
       </PageHeader>
 
-      <FilterBar>
-        <SearchInput
-          value={search}
-          onValueChange={setSearch}
-          placeholder="Search guest lists..."
-          className="flex-1 max-w-sm"
-        />
-        <Select value={status} onValueChange={(v) => setStatus(v)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-          </SelectContent>
-        </Select>
-      </FilterBar>
-
-      <EntityList
+      <ListView
         items={data?.items ?? []}
         isLoading={isLoading}
-        layout="list"
-        onItemClick={(item) => navigate(`/guest-lists/${item.id}`)}
-        emptyTitle="No guest lists found"
         columns={[
           {
             label: 'Name',
@@ -194,7 +161,44 @@ export function GuestListsPage() {
             ),
           },
         ]}
-        renderCard={() => null}
+        renderCard={(item) => (
+          <div className="p-4">
+            <h3 className="truncate">{item.name}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{item.event_name || 'No event'}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant={STATUS_VARIANTS[item.status] ?? 'outline'}>
+                {item.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{item.item_count} guests</span>
+            </div>
+          </div>
+        )}
+        search={search}
+        onSearchChange={(v) => updateParams({ search: v || undefined })}
+        searchPlaceholder="Search guest lists..."
+        extraFilters={
+          <Select value={status} onValueChange={(v) => updateParams({ status: v === 'all' ? undefined : v })}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        page={1}
+        totalPages={1}
+        totalItems={data?.items?.length ?? 0}
+        perPage={100}
+        onPageChange={() => {}}
+        noun="guest lists"
+        defaultLayout="list"
+        storageKey="crm-guest-lists-layout"
+        onItemClick={(item) => navigate(`/guest-lists/${item.id}`)}
+        emptyTitle="No guest lists found"
       />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>

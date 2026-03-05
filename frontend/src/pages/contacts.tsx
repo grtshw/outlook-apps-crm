@@ -21,11 +21,7 @@ import { cn } from '@/lib/utils'
 import { ContactDrawer } from '@/components/contact-drawer'
 import { MergeContactsDrawer } from '@/components/merge-contacts-drawer'
 import { PageHeader } from '@/components/ui/page-header'
-import { SearchInput } from '@/components/ui/search-input'
-import { FilterBar, FilterBarSpacer } from '@/components/ui/filter-bar'
-import { ViewToggle, type ViewLayout } from '@/components/ui/view-toggle'
-import { EntityList } from '@/components/ui/entity-list'
-import { ListPagination } from '@/components/ui/list-pagination'
+import { ListView } from '@/components/ui/list-view'
 
 const PER_PAGE = 25
 
@@ -45,14 +41,6 @@ const DOMAIN_VARIANTS: Record<ContactDomain, 'default' | 'secondary' | 'destruct
   leadership: 'outline',
 }
 
-function getStoredLayout(): ViewLayout {
-  try {
-    const v = localStorage.getItem('crm-contacts-layout')
-    if (v === 'list' || v === 'cards') return v
-  } catch { /* ignore */ }
-  return 'list'
-}
-
 export function ContactsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -64,7 +52,6 @@ export function ContactsPage() {
   const status = searchParams.get('status') || 'active'
   const humanitixEvent = searchParams.get('event') || ''
 
-  const [layout, setLayoutState] = useState<ViewLayout>(getStoredLayout)
   const [drawerOpen, setDrawerOpen] = useState(!!id)
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
 
@@ -82,27 +69,6 @@ export function ContactsPage() {
       }
       return next
     }, { replace: true })
-  }
-
-  function setSearch(value: string) {
-    updateParams({ search: value || undefined, page: undefined })
-  }
-
-  function setStatus(value: string) {
-    updateParams({ status: value === 'active' ? undefined : value, page: undefined })
-  }
-
-  function setHumanitixEvent(value: string) {
-    updateParams({ event: value || undefined, page: undefined })
-  }
-
-  function setPage(p: number) {
-    updateParams({ page: p === 1 ? undefined : String(p) })
-  }
-
-  const setLayout = (v: ViewLayout) => {
-    setLayoutState(v)
-    try { localStorage.setItem('crm-contacts-layout', v) } catch { /* ignore */ }
   }
 
   const { data: humanitixEvents } = useQuery({
@@ -213,54 +179,9 @@ export function ContactsPage() {
         </div>
       )}
 
-      <FilterBar>
-        <SearchInput
-          value={search}
-          onValueChange={setSearch}
-          placeholder="Search contacts..."
-          className="flex-1 max-w-sm"
-        />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="archived">Archived</SelectItem>
-          </SelectContent>
-        </Select>
-        {humanitixEvents && humanitixEvents.length > 0 && (
-          <Select
-            value={humanitixEvent || 'all'}
-            onValueChange={(v) => setHumanitixEvent(v === 'all' ? '' : v)}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Humanitix event" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All events</SelectItem>
-              {humanitixEvents.map((event) => (
-                <SelectItem key={event.id} value={event.id}>
-                  {event.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <FilterBarSpacer />
-        <ViewToggle value={layout} onValueChange={setLayout} />
-      </FilterBar>
-
-      <EntityList
+      <ListView
         items={data?.items ?? []}
         isLoading={isLoading}
-        layout={layout}
-        onItemClick={openContact}
-        emptyTitle="No contacts found"
-        cardClassName="grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
         columns={[
           ...(mergeMode ? [{
             label: '',
@@ -382,15 +303,53 @@ export function ContactsPage() {
             )}
           </CardContent>
         )}
-      />
-
-      <ListPagination
+        search={search}
+        onSearchChange={(v) => updateParams({ search: v || undefined, page: undefined })}
+        searchPlaceholder="Search contacts..."
+        extraFilters={
+          <>
+            <Select value={status} onValueChange={(v) => updateParams({ status: v === 'active' ? undefined : v, page: undefined })}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+            {humanitixEvents && humanitixEvents.length > 0 && (
+              <Select
+                value={humanitixEvent || 'all'}
+                onValueChange={(v) => updateParams({ event: v === 'all' ? '' : v, page: undefined })}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Humanitix event" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All events</SelectItem>
+                  {humanitixEvents.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </>
+        }
         page={page}
         totalPages={data?.totalPages ?? 0}
         totalItems={data?.totalItems ?? 0}
         perPage={PER_PAGE}
-        onPageChange={setPage}
+        onPageChange={(p) => updateParams({ page: p === 1 ? undefined : String(p) })}
         noun="contacts"
+        storageKey="crm-contacts-layout"
+        cardClassName="grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
+        onItemClick={openContact}
+        emptyTitle="No contacts found"
       />
 
       <ContactDrawer
