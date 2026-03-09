@@ -200,6 +200,8 @@ export interface GuestListItem extends RecordModel {
   sort_order: number
   rsvp_token: string
   rsvp_status: 'accepted' | 'declined' | ''
+  contact_dietary_requirements?: DietaryRequirement[]
+  contact_dietary_requirements_other?: string
   rsvp_dietary: string
   rsvp_plus_one: boolean
   rsvp_plus_one_name: string

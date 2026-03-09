@@ -619,6 +619,14 @@ func handleGuestListItemsList(re *core.RequestEvent, app *pocketbase.PocketBase)
 					}(r)
 				}
 
+				// Dietary requirements from contact
+				if raw := contact.Get("dietary_requirements"); raw != nil {
+					item["contact_dietary_requirements"] = raw
+				}
+				if other := contact.GetString("dietary_requirements_other"); other != "" {
+					item["contact_dietary_requirements_other"] = other
+				}
+
 				// Avatar URL (stored by DAM)
 				if avatarURL := contact.GetString("avatar_url"); avatarURL != "" {
 					item["contact_avatar_url"] = avatarURL

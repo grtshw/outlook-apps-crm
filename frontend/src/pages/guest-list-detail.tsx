@@ -20,7 +20,7 @@ import {
   createCalendarEvent,
   sendCalendarInvitesAll,
 } from '@/lib/api'
-import type { Contact, GuestListItem, GuestListShare, ProgramItem } from '@/lib/pocketbase'
+import type { Contact, GuestListItem, GuestListShare, ProgramItem, DietaryRequirement } from '@/lib/pocketbase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -48,11 +48,37 @@ import { ContactCombobox } from '@/components/contact-combobox'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, Search, CalendarPlus } from 'lucide-react'
+import { Pencil, Share2, Trash2, X, ExternalLink, Copy, UserPlus, ArrowUp, ArrowDown, ArrowUpDown, Columns3, CircleCheck, XCircle, Send, EllipsisVertical, Link, Eye, MousePointerClick, LayoutList, Search, CalendarPlus, UtensilsCrossed, ClipboardCopy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const initials = (name: string) =>
   name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+
+const DIETARY_LABELS: Record<DietaryRequirement, string> = {
+  vegetarian: 'Vegetarian',
+  vegan: 'Vegan',
+  gluten_free: 'Gluten free',
+  dairy_free: 'Dairy free',
+  nut_allergy: 'Nut allergy',
+  halal: 'Halal',
+  kosher: 'Kosher',
+}
+
+function formatDietary(item: GuestListItem): string | null {
+  const parts: string[] = []
+  if (item.contact_dietary_requirements?.length) {
+    parts.push(...item.contact_dietary_requirements.map(r => DIETARY_LABELS[r] || r))
+  }
+  if (item.contact_dietary_requirements_other) {
+    parts.push(item.contact_dietary_requirements_other)
+  }
+  if (item.rsvp_dietary) {
+    parts.push(item.rsvp_dietary)
+  }
+  if (!parts.length) return null
+  // Deduplicate
+  return [...new Set(parts)].join(', ')
+}
 
 function formatDate(dateString: string | undefined | null): string {
   if (!dateString) return '—'
@@ -83,6 +109,7 @@ export function GuestListDetailPage() {
   const [cloneOpen, setCloneOpen] = useState(false)
   const [programOpen, setProgramOpen] = useState(false)
   const [damBrowserOpen, setDamBrowserOpen] = useState(false)
+  const [dietaryOpen, setDietaryOpen] = useState(false)
 
   // Program form state
   const [programForm, setProgramForm] = useState({
@@ -509,6 +536,9 @@ export function GuestListDetailPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setShareDialogOpen(true)}>
                   <Share2 className="w-4 h-4 mr-2" /> Share
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDietaryOpen(true)}>
+                  <UtensilsCrossed className="w-4 h-4 mr-2" /> Dietary requirements
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleOpenEdit}>
@@ -1493,6 +1523,69 @@ export function GuestListDetailPage() {
           updateListMutation.mutate({ landing_image_url: asset.url })
         }}
       />
+
+      {/* Dietary requirements sheet */}
+      <Sheet open={dietaryOpen} onOpenChange={(o) => !o && setDietaryOpen(false)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Dietary requirements</SheetTitle>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-6">
+            {(() => {
+              const dietaryGuests = items
+                .filter(item => {
+                  const d = formatDietary(item)
+                  return d !== null
+                })
+                .sort((a, b) => a.contact_name.localeCompare(b.contact_name))
+
+              const plusOneGuests = items
+                .filter(item => item.rsvp_plus_one && item.rsvp_plus_one_dietary)
+                .sort((a, b) => (a.rsvp_plus_one_name || '').localeCompare(b.rsvp_plus_one_name || ''))
+
+              if (!dietaryGuests.length && !plusOneGuests.length) {
+                return <p className="text-sm text-muted-foreground">No dietary requirements recorded.</p>
+              }
+
+              const copyText = [
+                ...dietaryGuests.map(item => `${item.contact_name} — ${formatDietary(item)}`),
+                ...plusOneGuests.map(item => `${item.rsvp_plus_one_name || 'Plus one of ' + item.contact_name} — ${item.rsvp_plus_one_dietary}`),
+              ].join('\n')
+
+              return (
+                <div className="space-y-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(copyText)
+                      toast.success('Copied to clipboard')
+                    }}
+                  >
+                    <ClipboardCopy className="w-4 h-4 mr-1.5" /> Copy all
+                  </Button>
+
+                  <div className="space-y-2">
+                    {dietaryGuests.map(item => (
+                      <div key={item.id} className="flex justify-between gap-4 py-1.5 border-b last:border-0">
+                        <span className="text-sm truncate">{item.contact_name}</span>
+                        <span className="text-sm text-muted-foreground text-right shrink-0">{formatDietary(item)}</span>
+                      </div>
+                    ))}
+                    {plusOneGuests.map(item => (
+                      <div key={item.id + '-plus-one'} className="flex justify-between gap-4 py-1.5 border-b last:border-0">
+                        <span className="text-sm truncate">{item.rsvp_plus_one_name || 'Plus one of ' + item.contact_name}</span>
+                        <span className="text-sm text-muted-foreground text-right shrink-0">{item.rsvp_plus_one_dietary}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
