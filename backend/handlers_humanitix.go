@@ -555,6 +555,9 @@ func runHumanitixSync(app *pocketbase.PocketBase, syncLogID, eventID string, fie
 				orgRecord.Set("source", "humanitix")
 				if website := guessWebsiteFromEmail(email); website != "" {
 					orgRecord.Set("website", website)
+					if logoURL := guessLogoURL(website); logoURL != "" {
+						orgRecord.Set("logo_square_url", logoURL)
+					}
 				}
 				if err := app.Save(orgRecord); err != nil {
 					log.Printf("[Humanitix] Failed to create org %q: %v", company, err)
@@ -805,6 +808,21 @@ func guessWebsiteFromEmail(email string) string {
 	return "https://" + domain
 }
 
+// guessLogoURL returns a Clearbit logo URL for a domain, or empty string
+func guessLogoURL(website string) string {
+	if website == "" {
+		return ""
+	}
+	// Strip protocol and path to get bare domain
+	domain := strings.TrimPrefix(website, "https://")
+	domain = strings.TrimPrefix(domain, "http://")
+	domain = strings.SplitN(domain, "/", 2)[0]
+	if domain == "" {
+		return ""
+	}
+	return "https://logo.clearbit.com/" + domain
+}
+
 // handleHumanitixCSVImport handles CSV file upload and imports attendees as contacts
 func handleHumanitixCSVImport(re *core.RequestEvent, app *pocketbase.PocketBase) error {
 	// Parse multipart form (max 10MB)
@@ -986,6 +1004,9 @@ func runHumanitixCSVImport(app *pocketbase.PocketBase, syncLogID string, rows []
 				// Guess website from email domain
 				if website := guessWebsiteFromEmail(email); website != "" {
 					orgRecord.Set("website", website)
+					if logoURL := guessLogoURL(website); logoURL != "" {
+						orgRecord.Set("logo_square_url", logoURL)
+					}
 				}
 
 				if err := app.Save(orgRecord); err != nil {

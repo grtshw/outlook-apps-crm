@@ -11,7 +11,7 @@ import {
   type DomainAction,
   type ProfileMenuItem,
 } from '@/components/ui/app-sidebar'
-import { LayoutDashboard, Users, Building2, Settings, Radio, ListChecks, ClipboardCheck, Palette } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Settings, Radio, ListChecks, ClipboardCheck, Palette, TicketCheck } from 'lucide-react'
 
 const FALLBACK_APPS: EcosystemApp[] = [
   { app_id: 'events', app_name: 'Events', app_url: 'https://events.theoutlook.io', app_icon: 'calendar4-event', sort_order: 1, is_active: true },
@@ -29,6 +29,12 @@ const navigation: NavGroup[] = [
       { name: 'Contacts', href: '/contacts', icon: Users },
       { name: 'Sanitise', href: '/contacts/sanitise', icon: ClipboardCheck },
       { name: 'Organisations', href: '/organisations', icon: Building2 },
+    ],
+  },
+  {
+    label: 'Attendance',
+    items: [
+      { name: 'Companies', href: '/attendance', icon: TicketCheck },
     ],
   },
   {

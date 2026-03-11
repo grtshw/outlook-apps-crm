@@ -423,6 +423,10 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
 
 	// Attendee company lists (blind lists for sponsors)
+	e.Router.GET("/api/attendee-lists/companies", func(re *core.RequestEvent) error {
+		return handleAttendeeCompanies(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
 	e.Router.GET("/api/attendee-lists/event/{event_id}", func(re *core.RequestEvent) error {
 		return handleAttendeeCompanyList(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)

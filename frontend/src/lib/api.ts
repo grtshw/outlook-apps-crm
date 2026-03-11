@@ -672,6 +672,40 @@ export async function deleteTheme(id: string): Promise<{ message: string }> {
   return fetchJSON(`/api/themes/${id}`, { method: 'DELETE' })
 }
 
+// ── Attendance Lists ──
+
+export interface AttendanceCompany {
+  company: string
+  logo_url: string
+  titles: string[]
+  attendee_count: number
+  event_count: number
+  events: string[]
+}
+
+export interface AttendanceEvent {
+  event_id: string
+  event_name: string
+}
+
+export interface AttendanceCompaniesResponse {
+  companies: AttendanceCompany[]
+  events: AttendanceEvent[]
+  total_companies: number
+  total_attendees: number
+  no_company_count: number
+}
+
+export async function getAttendanceCompanies(params?: {
+  events?: string[]
+  search?: string
+}): Promise<AttendanceCompaniesResponse> {
+  const queryParams = new URLSearchParams()
+  if (params?.events?.length) queryParams.set('events', params.events.join(','))
+  if (params?.search) queryParams.set('search', params.search)
+  return fetchJSON(`/api/attendee-lists/companies?${queryParams}`)
+}
+
 // File URLs
 export function getFileUrl(collectionId: string, recordId: string, filename: string): string {
   return `${pb.baseURL}/api/files/${collectionId}/${recordId}/${filename}`

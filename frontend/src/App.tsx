@@ -12,6 +12,7 @@ import { SharedGuestListPage } from '@/pages/shared-guest-list'
 import { RSVPPage } from '@/pages/rsvp'
 import SettingsPage from '@/pages/settings'
 import ThemesPage from '@/pages/themes'
+import { AttendancePage } from '@/pages/attendance'
 import { AppLayout } from '@/components/app-layout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,7 @@ function App() {
                 <Route path="/contacts/:id" element={<ContactsPage />} />
                 <Route path="/organisations" element={<OrganisationsPage />} />
                 <Route path="/organisations/:id" element={<OrganisationsPage />} />
+                <Route path="/attendance" element={<AttendancePage />} />
                 <Route path="/projections" element={<CRMProjectionsPage />} />
                 <Route path="/guest-lists" element={<GuestListsPage />} />
                 <Route path="/guest-lists/themes" element={<ThemesPage />} />
