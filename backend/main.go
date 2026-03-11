@@ -422,6 +422,19 @@ func registerRoutes(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		return handleHumanitixSyncLogs(re, app)
 	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
 
+	// Attendee company lists (blind lists for sponsors)
+	e.Router.GET("/api/attendee-lists/event/{event_id}", func(re *core.RequestEvent) error {
+		return handleAttendeeCompanyList(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	e.Router.GET("/api/attendee-lists/event-by-slug/{slug}", func(re *core.RequestEvent) error {
+		return handleAttendeeCompanyListBySlug(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
+	e.Router.GET("/api/attendee-lists/repeat-companies", func(re *core.RequestEvent) error {
+		return handleRepeatCompanies(re, app)
+	}).BindFunc(utils.RateLimitAuth).BindFunc(utils.RequireAuth)
+
 	// Mailchimp integration (admin only + webhook)
 	e.Router.GET("/api/admin/mailchimp/status", func(re *core.RequestEvent) error {
 		return handleMailchimpStatus(re, app)
