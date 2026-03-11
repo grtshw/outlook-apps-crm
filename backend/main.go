@@ -196,8 +196,9 @@ func main() {
 		// Start the backup scheduler (runs at 3 AM AEST daily)
 		go scheduleBackups(app)
 
-		// Load DAM avatar URL cache and persist URLs to contact records
+		// Load DAM caches (avatars + logos) and persist URLs to records
 		go RefreshDAMAvatarCache()
+		go RefreshDAMLogoCache()
 		go func() {
 			time.Sleep(5 * time.Second)
 			if result, err := syncAvatarURLsFromDAM(app); err != nil {
@@ -216,6 +217,7 @@ func main() {
 				log.Printf("[Startup] Logo URL sync: updated %d, skipped %d", result.Updated, result.Skipped)
 			}
 		}()
+
 
 		return e.Next()
 	})

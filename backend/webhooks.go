@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"strings"
@@ -226,7 +227,7 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 		data["avatar_url"] = avatarURL
 	}
 
-	// DAM avatar variant URLs (from DAM sync)
+	// DAM avatar variant URLs — prefer record fields, fall back to in-memory DAM cache
 	avatarUrls := map[string]string{}
 	if thumb := r.GetString("avatar_thumb_url"); thumb != "" {
 		avatarUrls["thumb"] = thumb
@@ -236,6 +237,20 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 	}
 	if original := r.GetString("avatar_original_url"); original != "" {
 		avatarUrls["original"] = original
+	}
+	if len(avatarUrls) == 0 {
+		// Record doesn't have avatar URLs yet — check DAM cache
+		if cached, ok := GetDAMAvatarURLs(r.Id); ok {
+			if cached.ThumbURL != "" {
+				avatarUrls["thumb"] = cached.ThumbURL
+			}
+			if cached.SmallURL != "" {
+				avatarUrls["small"] = cached.SmallURL
+			}
+			if cached.OriginalURL != "" {
+				avatarUrls["original"] = cached.OriginalURL
+			}
+		}
 	}
 	if len(avatarUrls) > 0 {
 		data["avatar_urls"] = avatarUrls
@@ -255,6 +270,22 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 
 // buildOrganisationWebhookPayload builds the webhook payload for an organisation
 func buildOrganisationWebhookPayload(r *core.Record, baseURL string) map[string]any {
+	logoURLs := r.Get("logo_urls")
+
+	// Fall back to DAM logo cache if record doesn't have logos
+	if logoURLs == nil {
+		if cached, ok := GetDAMLogoURLs(r.Id); ok {
+			logoURLs = cached
+		}
+	} else {
+		// Check if logo_urls is an empty array
+		if b, err := json.Marshal(logoURLs); err == nil && (string(b) == "null" || string(b) == "[]") {
+			if cached, ok := GetDAMLogoURLs(r.Id); ok {
+				logoURLs = cached
+			}
+		}
+	}
+
 	data := map[string]any{
 		"org_id":             r.Id,
 		"name":               r.GetString("name"),
@@ -264,7 +295,7 @@ func buildOrganisationWebhookPayload(r *core.Record, baseURL string) map[string]
 		"description_medium": r.GetString("description_medium"),
 		"description_long":   r.GetString("description_long"),
 		"contacts":           r.Get("contacts"),
-		"logo_urls":          r.Get("logo_urls"),
+		"logo_urls":          logoURLs,
 		"created":            r.GetString("created"),
 		"updated":            r.GetString("updated"),
 	}

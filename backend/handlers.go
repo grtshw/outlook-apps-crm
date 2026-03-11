@@ -2125,7 +2125,7 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 		data["avatar_url"] = avatarURL
 	}
 
-	// DAM avatar variant URLs (from DAM sync)
+	// DAM avatar variant URLs — prefer record fields, fall back to in-memory DAM cache
 	avatarUrls := map[string]string{}
 	if thumb := r.GetString("avatar_thumb_url"); thumb != "" {
 		avatarUrls["thumb"] = thumb
@@ -2135,6 +2135,19 @@ func buildContactProjection(r *core.Record, app *pocketbase.PocketBase, baseURL 
 	}
 	if original := r.GetString("avatar_original_url"); original != "" {
 		avatarUrls["original"] = original
+	}
+	if len(avatarUrls) == 0 {
+		if cached, ok := GetDAMAvatarURLs(r.Id); ok {
+			if cached.ThumbURL != "" {
+				avatarUrls["thumb"] = cached.ThumbURL
+			}
+			if cached.SmallURL != "" {
+				avatarUrls["small"] = cached.SmallURL
+			}
+			if cached.OriginalURL != "" {
+				avatarUrls["original"] = cached.OriginalURL
+			}
+		}
 	}
 	if len(avatarUrls) > 0 {
 		data["avatar_urls"] = avatarUrls
