@@ -22,13 +22,6 @@ type WebhookPayload struct {
 	Timestamp  string         `json:"timestamp"`  // ISO timestamp
 }
 
-// DAMOrganisationPayload is the format expected by DAM for organisation projections
-type DAMOrganisationPayload struct {
-	Action     string         `json:"action"`     // upsert, delete
-	Projection map[string]any `json:"projection"` // The projection data
-	Timestamp  string         `json:"timestamp"`  // ISO timestamp
-}
-
 // hubClient is initialized once at startup if HUB_ENABLED is set.
 var hubClient *hub.Client
 
@@ -123,27 +116,6 @@ func buildDAMContactPayload(r *core.Record, app *pocketbase.PocketBase, baseURL,
 	}
 }
 
-// buildDAMOrganisationPayload builds the payload for DAM's organization-projection endpoint
-// DAM expects a different format with "projection" wrapper
-func buildDAMOrganisationPayload(r *core.Record, baseURL, action string) DAMOrganisationPayload {
-	projection := map[string]any{
-		"org_id":             r.Id,
-		"name":               r.GetString("name"),
-		"website":            r.GetString("website"),
-		"linkedin":           r.GetString("linkedin"),
-		"description_short":  r.GetString("description_short"),
-		"description_medium": r.GetString("description_medium"),
-		"description_long":   r.GetString("description_long"),
-		"contacts":           r.Get("contacts"),
-	}
-
-	return DAMOrganisationPayload{
-		Action:     action,
-		Projection: projection,
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-	}
-}
-
 // sendContactToDAM sends a contact to DAM through the hub
 func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
 	if hubClient == nil {
@@ -158,20 +130,6 @@ func sendContactToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, actio
 	}
 }
 
-// sendOrganisationToDAM sends an organisation to DAM through the hub
-func sendOrganisationToDAM(r *core.Record, app *pocketbase.PocketBase, baseURL, action string) {
-	if hubClient == nil {
-		log.Printf("[Webhook] Hub not configured, skipping DAM organisation/%s", action)
-		return
-	}
-	payload := buildDAMOrganisationPayload(r, baseURL, action)
-	if err := hubClient.Send("organisation", action, payload); err != nil {
-		log.Printf("[Webhook] Hub send failed for organisation/%s: %v", action, err)
-	} else {
-		log.Printf("[Webhook] Sent organisation/%s to hub", action)
-	}
-}
-
 // sendContactToDAMSync is like sendContactToDAM but uses a WaitGroup for synchronization
 func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
 	if hubClient == nil {
@@ -183,21 +141,6 @@ func sendContactToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, a
 		defer wg.Done()
 		if err := hubClient.Send("contact", action, payload); err != nil {
 			log.Printf("[Webhook] Hub send failed for contact/%s: %v", action, err)
-		}
-	}()
-}
-
-// sendOrganisationToDAMSync is like sendOrganisationToDAM but uses a WaitGroup for synchronization
-func sendOrganisationToDAMSync(r *core.Record, app *pocketbase.PocketBase, baseURL, action string, wg *sync.WaitGroup) {
-	if hubClient == nil {
-		return
-	}
-	payload := buildDAMOrganisationPayload(r, baseURL, action)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := hubClient.Send("organisation", action, payload); err != nil {
-			log.Printf("[Webhook] Hub send failed for organisation/%s: %v", action, err)
 		}
 	}()
 }
@@ -268,8 +211,9 @@ func buildContactWebhookPayload(r *core.Record, app *pocketbase.PocketBase, base
 	return data
 }
 
-// buildOrganisationWebhookPayload builds the webhook payload for an organisation
-func buildOrganisationWebhookPayload(r *core.Record, baseURL string) map[string]any {
+// buildOrganisationPayload builds the single canonical payload for an organisation.
+// Sent once to Hub, which routes to all consumers (Website, DAM, Presentations, Awards).
+func buildOrganisationPayload(r *core.Record) map[string]any {
 	logoURLs := r.Get("logo_urls")
 
 	// Fall back to DAM logo cache if record doesn't have logos
@@ -401,13 +345,10 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 			payload := WebhookPayload{
 				Action:     "upsert",
 				Collection: "organisations",
-				Record:     buildOrganisationWebhookPayload(e.Record, baseURL),
+				Record:     buildOrganisationPayload(e.Record),
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
 			sendWebhookToAllConsumers(app, payload)
-
-			// Send to DAM (projection format)
-			sendOrganisationToDAM(e.Record, app, baseURL, "upsert")
 		}()
 		return e.Next()
 	})
@@ -418,15 +359,11 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				payload := WebhookPayload{
 					Action:     "upsert",
 					Collection: "organisations",
-					Record:     buildOrganisationWebhookPayload(e.Record, baseURL),
+					Record:     buildOrganisationPayload(e.Record),
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
 				sendWebhookToAllConsumers(app, payload)
-
-				// Send to DAM (projection format)
-				sendOrganisationToDAM(e.Record, app, baseURL, "upsert")
 			} else {
-				// Send delete
 				payload := WebhookPayload{
 					Action:     "delete",
 					Collection: "organisations",
@@ -434,9 +371,6 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 					Timestamp:  time.Now().UTC().Format(time.RFC3339),
 				}
 				sendWebhookToAllConsumers(app, payload)
-
-				// Send delete to DAM
-				sendOrganisationToDAM(e.Record, app, baseURL, "delete")
 			}
 		}()
 		return e.Next()
@@ -451,9 +385,6 @@ func registerWebhookHooks(app *pocketbase.PocketBase) {
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
 			sendWebhookToAllConsumers(app, payload)
-
-			// Send to DAM
-			sendOrganisationToDAM(e.Record, app, baseURL, "delete")
 		}()
 		return e.Next()
 	})
@@ -548,11 +479,10 @@ func ProjectAll(app *pocketbase.PocketBase) (ProjectAllResult, error) {
 			payload := WebhookPayload{
 				Action:     "upsert",
 				Collection: "organisations",
-				Record:     buildOrganisationWebhookPayload(r, baseURL),
+				Record:     buildOrganisationPayload(r),
 				Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			}
 			sendWebhookToAllConsumersSync(app, payload, &wg)
-			sendOrganisationToDAMSync(r, app, baseURL, "upsert", &wg)
 		}
 	}
 

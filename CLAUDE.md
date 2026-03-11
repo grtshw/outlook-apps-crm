@@ -432,13 +432,22 @@ b, _ := json.Marshal(raw)
 json.Unmarshal(b, &items)
 ```
 
+### One Payload Per Entity
+
+CRM builds **one canonical payload per entity type** and sends it once to Hub. Hub routes the same payload to all consumers. Consumers handle whatever format they receive — CRM does not build consumer-specific payloads.
+
+- **Organisations**: `buildOrganisationPayload()` → single Hub send → all consumers (Website, DAM, Presentations, Awards)
+- **Contacts**: `buildContactWebhookPayload()` → single Hub send → Website, Presentations, Awards. A separate stripped-down payload (`buildDAMContactPayload()`) is sent for DAM because it must not receive PII (email, phone, bio).
+
+Do NOT create per-consumer payload builders or duplicate Hub sends. If a consumer needs data in a different shape, the consumer's receiver should transform it.
+
 ### Projection Flow
 
 1. Contact/Organisation created/updated in CRM
 2. Webhook hook fires (`webhooks.go`)
-3. Payload sent to the Hub (`hub.theoutlook.io`) via `hubClient.Send()`
+3. One payload built, sent once to Hub (`hub.theoutlook.io`) via `hubClient.Send()`
 4. Hub routes to all configured consumer apps (Presentations, DAM, Website, Awards)
-5. Consumers store in `contact_projections`/`org_projections` collections
+5. Each consumer's receiver transforms and stores as needed
 
 ### Projected Statuses
 
